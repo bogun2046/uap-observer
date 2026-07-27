@@ -1,0 +1,19 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Runtime data is reproducible from migrations and is not committed.
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Generated site content will be committed deliberately in a later phase.
+site/generated/
