@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-CORE_TABLES = ("news", "events", "persons", "relationships")
+CORE_TABLES = ("sources", "news", "events", "persons", "relationships")
 
 
 @dataclass(frozen=True)

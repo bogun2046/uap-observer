@@ -55,6 +55,35 @@ class EntityType(StringEnum):
     ORGANIZATION = "organization"
 
 
+class SourceType(StringEnum):
+    RSS = "rss"
+    API = "api"
+    WEB_PAGE = "web_page"
+
+
+@dataclass
+class Source:
+    slug: str
+    name: str
+    source_type: SourceType
+    homepage_url: str
+    default_category: NewsCategory
+    default_credibility: int
+    default_fact_status: FactStatus
+    id: int | None = None
+    feed_url: str | None = None
+    country: str | None = None
+    language: str | None = None
+    include_keywords: list[str] = field(default_factory=list)
+    exclude_keywords: list[str] = field(default_factory=list)
+    enabled: bool = True
+    etag: str | None = None
+    last_modified: str | None = None
+    last_fetched_at: str | None = None
+    last_success_at: str | None = None
+    last_error: str | None = None
+
+
 @dataclass
 class News:
     title: str
@@ -65,6 +94,8 @@ class News:
     credibility: int
     fact_status: FactStatus
     id: int | None = None
+    source_id: int | None = None
+    feed_entry_id: str | None = None
     canonical_url: str | None = None
     publish_date: str | None = None
     country: str | None = None

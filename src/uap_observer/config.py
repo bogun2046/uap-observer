@@ -10,6 +10,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATABASE_PATH = PROJECT_ROOT / "data" / "uap.db"
 DEFAULT_MIGRATIONS_PATH = PROJECT_ROOT / "migrations"
+DEFAULT_SOURCES_PATH = PROJECT_ROOT / "config" / "sources.json"
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class Settings:
 
     database_path: Path = DEFAULT_DATABASE_PATH
     migrations_path: Path = DEFAULT_MIGRATIONS_PATH
+    sources_path: Path = DEFAULT_SOURCES_PATH
 
     @classmethod
     def from_environment(cls) -> "Settings":

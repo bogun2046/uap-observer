@@ -15,6 +15,8 @@ from uap_observer.models import (
     NewsCategory,
     Person,
     Relationship,
+    Source,
+    SourceType,
 )
 from uap_observer.repositories import Repository
 
@@ -31,8 +33,11 @@ class DatabaseTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_directory.cleanup()
 
-    def test_initialize_creates_four_core_tables_and_is_idempotent(self) -> None:
-        self.assertEqual(self.database.initialize(), ["001_initial.sql"])
+    def test_initialize_creates_core_tables_and_is_idempotent(self) -> None:
+        self.assertEqual(
+            self.database.initialize(),
+            ["001_initial.sql", "002_sources.sql"],
+        )
         self.assertEqual(self.database.initialize(), [])
 
         with self.database.connect() as connection:
@@ -44,7 +49,7 @@ class DatabaseTests(unittest.TestCase):
             }
 
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
-        self.assertEqual(self.database.status().schema_version, "001_initial.sql")
+        self.assertEqual(self.database.status().schema_version, "002_sources.sql")
         self.assertEqual(
             self.database.status().row_counts,
             {table: 0 for table in CORE_TABLES},
@@ -92,6 +97,31 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(news_row["fact_status"], "official_record")
         self.assertEqual(relationship_row["evidence_news_id"], news_id)
         self.assertEqual(relationship_row["confidence"], 0.75)
+
+    def test_source_upsert_is_repeatable(self) -> None:
+        self.database.initialize()
+        repository = Repository(self.database)
+        source = Source(
+            slug="nasa",
+            name="NASA",
+            source_type=SourceType.RSS,
+            homepage_url="https://www.nasa.gov/",
+            feed_url="https://www.nasa.gov/feed/",
+            default_category=NewsCategory.OFFICIAL_REPORT,
+            default_credibility=5,
+            default_fact_status=FactStatus.OFFICIAL_RECORD,
+            include_keywords=["UAP"],
+        )
+
+        first_id = repository.upsert_source(source)
+        source.name = "NASA Recently Published"
+        second_id = repository.upsert_source(source)
+        stored = repository.get_sources(slug="nasa")
+
+        self.assertEqual(first_id, second_id)
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0].name, "NASA Recently Published")
+        self.assertEqual(stored[0].include_keywords, ["UAP"])
 
     def test_database_constraints_reject_invalid_credibility(self) -> None:
         self.database.initialize()

@@ -1,0 +1,27 @@
+{
+  "sources": [
+    {
+      "slug": "nasa-recent",
+      "name": "NASA Recently Published",
+      "source_type": "rss",
+      "homepage_url": "https://www.nasa.gov/",
+      "feed_url": "https://www.nasa.gov/feed/",
+      "country": "USA",
+      "language": "en",
+      "default_category": "official_report",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap",
+        "ufo"
+      ],
+      "exclude_keywords": [
+        "universal adversarial perturbation",
+        "adversarial attack"
+      ],
+      "enabled": true
+    }
+  ]
+}
