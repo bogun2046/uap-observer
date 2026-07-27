@@ -6,8 +6,12 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
+from uap_observer.collectors.rss import RssCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
+from uap_observer.models import SourceType
+from uap_observer.repositories import Repository
+from uap_observer.source_config import load_sources
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,6 +25,20 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("init-db", help="Create or migrate the SQLite database.")
     subparsers.add_parser("db-status", help="Show migration and row-count status.")
+
+    sync_parser = subparsers.add_parser(
+        "sync-sources",
+        help="Import version-controlled source definitions into SQLite.",
+    )
+    sync_parser.add_argument("--config", type=Path, help="Source JSON configuration path.")
+
+    collect_parser = subparsers.add_parser(
+        "collect-rss",
+        help="Collect enabled RSS sources incrementally.",
+    )
+    collect_parser.add_argument("--config", type=Path, help="Source JSON configuration path.")
+    collect_parser.add_argument("--source", help="Collect one source slug only.")
+    collect_parser.add_argument("--limit", type=int, help="Maximum feed entries per source.")
     return parser
 
 
@@ -38,6 +56,43 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     database.initialize()
+    repository = Repository(database)
+
+    if args.command in {"sync-sources", "collect-rss"}:
+        config_path = args.config or settings.sources_path
+        source_definitions = load_sources(config_path)
+        for source in source_definitions:
+            repository.upsert_source(source)
+        print(f"Synced {len(source_definitions)} source(s) from {config_path}")
+
+    if args.command == "sync-sources":
+        return 0
+
+    if args.command == "collect-rss":
+        if args.limit is not None and args.limit < 1:
+            raise SystemExit("--limit must be at least 1")
+        sources = repository.get_sources(
+            source_type=SourceType.RSS,
+            slug=args.source,
+        )
+        if args.source and not sources:
+            raise SystemExit(f"Enabled RSS source not found: {args.source}")
+        collector = RssCollector(repository)
+        total_inserted = 0
+        for source in sources:
+            result = collector.collect(source, limit=args.limit)
+            total_inserted += result.inserted
+            if result.not_modified:
+                print(f"{source.slug}: not modified")
+            else:
+                print(
+                    f"{source.slug}: fetched={result.fetched} inserted={result.inserted} "
+                    f"duplicates={result.duplicates} filtered={result.filtered} "
+                    f"invalid={result.invalid}"
+                )
+        print(f"RSS collection complete; inserted={total_inserted}")
+        return 0
+
     status = database.status()
     print(f"Database: {database.path}")
     print(f"Schema version: {status.schema_version}")
