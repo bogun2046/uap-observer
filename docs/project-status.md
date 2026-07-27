@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-07-27
+Last updated: 2026-07-28
 
 ## Phase 1 — automated news system
 
@@ -17,12 +17,17 @@ Last updated: 2026-07-27
 - [x] Add initial repository operations
 - [x] Test initialization, idempotency, persistence, and constraints
 - [x] Document architecture and local commands
+- [x] Add `sources` table and version-controlled source definitions
+- [x] Add NASA official RSS source
+- [x] Implement RSS and Atom parsing
+- [x] Add ETag and Last-Modified conditional requests
+- [x] Add URL normalization and database-level duplicate prevention
+- [x] Add UAP inclusion and machine-learning exclusion filters
+- [x] Add bounded RSS collection CLI
+- [x] Verify NASA live collection and immediate `not modified` repeat
 
 ### Next
 
-- [ ] Add the `sources` table and source configuration import
-- [ ] Implement RSS collection with conditional HTTP requests
-- [ ] Add URL normalization and content-hash deduplication
 - [ ] Add article text extraction
 - [ ] Add structured AI analysis and output validation
 - [ ] Generate Markdown pages
@@ -41,9 +46,12 @@ PYTHONPATH=src python3 -m uap_observer --database /tmp/uap.db db-status
 Expected database status after initialization:
 
 ```text
-Schema version: 001_initial.sql
+Schema version: 002_sources.sql
+sources: 0
 news: 0
 events: 0
 persons: 0
 relationships: 0
 ```
+
+After `sync-sources`, the current source count is `1`.

@@ -21,7 +21,7 @@ RSS / official APIs / monitored pages
        Markdown static publishing
 ```
 
-Only the SQLite foundation is implemented in the initial module.
+The SQLite foundation and first incremental RSS collector are implemented.
 
 ## Design decisions
 
@@ -68,6 +68,27 @@ Every connection enables foreign-key checks and WAL mode. Database files and
 WAL sidecar files are ignored by Git. Schema migrations and tests are committed,
 so a clean database is reproducible.
 
+### Source registry and incremental fetching
+
+`config/sources.json` is the reviewable source of truth. `sync-sources` upserts
+these definitions into the `sources` table without erasing fetch state.
+
+Each source stores:
+
+- feed and homepage URLs
+- default category, credibility, and fact status
+- inclusion and exclusion keywords
+- ETag and Last-Modified validators
+- latest fetch, success, and error state
+
+RSS collection uses conditional requests. Entries are normalized before insert,
+and unique database indexes protect both canonical URLs and
+`(source_id, feed_entry_id)` pairs.
+
+NASA's general Feed is not treated as UAP-only. Items must match configured UAP
+phrases, while machine-learning uses of “UAP” are explicitly excluded. A
+successful fetch containing no matching item is therefore a valid daily result.
+
 ## Planned modules
 
 ```text
@@ -81,5 +102,5 @@ src/uap_observer/
 └── repositories.py
 ```
 
-The next database extension should introduce a `sources` table to manage feed
-URLs, source types, default credibility, fetch timestamps, and enabled status.
+The next module should extract article text for accepted entries and produce
+schema-validated AI analysis without overwriting source material.
