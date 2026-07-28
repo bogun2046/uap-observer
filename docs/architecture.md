@@ -217,3 +217,12 @@ src/uap_observer/
 
 The next module should schedule collection, extraction, analysis, and Markdown
 publishing through GitHub Actions.
+
+### PostgreSQL migration bridge
+
+`supabase/schema.sql` is a reviewed PostgreSQL baseline, not an automatic
+production migration. It preserves numeric IDs for simpler SQLite import,
+converts list/object fields to `jsonb`, keeps source/news evidence foreign keys,
+and intentionally enables no anonymous/public policies. `export-json` writes a
+deterministic snapshot of every current table so an operator can validate row
+counts and sensitive fields before importing into Supabase.

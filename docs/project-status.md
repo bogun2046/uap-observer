@@ -66,6 +66,9 @@ Last updated: 2026-07-28
 - [x] Display related persons and events on news detail pages
 - [x] Generate persons index and relationship evidence table
 - [x] Test graph pages and detail-page entity rendering
+- [x] Add Supabase PostgreSQL schema baseline
+- [x] Add deterministic SQLite JSON snapshot export
+- [x] Test snapshot table coverage and row preservation
 
 ### Next
 
@@ -96,7 +99,7 @@ relationships: 0
 
 After `sync-sources`, the current source count is `1`.
 
-Current regression result: `32 passed`. The real local database is migrated to
+Current regression result: `33 passed`. The real local database is migrated to
 `004_ai_analysis.sql`; it currently contains one configured source and zero
 news rows. The empty-queue AI and Markdown CLI smoke tests complete without
 requiring a key or making an API request. Markdown smoke output contains four

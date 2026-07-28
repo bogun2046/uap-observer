@@ -26,6 +26,7 @@ Phase 1 establishes the local data foundation:
   and risk flags
 - deterministic Markdown generation for homepage, news, events, and timeline
 - relationship graph pages for persons, events, and news evidence links
+- PostgreSQL/Supabase schema baseline and reviewed SQLite JSON export
 - automated database tests
 
 The generated Markdown is ready for a GitHub Pages workflow. No frontend
@@ -87,6 +88,7 @@ uap-observer extract-articles --limit 20
 uap-observer analyze-articles --limit 10
 uap-observer link-entities --limit 1000
 uap-observer publish-markdown --output site/generated
+uap-observer export-json --output /tmp/uap-snapshot.json
 ```
 
 Without installing the package, commands can be run from the repository root:
@@ -153,6 +155,11 @@ minimal `persons` or `events` record when needed, preserves the AI confidence
 on the relationship, and marks newly inferred events as unverified pending
 human review. Organizations are retained on the person's `organization` field
 until a dedicated organizations table is introduced.
+
+For Phase 3 migration preparation, `supabase/schema.sql` mirrors the current
+SQLite model using PostgreSQL `jsonb` and identity keys. Export a reviewed
+snapshot with `export-json`; importing it into Supabase remains an operator
+step and no public RLS policy is enabled by default.
 
 ## Daily GitHub Actions workflow
 
