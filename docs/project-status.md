@@ -47,10 +47,15 @@ Last updated: 2026-07-28
 - [x] Add daily GitHub Actions workflow with manual dispatch
 - [x] Persist SQLite database between scheduled runners
 - [x] Upload and deploy generated Markdown to GitHub Pages
+- [x] Add The Debrief RSS source with keyword filtering
+- [x] Register AARO official press products for the future web-page collector
+- [x] Verify The Debrief RSS returns successfully through the HTTP fallback
+- [x] Fix curl fallback parsing when status markers are written to stdout
 
 ### Next
 
 - [ ] Add more official and reputable RSS/API sources
+- [ ] Implement web-page collector for AARO's official release tables
 - [ ] Replace committed SQLite persistence with Supabase PostgreSQL
 
 ## Verification
@@ -77,7 +82,7 @@ relationships: 0
 
 After `sync-sources`, the current source count is `1`.
 
-Current regression result: `24 passed`. The real local database is migrated to
+Current regression result: `25 passed`. The real local database is migrated to
 `004_ai_analysis.sql`; it currently contains one configured source and zero
 news rows. The empty-queue AI and Markdown CLI smoke tests complete without
 requiring a key or making an API request. Markdown smoke output contains four

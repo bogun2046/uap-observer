@@ -87,6 +87,10 @@ RSS collection uses conditional requests. Entries are normalized before insert,
 and unique database indexes protect both canonical URLs and
 `(source_id, feed_entry_id)` pairs.
 
+The HTTP adapter first uses Python's standard client and falls back to curl for
+servers that terminate chunked responses. The fallback accepts curl's status
+marker on either stderr or stdout and removes it before XML parsing.
+
 NASA's general Feed is not treated as UAP-only. Items must match configured UAP
 phrases, while machine-learning uses of “UAP” are explicitly excluded. A
 successful fetch containing no matching item is therefore a valid daily result.

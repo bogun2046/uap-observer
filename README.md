@@ -16,6 +16,8 @@ Phase 1 establishes the local data foundation:
 - `sources`, `news`, `events`, `persons`, and `relationships` tables
 - typed domain models and a small persistence layer
 - version-controlled source definitions
+- NASA official RSS and The Debrief RSS sources
+- AARO official press-products page registered for the future web-page collector
 - incremental RSS/Atom collection with conditional HTTP requests
 - URL normalization, keyword filtering, and duplicate prevention
 - article-body and metadata extraction with a durable processing queue
@@ -159,6 +161,14 @@ database, source files, or committed workflow YAML.
 `collect-rss` synchronizes `config/sources.json` before collection. Use
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and
 Last-Modified values; a source that has not changed reports `not modified`.
+
+The active RSS registry currently includes NASA's recently published feed and
+The Debrief's feed. AARO's official Congressional/Press Products page is
+registered but disabled until the planned web-page collector is implemented;
+the current RSS collector will not scrape it. NASA's feed is filtered for UAP
+keywords because the feed also contains unrelated space news. The Debrief is
+assigned source credibility 4 and `source_reported`; those values describe the
+source, not the truth of individual claims.
 
 The collector uses Python's standard HTTP client first. If a server repeatedly
 terminates HTTP/1.1 chunked transfer early, it can safely fall back to the
