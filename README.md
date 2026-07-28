@@ -84,6 +84,7 @@ uap-observer collect-web --source aaro-press-products --limit 20
 uap-observer collect-web --source aaro-case-resolutions --limit 20
 uap-observer extract-articles --limit 20
 uap-observer analyze-articles --limit 10
+uap-observer link-entities --limit 1000
 uap-observer publish-markdown --output site/generated
 ```
 
@@ -143,6 +144,13 @@ The output contains `index.md`, `news/index.md`, one detail page per analyzed
 news item, `events/index.md`, and `timeline.md`. `site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
 publish this directory as a build artifact.
+
+After AI analysis, `link-entities` creates idempotent `news → persons` and
+`news → events` relationships from validated `analysis_json`. It creates a
+minimal `persons` or `events` record when needed, preserves the AI confidence
+on the relationship, and marks newly inferred events as unverified pending
+human review. Organizations are retained on the person's `organization` field
+until a dedicated organizations table is introduced.
 
 ## Daily GitHub Actions workflow
 

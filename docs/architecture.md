@@ -187,6 +187,16 @@ creates a matching `events` record keyed by case name and extracted start date.
 Video links in the same row remain in the source page but are not downloaded or
 treated as independent claims.
 
+### Entity linking
+
+`link-entities` consumes only completed, schema-validated `analysis_json`. It
+creates or reuses case-insensitive `persons` and `events`, then adds unique
+`news → person` and `news → event` relationships with the analysis confidence
+and `evidence_news_id`. AI-inferred events start as `unverified` and include a
+human-review note. The operation is idempotent, so each daily run can safely
+reprocess completed analyses. Organizations remain person metadata until the
+knowledge-graph schema adds an organizations table.
+
 ## Module layout
 
 ```text

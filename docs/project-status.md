@@ -59,6 +59,10 @@ Last updated: 2026-07-28
 - [x] Add AARO case-resolution page source
 - [x] Create historical `events` rows from official case-resolution records
 - [x] Preserve official case assessment descriptions as news summaries
+- [x] Add idempotent entity-linking service for analyzed persons and events
+- [x] Create evidence-backed `news` to `persons/events` relationships
+- [x] Add `link-entities` CLI and daily workflow step
+- [x] Test relationship creation, confidence, deduplication, and invalid JSON
 
 ### Next
 
@@ -89,7 +93,7 @@ relationships: 0
 
 After `sync-sources`, the current source count is `1`.
 
-Current regression result: `30 passed`. The real local database is migrated to
+Current regression result: `32 passed`. The real local database is migrated to
 `004_ai_analysis.sql`; it currently contains one configured source and zero
 news rows. The empty-queue AI and Markdown CLI smoke tests complete without
 requiring a key or making an API request. Markdown smoke output contains four
