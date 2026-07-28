@@ -89,6 +89,7 @@ uap-observer analyze-articles --limit 10
 uap-observer link-entities --limit 1000
 uap-observer publish-markdown --output site/generated
 uap-observer export-json --output /tmp/uap-snapshot.json
+uap-observer snapshot-to-sql --input /tmp/uap-snapshot.json --output /tmp/uap-import.sql
 ```
 
 Without installing the package, commands can be run from the repository root:
@@ -159,7 +160,9 @@ until a dedicated organizations table is introduced.
 For Phase 3 migration preparation, `supabase/schema.sql` mirrors the current
 SQLite model using PostgreSQL `jsonb` and identity keys. Export a reviewed
 snapshot with `export-json`; importing it into Supabase remains an operator
-step and no public RLS policy is enabled by default.
+step. `snapshot-to-sql` generates reviewable `INSERT` statements and never
+generates `DROP` or destructive reset statements. No public RLS policy is
+enabled by default.
 
 ## Daily GitHub Actions workflow
 

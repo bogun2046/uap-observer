@@ -226,3 +226,8 @@ converts list/object fields to `jsonb`, keeps source/news evidence foreign keys,
 and intentionally enables no anonymous/public policies. `export-json` writes a
 deterministic snapshot of every current table so an operator can validate row
 counts and sensitive fields before importing into Supabase.
+
+`snapshot-to-sql` converts that snapshot into an explicit transaction of
+`INSERT ... OVERRIDING SYSTEM VALUE` statements and sequence updates. It emits
+review warnings and no destructive reset commands; the operator must review
+the generated SQL and run it only against an isolated target database.
