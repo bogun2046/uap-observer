@@ -44,10 +44,14 @@ Last updated: 2026-07-28
 - [x] Ensure published pages link sources without exposing article bodies
 - [x] Add `publish-markdown` CLI and empty-state output
 - [x] Test Markdown links, metadata, timeline, and no-body publishing
+- [x] Add daily GitHub Actions workflow with manual dispatch
+- [x] Persist SQLite database between scheduled runners
+- [x] Upload and deploy generated Markdown to GitHub Pages
 
 ### Next
 
-- [ ] Add a scheduled GitHub Actions workflow
+- [ ] Add more official and reputable RSS/API sources
+- [ ] Replace committed SQLite persistence with Supabase PostgreSQL
 
 ## Verification
 

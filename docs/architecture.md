@@ -151,6 +151,16 @@ produce valid pages with an explicit empty-state message. Generated files are
 written to `site/generated/`, which remains ignored until a deployment workflow
 is defined.
 
+### Scheduled execution
+
+`.github/workflows/daily-uap.yml` runs at 09:15 Asia/Shanghai and supports a
+manual dispatch. It initializes or migrates SQLite, syncs sources, collects RSS,
+extracts articles, conditionally runs AI analysis when `OPENAI_API_KEY` exists,
+publishes Markdown, checkpoints the WAL, commits the database, and deploys the
+generated directory to GitHub Pages. The committed SQLite file is a deliberate
+Phase 1 persistence bridge; Supabase PostgreSQL should replace it before the
+database becomes large or receives concurrent writers.
+
 ## Module layout
 
 ```text

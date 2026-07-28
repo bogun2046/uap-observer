@@ -140,6 +140,22 @@ news item, `events/index.md`, and `timeline.md`. `site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
 publish this directory as a build artifact.
 
+## Daily GitHub Actions workflow
+
+`.github/workflows/daily-uap.yml` runs daily at 09:15 Asia/Shanghai time and
+can also be started with `workflow_dispatch`. Before enabling it:
+
+1. Add the repository secret `OPENAI_API_KEY`.
+2. Enable GitHub Pages with **GitHub Actions** as the build source.
+3. Optionally set repository variables `OPENAI_MODEL` and
+   `OPENAI_REASONING_EFFORT`.
+
+The workflow persists `data/uap.db` back to the repository after a successful
+run, then uploads the generated Markdown to GitHub Pages. The database remains
+ignored for normal local development, but the workflow uses `git add -f` so
+history survives between scheduled runners. Do not place API keys in the
+database, source files, or committed workflow YAML.
+
 `collect-rss` synchronizes `config/sources.json` before collection. Use
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and
 Last-Modified values; a source that has not changed reports `not modified`.
