@@ -111,8 +111,29 @@ def _render_news_index(rows: list[dict[str, object]]) -> str:
     if not rows:
         lines.extend(("暂无已完成分析的新闻。", ""))
         return "\n".join(lines)
-    lines.extend(_render_news_cards(rows, link_prefix=""))
+    lines.extend(("按分类浏览：", ""))
+    categories: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        category = _text(row.get("category")) or "other"
+        categories.setdefault(category, []).append(row)
+    for category, category_rows in categories.items():
+        lines.extend((f"## {_escape_text(_category_label(category))}", ""))
+        lines.extend(_render_news_cards(category_rows, link_prefix=""))
     return "\n".join(lines)
+
+
+def _category_label(category: str) -> str:
+    labels = {
+        "official_report": "官方报告",
+        "government_document": "政府文件",
+        "military": "军事相关",
+        "scientific_research": "科学研究",
+        "historical_event": "历史事件",
+        "sighting": "目击事件",
+        "disputed_event": "争议事件",
+        "other": "其他",
+    }
+    return labels.get(category, category)
 
 
 def _render_news_cards(

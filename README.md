@@ -145,7 +145,7 @@ Generate static pages after analysis:
 .venv/bin/uap-observer publish-markdown --output site/generated --date 2026-07-28
 ```
 
-The output contains `index.md`, `news/index.md`, one detail page per analyzed
+The output contains `index.md`, a category-grouped `news/index.md`, one detail page per analyzed
 news item, `events/index.md`, `persons/index.md`, `organizations.md`,
 `relationships.md`, and `timeline.md`. `site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
