@@ -13,6 +13,7 @@ from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.entity_linking import EntityLinkingService
+from uap_observer.export_snapshot import export_snapshot
 from uap_observer.models import SourceType
 from uap_observer.publishing import MarkdownPublisher
 from uap_observer.repositories import Repository
@@ -99,6 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create person/event relationships from completed AI analysis.",
     )
     link_parser.add_argument("--limit", type=int, default=1000)
+
+    export_parser = subparsers.add_parser(
+        "export-json",
+        help="Export a reviewed JSON snapshot for PostgreSQL migration.",
+    )
+    export_parser.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -236,6 +243,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"relationships_created={run.relationships_created} "
             f"skipped_invalid={run.skipped_invalid}"
         )
+        return 0
+
+    if args.command == "export-json":
+        rows = export_snapshot(database, args.output)
+        print(f"SQLite snapshot exported; rows={rows} output={args.output}")
         return 0
 
     status = database.status()
