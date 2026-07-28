@@ -581,6 +581,18 @@ class Repository:
             )
             return int(cursor.lastrowid)
 
+    def event_exists(self, *, event_name: str, date_start: str | None) -> bool:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT 1 FROM events
+                WHERE event_name = ? AND (date_start = ? OR (date_start IS NULL AND ? IS NULL))
+                LIMIT 1
+                """,
+                (event_name, date_start, date_start),
+            ).fetchone()
+        return row is not None
+
     def add_person(self, item: Person) -> int:
         with self.database.connect() as connection:
             cursor = connection.execute(

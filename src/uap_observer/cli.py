@@ -9,7 +9,7 @@ from pathlib import Path
 from uap_observer.ai_analysis import AnalysisService, OpenAIAnalyzer
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
-from uap_observer.collectors.web_pages import AaroCollector
+from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.models import SourceType
@@ -155,13 +155,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if not sources:
             raise SystemExit(f"Enabled web-page source not found: {args.source}")
-        result = AaroCollector(repository).collect(sources[0], limit=args.limit)
+        collector = (
+            AaroCaseCollector(repository)
+            if args.source == "aaro-case-resolutions"
+            else AaroCollector(repository)
+        )
+        result = collector.collect(sources[0], limit=args.limit)
         if result.not_modified:
             print(f"{args.source}: not modified")
         else:
             print(
                 f"{args.source}: fetched={result.fetched} inserted={result.inserted} "
-                f"duplicates={result.duplicates} invalid={result.invalid}"
+                f"duplicates={result.duplicates} invalid={result.invalid} "
+                f"events={result.events_inserted}"
             )
         return 0
 

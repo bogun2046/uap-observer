@@ -64,6 +64,24 @@
       ],
       "exclude_keywords": [],
       "enabled": true
+    },
+    {
+      "slug": "aaro-case-resolutions",
+      "name": "AARO UAP Case Resolution Reports",
+      "source_type": "web_page",
+      "homepage_url": "https://www.aaro.mil/UAP-Cases/UAP-Case-Resolution-Reports/",
+      "country": "USA",
+      "language": "en",
+      "default_category": "historical_event",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [
+        "uap",
+        "case resolution",
+        "unidentified"
+      ],
+      "exclude_keywords": [],
+      "enabled": true
     }
   ]
 }

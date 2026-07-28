@@ -8,15 +8,21 @@ import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Protocol
 
-from uap_observer.models import News, Source, SourceType
+from uap_observer.models import Event, EventStatus, News, Source, SourceType
 from uap_observer.repositories import Repository
 from uap_observer.url_utils import normalize_url
 
 USER_AGENT = "UAPObserver/0.1 (+public-source research; contact via repository)"
 DATE_PATTERN = re.compile(r"\b(?:\d{1,2}/\d{1,2}/\d{4}|\d{4})\b")
+MONTH_DATE_PATTERN = re.compile(
+    r"\b(?:January|February|March|April|May|June|July|August|September|October|"
+    r"November|December)\s+\d{1,2},\s+\d{4}\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -74,11 +80,20 @@ class AaroRecord:
 
 
 @dataclass(frozen=True)
+class AaroCaseRecord:
+    case_name: str
+    source_url: str
+    description: str
+    date_start: str | None
+
+
+@dataclass(frozen=True)
 class WebCollectionResult:
     fetched: int = 0
     inserted: int = 0
     duplicates: int = 0
     invalid: int = 0
+    events_inserted: int = 0
     not_modified: bool = False
 
 
@@ -112,6 +127,34 @@ class AaroReleaseParser:
                 )
             )
         return _unique_records(records)
+
+
+class AaroCaseParser:
+    """Parse AARO case-resolution rows and retain the official assessment text."""
+
+    def parse(self, body: bytes, *, base_url: str) -> list[AaroCaseRecord]:
+        parser = _TableParser()
+        parser.feed(body.decode("utf-8", errors="replace"))
+        records: list[AaroCaseRecord] = []
+        for cells in parser.rows:
+            if len(cells) < 2:
+                continue
+            links = [cell for cell in cells if cell.href]
+            if not links:
+                continue
+            case_name = _clean_text(cells[0].text)
+            description = _clean_text(cells[1].text)
+            if not case_name or case_name.lower() in {"name", "description"} or not description:
+                continue
+            records.append(
+                AaroCaseRecord(
+                    case_name=case_name,
+                    source_url=normalize_url(links[0].href or "", base_url=base_url),
+                    description=description,
+                    date_start=_extract_date([description]),
+                )
+            )
+        return _unique_case_records(records)
 
 
 class AaroCollector:
@@ -184,6 +227,93 @@ class AaroCollector:
         )
 
 
+class AaroCaseCollector:
+    def __init__(
+        self,
+        repository: Repository,
+        fetcher: WebPageFetcher | None = None,
+        parser: AaroCaseParser | None = None,
+    ) -> None:
+        self.repository = repository
+        self.fetcher = fetcher or HttpWebPageFetcher()
+        self.parser = parser or AaroCaseParser()
+
+    def collect(self, source: Source, *, limit: int | None = None) -> WebCollectionResult:
+        if source.source_type is not SourceType.WEB_PAGE:
+            raise ValueError(f"Source {source.slug!r} is not a web page source")
+        response = self.fetcher.fetch(
+            source.homepage_url,
+            etag=source.etag,
+            last_modified=source.last_modified,
+        )
+        self.repository.record_source_fetch(
+            source.id or 0,
+            etag=response.etag,
+            last_modified=response.last_modified,
+        )
+        if response.status == 304:
+            return WebCollectionResult(not_modified=True)
+        if response.status != 200:
+            raise RuntimeError(f"Web page returned HTTP {response.status}")
+
+        records = self.parser.parse(response.body, base_url=source.homepage_url)
+        if limit is not None:
+            records = records[:limit]
+        inserted = duplicates = invalid = events_inserted = 0
+        for record in records:
+            if not record.case_name or not record.source_url:
+                invalid += 1
+                continue
+            record_id = _record_id(record.source_url)
+            if self.repository.news_exists(
+                canonical_url=record.source_url,
+                source_id=source.id,
+                feed_entry_id=record_id,
+            ):
+                duplicates += 1
+                continue
+            self.repository.add_news(
+                News(
+                    title=record.case_name,
+                    original_title=record.case_name,
+                    source=source.name,
+                    source_url=record.source_url,
+                    canonical_url=record.source_url,
+                    publish_date=record.date_start,
+                    country=source.country,
+                    category=source.default_category,
+                    credibility=source.default_credibility,
+                    fact_status=source.default_fact_status,
+                    summary=record.description,
+                    source_id=source.id,
+                    feed_entry_id=record_id,
+                )
+            )
+            if not self.repository.event_exists(
+                event_name=record.case_name,
+                date_start=record.date_start,
+            ):
+                self.repository.add_event(
+                    Event(
+                        event_name=record.case_name,
+                        date_start=record.date_start,
+                        country=source.country,
+                        description=record.description,
+                        status=EventStatus.OFFICIAL_RECORD,
+                        credibility=source.default_credibility,
+                    )
+                )
+                events_inserted += 1
+            inserted += 1
+        return WebCollectionResult(
+            fetched=len(records),
+            inserted=inserted,
+            duplicates=duplicates,
+            invalid=invalid,
+            events_inserted=events_inserted,
+        )
+
+
 @dataclass
 class _Cell:
     text: str
@@ -208,7 +338,7 @@ class _TableParser(HTMLParser):
             self._cell_href = None
             self._cell_tag = tag
         elif tag == "a" and self._cell_text is not None:
-            self._cell_href = dict(attrs).get("href")
+            self._cell_href = self._cell_href or dict(attrs).get("href")
 
     def handle_data(self, data: str) -> None:
         if self._cell_text is not None:
@@ -233,6 +363,12 @@ def _clean_text(value: str) -> str:
 
 def _extract_date(values: list[str]) -> str | None:
     for value in values:
+        month_match = MONTH_DATE_PATTERN.search(value)
+        if month_match:
+            parsed = datetime.strptime(month_match.group(0).title(), "%B %d, %Y").replace(
+                tzinfo=timezone.utc
+            )
+            return parsed.date().isoformat()
         match = DATE_PATTERN.search(value)
         if not match:
             continue
@@ -251,6 +387,17 @@ def _record_id(source_url: str) -> str:
 def _unique_records(records: list[AaroRecord]) -> list[AaroRecord]:
     seen: set[str] = set()
     unique: list[AaroRecord] = []
+    for record in records:
+        if record.source_url in seen:
+            continue
+        seen.add(record.source_url)
+        unique.append(record)
+    return unique
+
+
+def _unique_case_records(records: list[AaroCaseRecord]) -> list[AaroCaseRecord]:
+    seen: set[str] = set()
+    unique: list[AaroCaseRecord] = []
     for record in records:
         if record.source_url in seen:
             continue

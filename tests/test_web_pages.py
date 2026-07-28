@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 
 from uap_observer.collectors.web_pages import (
+    AaroCaseCollector,
+    AaroCaseParser,
     AaroCollector,
     AaroReleaseParser,
     WebPageResponse,
@@ -30,6 +32,17 @@ HTML = b"""
       <td><a href="/press/2026">AARO press release</a></td></tr>
 </table>
 </body></html>
+"""
+
+CASE_HTML = b"""
+<table>
+  <tr><th>Name</th><th>Description</th><th>Links</th></tr>
+  <tr><td>Al Taqaddam Case Resolution</td>
+      <td>On October 23, 2017, an infrared sensor recorded an object.
+      AARO assesses with high confidence that it was consistent with balloons.</td>
+      <td><a href="/cases/al-taqaddam.pdf">Al Taqaddam Case Resolution</a>
+      <a href="https://example.test/video">Object Video</a></td></tr>
+</table>
 """
 
 
@@ -103,6 +116,44 @@ class WebPageTests(unittest.TestCase):
 
         self.assertTrue(result.not_modified)
         self.assertEqual(result.fetched, 0)
+
+    def test_case_parser_extracts_assessment_and_first_resolution_link(self) -> None:
+        records = AaroCaseParser().parse(
+            CASE_HTML,
+            base_url="https://www.aaro.mil/UAP-Cases/UAP-Case-Resolution-Reports/",
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].case_name, "Al Taqaddam Case Resolution")
+        self.assertEqual(records[0].date_start, "2017-10-23")
+        self.assertIn("balloons", records[0].description)
+        self.assertEqual(
+            records[0].source_url,
+            "https://www.aaro.mil/cases/al-taqaddam.pdf",
+        )
+
+    def test_case_collector_creates_news_and_event_once(self) -> None:
+        source = Source(
+            slug="aaro-case-test",
+            name="AARO Cases",
+            source_type=SourceType.WEB_PAGE,
+            homepage_url="https://www.aaro.mil/UAP-Cases/UAP-Case-Resolution-Reports/",
+            default_category=NewsCategory.HISTORICAL_EVENT,
+            default_credibility=5,
+            default_fact_status=FactStatus.OFFICIAL_RECORD,
+        )
+        source.id = self.repository.upsert_source(source)
+        collector = AaroCaseCollector(
+            self.repository,
+            FakeFetcher(WebPageResponse(status=200, body=CASE_HTML)),
+        )
+        first = collector.collect(source)
+        second = collector.collect(source)
+
+        self.assertEqual(first.inserted, 1)
+        self.assertEqual(first.events_inserted, 1)
+        self.assertEqual(second.duplicates, 1)
+        self.assertEqual(self.database.status().row_counts["events"], 1)
 
 
 if __name__ == "__main__":
