@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-TABLE_ORDER = ("sources", "events", "persons", "news", "relationships")
+TABLE_ORDER = ("sources", "organizations", "events", "persons", "news", "relationships")
 JSONB_FIELDS = {
     "include_keywords",
     "exclude_keywords",

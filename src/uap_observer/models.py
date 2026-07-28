@@ -176,6 +176,16 @@ class Person:
 
 
 @dataclass
+class Organization:
+    name: str
+    id: int | None = None
+    country: str | None = None
+    description: str | None = None
+    created_time: str | None = None
+    updated_time: str | None = None
+
+
+@dataclass
 class Relationship:
     source_type: EntityType
     source_id: int

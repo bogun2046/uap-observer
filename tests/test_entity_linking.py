@@ -60,15 +60,17 @@ class EntityLinkingTests(unittest.TestCase):
             )
         return news_id
 
-    def test_links_person_and_event_idempotently(self) -> None:
+    def test_links_person_organization_and_event_idempotently(self) -> None:
         news_id = self.add_analyzed_news()
         first = EntityLinkingService(self.repository).run()
         second = EntityLinkingService(self.repository).run()
 
         self.assertEqual(first.records, 1)
         self.assertEqual(first.persons_created, 1)
+        self.assertEqual(first.organizations_created, 1)
         self.assertEqual(first.events_created, 1)
-        self.assertEqual(first.relationships_created, 2)
+        self.assertEqual(first.relationships_created, 3)
+        self.assertEqual(second.organizations_created, 0)
         self.assertEqual(second.persons_created, 0)
         self.assertEqual(second.events_created, 0)
         self.assertEqual(second.relationships_created, 0)
@@ -79,7 +81,7 @@ class EntityLinkingTests(unittest.TestCase):
             ).fetchall()
             person = connection.execute("SELECT * FROM persons").fetchone()
             event = connection.execute("SELECT * FROM events").fetchone()
-        self.assertEqual(len(relationships), 2)
+        self.assertEqual(len(relationships), 3)
         self.assertEqual(person["organization"], "Test Agency")
         self.assertEqual(event["event_name"], "Example Event")
         self.assertEqual(event["status"], "unverified")

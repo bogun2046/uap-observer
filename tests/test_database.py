@@ -40,6 +40,7 @@ class DatabaseTests(unittest.TestCase):
                 "002_sources.sql",
                 "003_article_extraction.sql",
                 "004_ai_analysis.sql",
+                "005_organizations.sql",
             ],
         )
         self.assertEqual(self.database.initialize(), [])
@@ -55,7 +56,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
         self.assertEqual(
             self.database.status().schema_version,
-            "004_ai_analysis.sql",
+            "005_organizations.sql",
         )
         self.assertEqual(
             self.database.status().row_counts,

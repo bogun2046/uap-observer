@@ -5,7 +5,14 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from uap_observer.models import EntityType, Event, EventStatus, Person, Relationship
+from uap_observer.models import (
+    EntityType,
+    Event,
+    EventStatus,
+    Organization,
+    Person,
+    Relationship,
+)
 from uap_observer.repositories import Repository
 
 
@@ -14,6 +21,7 @@ class EntityLinkRun:
     records: int = 0
     persons_created: int = 0
     events_created: int = 0
+    organizations_created: int = 0
     relationships_created: int = 0
     skipped_invalid: int = 0
 
@@ -26,7 +34,11 @@ class EntityLinkingService:
         if limit < 1:
             raise ValueError("limit must be at least 1")
         records = self.repository.get_completed_analysis_records(limit=limit)
-        persons_created = events_created = relationships_created = skipped = 0
+        persons_created = 0
+        events_created = 0
+        organizations_created = 0
+        relationships_created = 0
+        skipped = 0
         for record in records:
             try:
                 analysis = json.loads(str(record["analysis_json"]))
@@ -40,6 +52,19 @@ class EntityLinkingService:
             news_id = int(record["id"])
             organizations = _string_list(analysis.get("named_organizations"))
             organization = ", ".join(organizations) or None
+            for organization_name in organizations:
+                organization_id = self.repository.get_organization_id(name=organization_name)
+                if organization_id is None:
+                    organization_id = self.repository.add_organization(
+                        Organization(name=organization_name)
+                    )
+                    organizations_created += 1
+                relationships_created += self._link(
+                    news_id,
+                    EntityType.ORGANIZATION,
+                    organization_id,
+                    confidence,
+                )
             for name in _string_list(analysis.get("named_persons")):
                 person_id = self.repository.get_person_id(name=name)
                 if person_id is None:
@@ -76,6 +101,7 @@ class EntityLinkingService:
             persons_created=persons_created,
             events_created=events_created,
             relationships_created=relationships_created,
+            organizations_created=organizations_created,
             skipped_invalid=skipped,
         )
 
@@ -86,7 +112,11 @@ class EntityLinkingService:
         target_id: int,
         confidence: float,
     ) -> int:
-        relationship_type = "mentions_person" if target_type is EntityType.PERSON else "mentions_event"
+        relationship_type = {
+            EntityType.PERSON: "mentions_person",
+            EntityType.EVENT: "mentions_event",
+            EntityType.ORGANIZATION: "mentions_organization",
+        }[target_type]
         if self.repository.relationship_exists(
             source_type=EntityType.NEWS,
             source_id=news_id,

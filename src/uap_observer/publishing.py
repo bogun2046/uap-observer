@@ -33,6 +33,7 @@ class MarkdownPublisher:
         news = self.repository.get_published_news(limit=limit)
         events = self.repository.get_events_for_timeline(limit=limit)
         persons = self.repository.get_persons(limit=limit)
+        organizations = self.repository.get_organizations(limit=limit)
         relationships = self.repository.get_relationships(limit=limit * 2)
         news_directory = self.output_directory / "news"
         events_directory = self.output_directory / "events"
@@ -74,6 +75,10 @@ class MarkdownPublisher:
         (self.output_directory / "persons").mkdir(parents=True, exist_ok=True)
         (self.output_directory / "persons" / "index.md").write_text(
             _render_persons_index(persons),
+            encoding="utf-8",
+        )
+        (self.output_directory / "organizations.md").write_text(
+            _render_organizations(organizations),
             encoding="utf-8",
         )
         (self.output_directory / "relationships.md").write_text(
@@ -167,8 +172,14 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     lines.extend(("", "## 相关人物与事件", ""))
     if entities:
         for entity in entities:
-            name = _text(entity.get("entity_name")) or _text(entity.get("event_name"))
-            kind = "人物" if entity.get("entity_type") == "person" else "事件"
+            name = (
+                _text(entity.get("entity_name"))
+                or _text(entity.get("event_name"))
+                or _text(entity.get("organization_name"))
+            )
+            kind = {"person": "人物", "event": "事件", "organization": "机构"}.get(
+                str(entity.get("entity_type")), "实体"
+            )
             lines.append(f"- {kind}：{_escape_text(name)}")
     else:
         lines.append("- 暂无已建立的关系。")
@@ -232,7 +243,11 @@ def _render_relationships(relationships: list[dict[str, object]]) -> str:
         return "\n".join(lines + ["暂无已建立的关系。", ""])
     lines.extend(("| 新闻 | 关系 | 实体 | 置信度 |", "| --- | --- | --- | --- |"))
     for relationship in relationships:
-        entity = _text(relationship.get("person_name")) or _text(relationship.get("event_name"))
+        entity = (
+            _text(relationship.get("person_name"))
+            or _text(relationship.get("event_name"))
+            or _text(relationship.get("organization_name"))
+        )
         confidence = relationship.get("confidence")
         confidence_text = f"{float(confidence):.2f}" if confidence is not None else "—"
         lines.append(
@@ -242,6 +257,22 @@ def _render_relationships(relationships: list[dict[str, object]]) -> str:
             f"{_escape_table(entity)} | {confidence_text} |"
         )
     lines.append("")
+    return "\n".join(lines)
+
+
+def _render_organizations(organizations: list[dict[str, object]]) -> str:
+    lines = ["---", 'title: "机构"', "layout: default", "---", ""]
+    if not organizations:
+        return "\n".join(lines + ["暂无已建立的机构实体。", ""])
+    for organization in organizations:
+        lines.extend(
+            (
+                f"## {_escape_text(_text(organization.get('name')) or '未命名机构')}",
+                "",
+                _escape_text(_text(organization.get("description")) or "暂无描述。"),
+                "",
+            )
+        )
     return "\n".join(lines)
 
 

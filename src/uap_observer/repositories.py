@@ -14,6 +14,7 @@ from uap_observer.models import (
     FactStatus,
     News,
     NewsCategory,
+    Organization,
     Person,
     Relationship,
     Source,
@@ -450,17 +451,30 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_organizations(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, name, country, description FROM organizations ORDER BY lower(name) LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_news_entities(self, news_id: int) -> list[dict[str, object]]:
         with self.database.connect() as connection:
             rows = connection.execute(
                 """
                 SELECT r.target_type AS entity_type, r.relationship_type,
-                       r.confidence, p.name AS entity_name, e.event_name
+                       r.confidence, p.name AS entity_name, e.event_name,
+                       o.name AS organization_name
                 FROM relationships AS r
                 LEFT JOIN persons AS p
                   ON r.target_type = 'person' AND r.target_id = p.id
                 LEFT JOIN events AS e
                   ON r.target_type = 'event' AND r.target_id = e.id
+                LEFT JOIN organizations AS o
+                  ON r.target_type = 'organization' AND r.target_id = o.id
                 WHERE r.source_type = 'news' AND r.source_id = ?
                 ORDER BY r.target_type, COALESCE(p.name, e.event_name)
                 """,
@@ -476,13 +490,16 @@ class Repository:
                 """
                 SELECT r.id, r.source_id AS news_id, n.title AS news_title,
                        r.target_type AS entity_type, r.relationship_type,
-                       r.confidence, p.name AS person_name, e.event_name
+                       r.confidence, p.name AS person_name, e.event_name,
+                       o.name AS organization_name
                 FROM relationships AS r
                 JOIN news AS n ON r.source_type = 'news' AND r.source_id = n.id
                 LEFT JOIN persons AS p
                   ON r.target_type = 'person' AND r.target_id = p.id
                 LEFT JOIN events AS e
                   ON r.target_type = 'event' AND r.target_id = e.id
+                LEFT JOIN organizations AS o
+                  ON r.target_type = 'organization' AND r.target_id = o.id
                 ORDER BY r.id DESC
                 LIMIT ?
                 """,
@@ -511,6 +528,14 @@ class Repository:
         with self.database.connect() as connection:
             row = connection.execute(
                 "SELECT id FROM persons WHERE lower(name) = lower(?) LIMIT 1",
+                (name,),
+            ).fetchone()
+        return int(row["id"]) if row else None
+
+    def get_organization_id(self, *, name: str) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM organizations WHERE lower(name) = lower(?) LIMIT 1",
                 (name,),
             ).fetchone()
         return int(row["id"]) if row else None
@@ -713,6 +738,14 @@ class Repository:
                 VALUES (?, ?, ?, ?)
                 """,
                 (item.name, item.country, item.organization, item.description),
+            )
+            return int(cursor.lastrowid)
+
+    def add_organization(self, item: Organization) -> int:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO organizations (name, country, description) VALUES (?, ?, ?)",
+                (item.name, item.country, item.description),
             )
             return int(cursor.lastrowid)
 

@@ -248,6 +248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"Entity linking complete; records={run.records} "
             f"persons_created={run.persons_created} events_created={run.events_created} "
+            f"organizations_created={run.organizations_created} "
             f"relationships_created={run.relationships_created} "
             f"skipped_invalid={run.skipped_invalid}"
         )
