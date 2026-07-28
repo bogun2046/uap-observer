@@ -19,10 +19,13 @@ Phase 1 establishes the local data foundation:
 - incremental RSS/Atom collection with conditional HTTP requests
 - URL normalization, keyword filtering, and duplicate prevention
 - article-body and metadata extraction with a durable processing queue
+- source-grounded structured AI analysis through the OpenAI Responses API
+- strict validation for Chinese summaries, fact state, entities, confidence,
+  and risk flags
 - automated database tests
 
-Structured AI analysis, Markdown publishing, and the website are the next
-modules. No frontend is included yet.
+Markdown publishing and the website are the next modules. No frontend is
+included yet.
 
 ## Project structure
 
@@ -35,11 +38,15 @@ modules. No frontend is included yet.
 │   ├── architecture.md         # Architecture and design decisions
 │   └── project-status.md       # Phase checklist and current status
 ├── migrations/
-│   └── 001_initial.sql         # Initial schema
+│   ├── 001_initial.sql         # Initial schema
+│   ├── 002_sources.sql         # Managed source registry
+│   ├── 003_article_extraction.sql
+│   └── 004_ai_analysis.sql     # AI queue audit and validation fields
 ├── src/uap_observer/
-│   ├── cli.py                  # init-db and db-status commands
+│   ├── cli.py                  # Pipeline commands
 │   ├── collectors/rss.py       # RSS/Atom incremental collector
 │   ├── article_extraction.py   # Article extraction queue and adapter
+│   ├── ai_analysis.py          # Structured analysis schema and adapter
 │   ├── config.py               # Environment-based configuration
 │   ├── database.py             # SQLite connection and migrations
 │   ├── models.py               # Domain models and controlled values
@@ -47,7 +54,10 @@ modules. No frontend is included yet.
 │   ├── source_config.py        # Source configuration validation
 │   └── url_utils.py            # Canonical URL normalization
 ├── tests/
-│   └── test_database.py
+│   ├── test_ai_analysis.py
+│   ├── test_article_extraction.py
+│   ├── test_database.py
+│   └── test_rss_collector.py
 ├── .env.example
 ├── .gitignore
 └── pyproject.toml
@@ -67,6 +77,7 @@ uap-observer db-status
 uap-observer sync-sources
 uap-observer collect-rss --source nasa-recent
 uap-observer extract-articles --limit 20
+uap-observer analyze-articles --limit 10
 ```
 
 Without installing the package, commands can be run from the repository root:
@@ -91,6 +102,29 @@ content hash, skips exact-content duplicates, and records bounded failure
 messages. Processing tasks left incomplete for more than one hour are recovered
 automatically.
 
+AI analysis requires `OPENAI_API_KEY` only when the queue contains extracted
+articles. Export it in the shell or a secret manager; do not put a real key in
+Git:
+
+```bash
+export OPENAI_API_KEY="your-key"
+export OPENAI_MODEL="gpt-5.6-luna"
+.venv/bin/uap-observer analyze-articles --limit 10
+.venv/bin/uap-observer analyze-articles --limit 10 --retry-failed
+```
+
+The daily-processing default is `gpt-5.6-luna` with low reasoning effort to
+control cost. `OPENAI_MODEL` or `--model` can select another available model.
+The adapter uses non-streaming Structured Outputs through the Responses API and
+sets `store=False`.
+
+Each result must pass a strict Pydantic schema before it is committed. The
+processor writes the Chinese title and summary, category, fact status, key
+facts, viewpoints, named entities, analysis confidence, risk flags, model,
+response ID, prompt/schema version, and canonical JSON. Source credibility is
+not changed by the model. Failed items remain auditable and are retried only
+with `--retry-failed`; stale claims are recovered after one hour.
+
 `collect-rss` synchronizes `config/sources.json` before collection. Use
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and
 Last-Modified values; a source that has not changed reports `not modified`.
@@ -113,7 +147,7 @@ uap-observer --database /absolute/path/uap.db init-db
 Run the full suite in the installed environment:
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m pytest
 ```
 
 Optional developer tools can be installed with:
@@ -127,7 +161,10 @@ ruff check .
 ## Data rules
 
 - Original source fields and AI-generated fields remain distinguishable.
+- AI output is grounded only in supplied source text and validated before save.
 - `credibility` is a 1–5 source assessment, not proof of a claim.
+- `analysis_confidence` measures extraction quality, not truth of extraordinary
+  claims.
 - `fact_status` identifies whether content is an official record, corroborated,
   source-reported, unverified, disputed, or opinion.
 - Relationships may cite `evidence_news_id` and a confidence score.

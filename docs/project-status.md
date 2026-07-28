@@ -31,10 +31,17 @@ Last updated: 2026-07-28
 - [x] Add failed-item retry and stale-processing recovery
 - [x] Pin Python 3.9-compatible Trafilatura and urllib3 versions
 - [x] Verify extraction against a live NASA article
+- [x] Add strict structured AI analysis schema
+- [x] Add non-streaming OpenAI Responses API adapter
+- [x] Ground summaries and fact states only in supplied source text
+- [x] Add AI queue claims, bounded failures, explicit retry, and stale recovery
+- [x] Persist model, response ID, schema version, confidence, risk flags, and JSON
+- [x] Keep source credibility separate from AI analysis confidence
+- [x] Add `analyze-articles` CLI and environment-based model configuration
+- [x] Test successful, failed, retried, stale, and mocked provider paths
 
 ### Next
 
-- [ ] Add structured AI analysis and output validation
 - [ ] Generate Markdown pages
 - [ ] Add a scheduled GitHub Actions workflow
 
@@ -43,15 +50,16 @@ Last updated: 2026-07-28
 The current baseline is verified with:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-PYTHONPATH=src python3 -m uap_observer --database /tmp/uap.db init-db
-PYTHONPATH=src python3 -m uap_observer --database /tmp/uap.db db-status
+.venv/bin/python -m pytest
+.venv/bin/uap-observer --database /tmp/uap-observer-test.db init-db
+.venv/bin/uap-observer --database /tmp/uap-observer-test.db db-status
+.venv/bin/uap-observer analyze-articles --limit 1
 ```
 
 Expected database status after initialization:
 
 ```text
-Schema version: 003_article_extraction.sql
+Schema version: 004_ai_analysis.sql
 sources: 0
 news: 0
 events: 0
@@ -60,3 +68,8 @@ relationships: 0
 ```
 
 After `sync-sources`, the current source count is `1`.
+
+Current regression result: `22 passed`. The real local database is migrated to
+`004_ai_analysis.sql`; it currently contains one configured source and zero
+news rows. The empty-queue AI CLI smoke test completes without requiring a key
+or making an API request.

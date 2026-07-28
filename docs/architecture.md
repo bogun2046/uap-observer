@@ -21,8 +21,8 @@ RSS / official APIs / monitored pages
        Markdown static publishing
 ```
 
-The SQLite foundation, incremental RSS collector, and article extraction queue
-are implemented.
+The SQLite foundation, incremental RSS collector, article extraction queue, and
+structured AI analysis queue are implemented.
 
 ## Design decisions
 
@@ -111,18 +111,47 @@ Trafilatura is isolated behind an adapter. Version 1.12.2 is pinned for Python
 3.9 compatibility; the adapter can move to the current 2.x API after the
 project runtime is upgraded to Python 3.10+.
 
-## Planned modules
+### Structured AI analysis
+
+Only rows with completed article extraction enter the AI queue. The queue
+reuses `processing_status` and adds attempt, start, error, schema version,
+response ID, model, confidence, risk flags, and canonical JSON audit fields.
+Claims are compare-and-update claimed, failed items require explicit retry, and
+stale processing claims are recovered after one hour.
+
+`ArticleAnalysis` is a strict Pydantic schema. Unknown fields, unsupported
+controlled values, out-of-range confidence, empty list entries, and duplicate
+list entries are rejected before persistence. The model produces:
+
+- Simplified Chinese title and summary
+- controlled category and fact status
+- directly supported key facts and attributed viewpoints
+- named persons, organizations, and related events
+- analysis confidence and controlled risk flags
+
+The prompt permits only supplied source text, preserves attribution and
+uncertainty, and distinguishes the existence of an official record from the
+truth of claims inside it. Source credibility remains deterministic metadata
+and is never overwritten by model output.
+
+The OpenAI adapter uses the non-streaming Responses API Structured Outputs
+helper, disables response storage, and reads credentials only from
+`OPENAI_API_KEY`. The cost-oriented daily default is `gpt-5.6-luna` with low
+reasoning effort, while environment and CLI overrides support controlled model
+migrations.
+
+## Module layout
 
 ```text
 src/uap_observer/
 ├── collectors/       # RSS, official API, and monitored-page adapters
 ├── processing/       # normalization, relevance, deduplication
-├── ai/               # schema-validated AI output
+├── ai_analysis.py    # schema-validated AI output and Responses API adapter
 ├── publishing/       # Markdown generation
 ├── database.py
 ├── models.py
 └── repositories.py
 ```
 
-The next module should produce schema-validated AI analysis from extracted text
-without overwriting source material.
+The next module should generate source-linked Markdown from completed analysis
+without publishing copyrighted article bodies.
