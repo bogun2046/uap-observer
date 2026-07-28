@@ -175,6 +175,10 @@ can also be started with `workflow_dispatch`. Before enabling it:
 3. Optionally set repository variables `OPENAI_MODEL` and
    `OPENAI_REASONING_EFFORT`.
 
+The workflow installs the development extras and runs the full regression
+suite before touching the database or collecting remote sources. A failing
+test stops the scheduled publish.
+
 The workflow persists `data/uap.db` back to the repository after a successful
 run, then uploads the generated Markdown to GitHub Pages. The database remains
 ignored for normal local development, but the workflow uses `git add -f` so
