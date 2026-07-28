@@ -6,6 +6,8 @@ import json
 
 from uap_observer.database import Database
 from uap_observer.models import (
+    AnalysisRiskFlag,
+    AnalysisTask,
     ArticleTask,
     Event,
     FactStatus,
@@ -250,6 +252,154 @@ class Repository:
                     f"duplicate content of news_id={duplicate_of_news_id}; hash={content_hash}",
                     news_id,
                 ),
+            )
+
+    def get_analysis_tasks(
+        self,
+        *,
+        limit: int,
+        retry_failed: bool = False,
+    ) -> list[AnalysisTask]:
+        statuses = ("pending", "failed") if retry_failed else ("pending",)
+        placeholders = ", ".join("?" for _ in statuses)
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT id, original_title, source, source_url, publish_date,
+                       extracted_content, analysis_attempts
+                FROM news
+                WHERE processing_status IN ({placeholders})
+                  AND extraction_status = 'completed'
+                  AND extracted_content IS NOT NULL
+                  AND length(trim(extracted_content)) > 0
+                ORDER BY publish_date ASC, id ASC
+                LIMIT ?
+                """,
+                (*statuses, limit),
+            ).fetchall()
+        return [
+            AnalysisTask(
+                news_id=row["id"],
+                original_title=row["original_title"],
+                source=row["source"],
+                source_url=row["source_url"],
+                publish_date=row["publish_date"],
+                extracted_content=row["extracted_content"],
+                analysis_attempts=row["analysis_attempts"],
+            )
+            for row in rows
+        ]
+
+    def reset_stale_analysis_tasks(self, *, stale_after_minutes: int = 60) -> int:
+        if stale_after_minutes < 1:
+            raise ValueError("stale_after_minutes must be at least 1")
+        modifier = f"-{stale_after_minutes} minutes"
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE news
+                SET processing_status = 'pending',
+                    analysis_started_at = NULL,
+                    analysis_error = 'Recovered stale processing task',
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE processing_status = 'processing'
+                  AND analysis_started_at < strftime(
+                      '%Y-%m-%dT%H:%M:%fZ', 'now', ?
+                  )
+                """,
+                (modifier,),
+            )
+        return cursor.rowcount
+
+    def claim_analysis_task(self, news_id: int, *, retry_failed: bool = False) -> bool:
+        statuses = ("pending", "failed") if retry_failed else ("pending",)
+        placeholders = ", ".join("?" for _ in statuses)
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                f"""
+                UPDATE news
+                SET processing_status = 'processing',
+                    analysis_attempts = analysis_attempts + 1,
+                    analysis_started_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    analysis_error = NULL,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                  AND processing_status IN ({placeholders})
+                  AND extraction_status = 'completed'
+                """,
+                (news_id, *statuses),
+            )
+        return cursor.rowcount == 1
+
+    def complete_analysis(
+        self,
+        news_id: int,
+        *,
+        title: str,
+        summary: str,
+        category: NewsCategory,
+        fact_status: FactStatus,
+        key_facts: list[str],
+        viewpoints: list[str],
+        model: str,
+        response_id: str | None,
+        analysis_version: str,
+        confidence: float,
+        risk_flags: list[AnalysisRiskFlag],
+        analysis_json: str,
+    ) -> None:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE news
+                SET title = ?,
+                    summary = ?,
+                    category = ?,
+                    fact_status = ?,
+                    key_facts = ?,
+                    viewpoints = ?,
+                    ai_model = ?,
+                    ai_processed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    processing_status = 'completed',
+                    analysis_version = ?,
+                    analysis_error = NULL,
+                    analysis_response_id = ?,
+                    analysis_confidence = ?,
+                    risk_flags = ?,
+                    analysis_json = ?,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND processing_status = 'processing'
+                """,
+                (
+                    title,
+                    summary,
+                    category.value,
+                    fact_status.value,
+                    json.dumps(key_facts, ensure_ascii=False),
+                    json.dumps(viewpoints, ensure_ascii=False),
+                    model,
+                    analysis_version,
+                    response_id,
+                    confidence,
+                    json.dumps([flag.value for flag in risk_flags], ensure_ascii=False),
+                    analysis_json,
+                    news_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"Analysis task is not claimed: news_id={news_id}")
+
+    def fail_analysis(self, news_id: int, error: str) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET processing_status = 'failed',
+                    analysis_error = ?,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND processing_status = 'processing'
+                """,
+                (error[:1000], news_id),
             )
 
     def upsert_source(self, source: Source) -> int:

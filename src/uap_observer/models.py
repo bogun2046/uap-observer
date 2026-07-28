@@ -61,6 +61,14 @@ class SourceType(StringEnum):
     WEB_PAGE = "web_page"
 
 
+class AnalysisRiskFlag(StringEnum):
+    INSUFFICIENT_SOURCE = "insufficient_source"
+    SINGLE_SOURCE_CLAIM = "single_source_claim"
+    ANONYMOUS_CLAIM = "anonymous_claim"
+    SENSATIONAL_LANGUAGE = "sensational_language"
+    MILITARY_SENSITIVITY = "military_sensitivity"
+
+
 @dataclass
 class Source:
     slug: str
@@ -128,6 +136,17 @@ class ArticleTask:
     url: str
     original_title: str
     extraction_attempts: int
+
+
+@dataclass(frozen=True)
+class AnalysisTask:
+    news_id: int
+    original_title: str
+    source: str
+    source_url: str
+    publish_date: str | None
+    extracted_content: str
+    analysis_attempts: int
 
 
 @dataclass

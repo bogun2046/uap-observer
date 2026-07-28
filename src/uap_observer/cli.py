@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
+from uap_observer.ai_analysis import AnalysisService, OpenAIAnalyzer
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.config import Settings
@@ -50,6 +51,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--retry-failed",
         action="store_true",
         help="Include previously failed extraction tasks.",
+    )
+
+    analysis_parser = subparsers.add_parser(
+        "analyze-articles",
+        help="Analyze extracted articles with structured OpenAI output.",
+    )
+    analysis_parser.add_argument("--limit", type=int, default=10)
+    analysis_parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Include previously failed analysis tasks.",
+    )
+    analysis_parser.add_argument(
+        "--model",
+        help="OpenAI model override (defaults to OPENAI_MODEL).",
     )
     return parser
 
@@ -117,6 +133,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"queued={run.queued} claimed={run.claimed} "
             f"completed={run.completed} failed={run.failed} "
             f"skipped_duplicates={run.skipped_duplicates}"
+        )
+        return 0
+
+    if args.command == "analyze-articles":
+        if args.limit < 1:
+            raise SystemExit("--limit must be at least 1")
+        analyzer = OpenAIAnalyzer(
+            model=args.model or settings.openai_model,
+            reasoning_effort=settings.reasoning_effort,
+        )
+        run = AnalysisService(repository, analyzer).run(
+            limit=args.limit,
+            retry_failed=args.retry_failed,
+        )
+        print(
+            f"AI analysis complete; stale_recovered={run.stale_recovered} "
+            f"queued={run.queued} claimed={run.claimed} "
+            f"completed={run.completed} failed={run.failed}"
         )
         return 0
 
