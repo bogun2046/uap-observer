@@ -176,6 +176,9 @@ can also be started with `workflow_dispatch`. Before enabling it:
 3. Optionally set repository variables `OPENAI_MODEL` and
    `OPENAI_REASONING_EFFORT`.
 
+See [`docs/deployment.md`](docs/deployment.md) for the manual trigger and
+Pages acceptance checklist.
+
 The workflow installs the development extras and runs the full regression
 suite before touching the database or collecting remote sources. A failing
 test stops the scheduled publish.
