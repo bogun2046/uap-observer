@@ -170,7 +170,10 @@ class HttpFeedFetcher:
             timeout=self.timeout + 5,
         )
         stderr = completed.stderr.decode("utf-8", errors="replace")
-        status_matches = re.findall(r"UAP_HTTP_STATUS:(\d{3})", stderr)
+        stdout = completed.stdout
+        stdout_text = stdout.decode("utf-8", errors="replace")
+        status_source = f"{stderr}\n{stdout_text}"
+        status_matches = re.findall(r"UAP_HTTP_STATUS:(\d{3})", status_source)
         if completed.returncode != 0 or not status_matches:
             detail = stderr.strip() or f"curl exited with {completed.returncode}"
             raise RuntimeError(f"curl feed fallback failed: {detail}")
@@ -186,10 +189,18 @@ class HttpFeedFetcher:
 
         return FeedResponse(
             status=status,
-            body=completed.stdout,
+            body=_remove_curl_status_marker(stdout),
             etag=last_header("etag"),
             last_modified=last_header("last-modified"),
         )
+
+
+def _remove_curl_status_marker(body: bytes) -> bytes:
+    marker = b"\nUAP_HTTP_STATUS:"
+    marker_start = body.rfind(marker)
+    if marker_start == -1:
+        return body
+    return body[:marker_start]
 
 
 def _local_name(tag: str) -> str:

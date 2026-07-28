@@ -176,8 +176,14 @@ class RssCollectorTests(unittest.TestCase):
 
     def test_version_controlled_nasa_source_is_valid(self) -> None:
         sources = load_sources(PROJECT_ROOT / "config" / "sources.json")
-        self.assertEqual([source.slug for source in sources], ["nasa-recent"])
+        self.assertEqual(
+            [source.slug for source in sources],
+            ["nasa-recent", "the-debrief", "aaro-press-products"],
+        )
         self.assertEqual(sources[0].default_credibility, 5)
+        self.assertEqual(sources[1].feed_url, "https://thedebrief.org/feed/")
+        self.assertEqual(sources[2].source_type, SourceType.WEB_PAGE)
+        self.assertFalse(sources[2].enabled)
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">
@@ -233,6 +239,27 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(response.body, RSS_PAYLOAD)
         self.assertEqual(response.etag, '"curl-v1"')
         self.assertEqual(run.call_count, 1)
+
+    def test_http_fetcher_parses_curl_status_written_to_stdout(self) -> None:
+        incomplete = FakeHttpResponse(error=IncompleteRead(b"partial", 10))
+        curl_result = CompletedProcess(
+            args=["curl"],
+            returncode=0,
+            stdout=RSS_PAYLOAD + b"\nUAP_HTTP_STATUS:200\n",
+            stderr=b"HTTP/2 200\r\netag: \"stdout-v1\"\r\n\r\n",
+        )
+        with patch("urllib.request.urlopen", return_value=incomplete):
+            with patch("shutil.which", return_value="/usr/bin/curl"):
+                with patch("subprocess.run", return_value=curl_result):
+                    response = HttpFeedFetcher(max_retries=0).fetch(
+                        "https://example.test/feed.xml",
+                        etag=None,
+                        last_modified=None,
+                    )
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body, RSS_PAYLOAD)
+        self.assertEqual(response.etag, '"stdout-v1"')
 
 
 if __name__ == "__main__":

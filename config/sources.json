@@ -22,6 +22,48 @@
         "adversarial attack"
       ],
       "enabled": true
+    },
+    {
+      "slug": "the-debrief",
+      "name": "The Debrief",
+      "source_type": "rss",
+      "homepage_url": "https://thedebrief.org/",
+      "feed_url": "https://thedebrief.org/feed/",
+      "country": "USA",
+      "language": "en",
+      "default_category": "other",
+      "default_credibility": 4,
+      "default_fact_status": "source_reported",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap",
+        "ufo",
+        "aaro"
+      ],
+      "exclude_keywords": [
+        "universal adversarial perturbation",
+        "adversarial attack"
+      ],
+      "enabled": true
+    },
+    {
+      "slug": "aaro-press-products",
+      "name": "AARO Congressional and Press Products",
+      "source_type": "web_page",
+      "homepage_url": "https://www.aaro.mil/Congressional-Press-Products/",
+      "country": "USA",
+      "language": "en",
+      "default_category": "official_report",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "uap",
+        "aaro"
+      ],
+      "exclude_keywords": [],
+      "enabled": false
     }
   ]
 }
