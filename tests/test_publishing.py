@@ -122,6 +122,8 @@ class PublishingTests(unittest.TestCase):
         events = (output / "events" / "index.md").read_text(encoding="utf-8")
         persons = (output / "persons" / "index.md").read_text(encoding="utf-8")
         relationships = (output / "relationships.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        search_page = (output / "search.md").read_text(encoding="utf-8")
 
         self.assertIn("今日UAP新闻", homepage)
         self.assertIn(f"news/{news_id}-", homepage)
@@ -136,6 +138,9 @@ class PublishingTests(unittest.TestCase):
         self.assertIn("Test Person", detail)
         self.assertIn("Test Person", persons)
         self.assertIn("mentions_person", relationships)
+        self.assertTrue(search_index[0]["url"].startswith(f"news/{news_id}-"))
+        self.assertNotIn("内部正文不应出现在页面", json.dumps(search_index, ensure_ascii=False))
+        self.assertIn("uap-search", search_page)
 
     def test_empty_publisher_writes_safe_empty_pages(self) -> None:
         output = Path(self.temp_directory.name) / "empty"
@@ -144,6 +149,7 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(result.news_pages, 0)
         self.assertIn("今日暂无", (output / "index.md").read_text(encoding="utf-8"))
         self.assertIn("暂无已录入", (output / "events" / "index.md").read_text(encoding="utf-8"))
+        self.assertEqual(json.loads((output / "search.json").read_text(encoding="utf-8")), [])
 
 
 if __name__ == "__main__":

@@ -64,6 +64,14 @@ class MarkdownPublisher:
             _render_news_index(news),
             encoding="utf-8",
         )
+        (self.output_directory / "search.json").write_text(
+            json.dumps(_render_search_index(news), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (self.output_directory / "search.md").write_text(
+            _render_search_page(),
+            encoding="utf-8",
+        )
         (events_directory / "index.md").write_text(
             _render_events_index(events),
             encoding="utf-8",
@@ -120,6 +128,55 @@ def _render_news_index(rows: list[dict[str, object]]) -> str:
         lines.extend((f"## {_escape_text(_category_label(category))}", ""))
         lines.extend(_render_news_cards(category_rows, link_prefix=""))
     return "\n".join(lines)
+
+
+def _render_search_index(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Return a small public index containing metadata, never article bodies."""
+    return [
+        {
+            "id": int(row["id"]),
+            "title": _text(row.get("title")) or _text(row.get("original_title")),
+            "summary": _text(row.get("summary")),
+            "source": _text(row.get("source")),
+            "publish_date": _date_prefix(row.get("publish_date")),
+            "category": _text(row.get("category")) or "other",
+            "fact_status": _text(row.get("fact_status")),
+            "credibility": row.get("credibility"),
+            "url": f"news/{_news_filename(row)}",
+        }
+        for row in rows
+    ]
+
+
+def _render_search_page() -> str:
+    return """---
+title: "搜索UAP新闻"
+layout: default
+---
+
+<input id="uap-search" type="search" placeholder="搜索标题、摘要、来源或分类" style="width:100%;max-width:42rem;padding:.6rem" />
+<div id="uap-search-results" aria-live="polite">正在加载索引……</div>
+
+<script>
+(() => {
+  const input = document.getElementById('uap-search');
+  const results = document.getElementById('uap-search-results');
+  const escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+  fetch('search.json').then(r => r.json()).then(items => {
+    const render = () => {
+      const query = input.value.trim().toLowerCase();
+      const matches = items.filter(item =>
+        [item.title, item.summary, item.source, item.category].join(' ').toLowerCase().includes(query));
+      results.innerHTML = matches.length
+        ? matches.map(item => `<article><h2><a href="${escapeHtml(item.url)}">${escapeHtml(item.title || '未命名新闻')}</a></h2><p>${escapeHtml(item.publish_date || '日期未知')} · ${escapeHtml(item.source || '未知来源')}</p><p>${escapeHtml(item.summary || '暂无摘要。')}</p></article>`).join('')
+        : '<p>没有匹配的新闻。</p>';
+    };
+    input.addEventListener('input', render);
+    render();
+  }).catch(() => { results.textContent = '搜索索引暂时不可用。'; });
+})();
+</script>
+"""
 
 
 def _category_label(category: str) -> str:

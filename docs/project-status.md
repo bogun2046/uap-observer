@@ -68,6 +68,7 @@ Last updated: 2026-07-28
 - [x] Generate persons index and relationship evidence table
 - [x] Generate organization index and render organization graph entities
 - [x] Group published news by controlled category
+- [x] Generate metadata-only search index and static search page
 - [x] Test graph pages and detail-page entity rendering
 - [x] Add Supabase PostgreSQL schema baseline
 - [x] Add deterministic SQLite JSON snapshot export
@@ -78,7 +79,7 @@ Last updated: 2026-07-28
 ### Next
 
 - [ ] Add more official and reputable RSS/API sources
-- [ ] Add client-side full-text search for published news
+- [x] Add client-side full-text search for published news
 - [ ] Replace committed SQLite persistence with Supabase PostgreSQL
 
 ## Verification

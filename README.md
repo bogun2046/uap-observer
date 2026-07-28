@@ -147,7 +147,8 @@ Generate static pages after analysis:
 
 The output contains `index.md`, a category-grouped `news/index.md`, one detail page per analyzed
 news item, `events/index.md`, `persons/index.md`, `organizations.md`,
-`relationships.md`, and `timeline.md`. `site/generated/` is ignored
+`relationships.md`, `timeline.md`, a metadata-only `search.json`, and a
+client-side `search.md` page. `site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
 publish this directory as a build artifact.
 
