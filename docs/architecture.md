@@ -21,7 +21,8 @@ RSS / official APIs / monitored pages
        Markdown static publishing
 ```
 
-The SQLite foundation and first incremental RSS collector are implemented.
+The SQLite foundation, incremental RSS collector, and article extraction queue
+are implemented.
 
 ## Design decisions
 
@@ -89,6 +90,27 @@ NASA's general Feed is not treated as UAP-only. Items must match configured UAP
 phrases, while machine-learning uses of “UAP” are explicitly excluded. A
 successful fetch containing no matching item is therefore a valid daily result.
 
+### Article extraction
+
+Only news items accepted by source filtering enter the extraction queue.
+Trafilatura converts source HTML into cleaned article text and metadata without
+changing the RSS excerpt.
+
+The queue records:
+
+- pending, processing, completed, failed, and skipped states
+- attempt count, start time, completion time, and bounded errors
+- extracted title, author, date, language, and extractor version
+- SHA-256 content hash for exact-content duplicate detection
+
+A compare-and-update claim prevents two workers from handling the same pending
+item. Processing claims older than one hour are returned to the pending queue so
+an interrupted scheduled job cannot leave articles permanently stuck.
+
+Trafilatura is isolated behind an adapter. Version 1.12.2 is pinned for Python
+3.9 compatibility; the adapter can move to the current 2.x API after the
+project runtime is upgraded to Python 3.10+.
+
 ## Planned modules
 
 ```text
@@ -102,5 +124,5 @@ src/uap_observer/
 └── repositories.py
 ```
 
-The next module should extract article text for accepted entries and produce
-schema-validated AI analysis without overwriting source material.
+The next module should produce schema-validated AI analysis from extracted text
+without overwriting source material.

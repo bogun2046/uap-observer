@@ -18,10 +18,11 @@ Phase 1 establishes the local data foundation:
 - version-controlled source definitions
 - incremental RSS/Atom collection with conditional HTTP requests
 - URL normalization, keyword filtering, and duplicate prevention
+- article-body and metadata extraction with a durable processing queue
 - automated database tests
 
-AI analysis, article extraction, Markdown publishing, and the website are the
-next modules. No frontend is included yet.
+Structured AI analysis, Markdown publishing, and the website are the next
+modules. No frontend is included yet.
 
 ## Project structure
 
@@ -38,6 +39,7 @@ next modules. No frontend is included yet.
 ├── src/uap_observer/
 │   ├── cli.py                  # init-db and db-status commands
 │   ├── collectors/rss.py       # RSS/Atom incremental collector
+│   ├── article_extraction.py   # Article extraction queue and adapter
 │   ├── config.py               # Environment-based configuration
 │   ├── database.py             # SQLite connection and migrations
 │   ├── models.py               # Domain models and controlled values
@@ -53,7 +55,8 @@ next modules. No frontend is included yet.
 
 ## Run locally
 
-No third-party runtime dependency is required for the current phase.
+The project pins Trafilatura 1.12.2 because it supports the current Python 3.9
+runtime. The current Trafilatura 2.x line requires Python 3.10 or newer.
 
 ```bash
 python3 -m venv .venv
@@ -63,6 +66,7 @@ uap-observer init-db
 uap-observer db-status
 uap-observer sync-sources
 uap-observer collect-rss --source nasa-recent
+uap-observer extract-articles --limit 20
 ```
 
 Without installing the package, commands can be run from the repository root:
@@ -73,6 +77,19 @@ PYTHONPATH=src python3 -m uap_observer db-status
 PYTHONPATH=src python3 -m uap_observer sync-sources
 PYTHONPATH=src python3 -m uap_observer collect-rss --source nasa-recent
 ```
+
+Article extraction requires the installed project environment:
+
+```bash
+.venv/bin/uap-observer extract-articles --limit 20
+.venv/bin/uap-observer extract-articles --limit 20 --retry-failed
+```
+
+Accepted RSS items begin with `extraction_status=pending`. The extractor claims
+one item at a time, stores cleaned text and metadata, calculates a SHA-256
+content hash, skips exact-content duplicates, and records bounded failure
+messages. Processing tasks left incomplete for more than one hour are recovered
+automatically.
 
 `collect-rss` synchronizes `config/sources.json` before collection. Use
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and
@@ -93,10 +110,10 @@ uap-observer --database /absolute/path/uap.db init-db
 
 ## Run tests
 
-The test suite uses Python's standard library:
+Run the full suite in the installed environment:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 Optional developer tools can be installed with:
@@ -115,13 +132,15 @@ ruff check .
   source-reported, unverified, disputed, or opinion.
 - Relationships may cite `evidence_news_id` and a confidence score.
 - Feed entries are deduplicated by canonical URL and source entry ID.
+- Extracted articles are deduplicated by SHA-256 content hash.
+- Feed excerpts remain separate from extracted article text.
 - Tracking parameters such as `utm_*`, `fbclid`, and `gclid` are removed before
   URL comparison.
 - Short keywords such as `UAP` and `UFO` match whole tokens, avoiding words such
   as `startup`.
 - Dates and timestamps use ISO 8601 text; generated timestamps are stored in UTC.
 - Published pages should link to the original source and should not republish
-  copyrighted article bodies.
+  copyrighted article bodies. Extracted bodies are internal analysis material.
 
 See [architecture](docs/architecture.md) for the schema rationale and
 [project status](docs/project-status.md) for the next work.
