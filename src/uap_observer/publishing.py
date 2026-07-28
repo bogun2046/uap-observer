@@ -107,15 +107,23 @@ def _render_home(rows: list[dict[str, object]], today: str) -> str:
     if not rows:
         lines.append("今日暂无已完成 AI 分析的新闻。")
         lines.append("")
-        lines.append("[查看全部新闻](news/index.md)")
+        lines.append("[查看全部新闻](news/index.md) · [搜索新闻](search.md)")
         return "\n".join(lines) + "\n"
     lines.extend(_render_news_cards(rows, link_prefix="news/"))
-    lines.extend(("", "[查看全部新闻](news/index.md)", ""))
+    lines.extend(("", "[查看全部新闻](news/index.md) · [搜索新闻](search.md)", ""))
     return "\n".join(lines)
 
 
 def _render_news_index(rows: list[dict[str, object]]) -> str:
-    lines = ["---", 'title: "UAP新闻"', "layout: default", "---", ""]
+    lines = [
+        "---",
+        'title: "UAP新闻"',
+        "layout: default",
+        "---",
+        "",
+        "[搜索新闻](../search.md)",
+        "",
+    ]
     if not rows:
         lines.extend(("暂无已完成分析的新闻。", ""))
         return "\n".join(lines)

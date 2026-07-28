@@ -152,8 +152,8 @@ It creates a deterministic homepage, news index, individual news detail pages,
 historical events index, and timeline. Detail pages include the original source
 link, but never include `extracted_content` or `raw_content`. Empty queues still
 produce valid pages with an explicit empty-state message. Generated files are
-written to `site/generated/`, which remains ignored until a deployment workflow
-is defined.
+written to `site/generated/`; the daily GitHub Actions workflow uploads that
+directory as the GitHub Pages artifact.
 
 ### Scheduled execution
 
