@@ -41,7 +41,7 @@ jobs:
         run: python -m pip install ".[dev]"
 
       - name: Run regression tests
-        run: python -m pytest
+        run: python -m pytest -vv --tb=short
 
       - name: Initialize database
         run: uap-observer init-db

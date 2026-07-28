@@ -19,7 +19,7 @@ class PackagingTests(unittest.TestCase):
             venv_directory = root / "venv"
             database_path = root / "data" / "uap.db"
             wheel_directory.mkdir()
-            subprocess.run(
+            build = subprocess.run(
                 [
                     sys.executable,
                     "-m",
@@ -30,26 +30,26 @@ class PackagingTests(unittest.TestCase):
                     str(wheel_directory),
                     str(PROJECT_ROOT),
                 ],
-                check=True,
                 capture_output=True,
                 text=True,
             )
+            self.assertEqual(build.returncode, 0, build.stdout + "\n" + build.stderr)
             wheel = next(wheel_directory.glob("uap_observer-*.whl"))
-            subprocess.run(
+            create_venv = subprocess.run(
                 [sys.executable, "-m", "venv", "--system-site-packages", str(venv_directory)],
-                check=True,
                 capture_output=True,
                 text=True,
             )
+            self.assertEqual(create_venv.returncode, 0, create_venv.stdout + "\n" + create_venv.stderr)
             executable = venv_directory / "bin" / "uap-observer"
             if os.name == "nt":
                 executable = venv_directory / "Scripts" / "uap-observer.exe"
-            subprocess.run(
+            install = subprocess.run(
                 [str(venv_directory / "bin" / "python"), "-m", "pip", "install", "--no-deps", str(wheel)],
-                check=True,
                 capture_output=True,
                 text=True,
             )
+            self.assertEqual(install.returncode, 0, install.stdout + "\n" + install.stderr)
             environment = {
                 **os.environ,
                 "UAP_DB_PATH": str(database_path),
@@ -59,18 +59,18 @@ class PackagingTests(unittest.TestCase):
             }
             init = subprocess.run(
                 [str(executable), "init-db"],
-                check=True,
                 capture_output=True,
                 text=True,
                 env=environment,
             )
+            self.assertEqual(init.returncode, 0, init.stdout + "\n" + init.stderr)
             sync = subprocess.run(
                 [str(executable), "sync-sources"],
-                check=True,
                 capture_output=True,
                 text=True,
                 env=environment,
             )
+            self.assertEqual(sync.returncode, 0, sync.stdout + "\n" + sync.stderr)
 
             self.assertIn("005_organizations.sql", init.stdout)
             self.assertIn("Synced 4 source(s)", sync.stdout)
