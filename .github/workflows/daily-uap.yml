@@ -81,6 +81,17 @@ jobs:
       - name: Generate Markdown site
         run: uap-observer publish-markdown --output site/generated
 
+      - name: Verify generated site
+        run: |
+          test -f site/generated/index.md
+          test -f site/generated/news/index.md
+          test -f site/generated/search.md
+          test -f site/generated/search.json
+          test -f site/generated/events/index.md
+          test -f site/generated/timeline.md
+          test -f site/generated/relationships.md
+          python -m json.tool site/generated/search.json >/dev/null
+
       - name: Checkpoint SQLite WAL
         run: sqlite3 data/uap.db "PRAGMA wal_checkpoint(TRUNCATE);"
 

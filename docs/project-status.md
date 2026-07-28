@@ -72,6 +72,7 @@ Last updated: 2026-07-28
 - [x] Run regression tests before scheduled publishing
 - [x] Add source health status CLI for scheduled-run diagnostics
 - [x] Persist official web collector failures for source health diagnostics
+- [x] Verify required generated Pages files before artifact upload
 - [x] Test graph pages and detail-page entity rendering
 - [x] Add Supabase PostgreSQL schema baseline
 - [x] Add deterministic SQLite JSON snapshot export
