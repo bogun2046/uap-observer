@@ -32,6 +32,7 @@ class PackagingTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(build.returncode, 0, build.stdout + "\n" + build.stderr)
             wheel = next(wheel_directory.glob("uap_observer-*.whl"))
@@ -39,15 +40,25 @@ class PackagingTests(unittest.TestCase):
                 [sys.executable, "-m", "venv", "--system-site-packages", str(venv_directory)],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(create_venv.returncode, 0, create_venv.stdout + "\n" + create_venv.stderr)
             executable = venv_directory / "bin" / "uap-observer"
             if os.name == "nt":
                 executable = venv_directory / "Scripts" / "uap-observer.exe"
             install = subprocess.run(
-                [str(venv_directory / "bin" / "python"), "-m", "pip", "install", "--no-deps", str(wheel)],
+                [
+                    str(venv_directory / "bin" / "python"),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--force-reinstall",
+                    "--no-deps",
+                    str(wheel),
+                ],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(install.returncode, 0, install.stdout + "\n" + install.stderr)
             environment = {
@@ -62,6 +73,7 @@ class PackagingTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 env=environment,
+                check=False,
             )
             self.assertEqual(init.returncode, 0, init.stdout + "\n" + init.stderr)
             sync = subprocess.run(
@@ -69,6 +81,7 @@ class PackagingTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 env=environment,
+                check=False,
             )
             self.assertEqual(sync.returncode, 0, sync.stdout + "\n" + sync.stderr)
 
