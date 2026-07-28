@@ -26,7 +26,6 @@ class PackagingTests(unittest.TestCase):
                     "pip",
                     "wheel",
                     "--no-deps",
-                    "--no-build-isolation",
                     "--wheel-dir",
                     str(wheel_directory),
                     str(PROJECT_ROOT),
