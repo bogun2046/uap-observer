@@ -402,6 +402,43 @@ class Repository:
                 (error[:1000], news_id),
             )
 
+    def get_published_news(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, title, original_title, source, source_url, publish_date,
+                       country, category, summary, credibility, fact_status,
+                       key_facts, viewpoints, analysis_confidence, risk_flags,
+                       ai_model, ai_processed_at
+                FROM news
+                WHERE processing_status = 'completed'
+                  AND analysis_json IS NOT NULL
+                ORDER BY COALESCE(publish_date, '') DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_events_for_timeline(self, *, limit: int = 500) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, event_name, date_start, date_end, location, country,
+                       description, status, credibility
+                FROM events
+                WHERE date_start IS NOT NULL
+                ORDER BY date_start ASC, id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def upsert_source(self, source: Source) -> int:
         with self.database.connect() as connection:
             connection.execute(

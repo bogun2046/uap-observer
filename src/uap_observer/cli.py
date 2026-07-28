@@ -12,6 +12,7 @@ from uap_observer.collectors.rss import RssCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.models import SourceType
+from uap_observer.publishing import MarkdownPublisher
 from uap_observer.repositories import Repository
 from uap_observer.source_config import load_sources
 
@@ -67,6 +68,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         help="OpenAI model override (defaults to OPENAI_MODEL).",
     )
+
+    publish_parser = subparsers.add_parser(
+        "publish-markdown",
+        help="Generate source-linked Markdown pages from completed analysis.",
+    )
+    publish_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("site/generated"),
+        help="Output directory (defaults to site/generated).",
+    )
+    publish_parser.add_argument(
+        "--date",
+        help="Homepage date in YYYY-MM-DD format (defaults to local today).",
+    )
+    publish_parser.add_argument("--limit", type=int, default=1000)
     return parser
 
 
@@ -151,6 +168,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"AI analysis complete; stale_recovered={run.stale_recovered} "
             f"queued={run.queued} claimed={run.claimed} "
             f"completed={run.completed} failed={run.failed}"
+        )
+        return 0
+
+    if args.command == "publish-markdown":
+        if args.limit < 1:
+            raise SystemExit("--limit must be at least 1")
+        if args.date and len(args.date) != 10:
+            raise SystemExit("--date must use YYYY-MM-DD format")
+        result = MarkdownPublisher(repository, args.output).publish(
+            today=args.date,
+            limit=args.limit,
+        )
+        print(
+            f"Markdown publishing complete; news_pages={result.news_pages} "
+            f"events={result.event_count} output={result.output_directory}"
         )
         return 0
 
