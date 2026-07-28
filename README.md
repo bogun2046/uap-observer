@@ -22,10 +22,11 @@ Phase 1 establishes the local data foundation:
 - source-grounded structured AI analysis through the OpenAI Responses API
 - strict validation for Chinese summaries, fact state, entities, confidence,
   and risk flags
+- deterministic Markdown generation for homepage, news, events, and timeline
 - automated database tests
 
-Markdown publishing and the website are the next modules. No frontend is
-included yet.
+The generated Markdown is ready for a GitHub Pages workflow. No frontend
+framework or native App is included yet.
 
 ## Project structure
 
@@ -47,6 +48,7 @@ included yet.
 │   ├── collectors/rss.py       # RSS/Atom incremental collector
 │   ├── article_extraction.py   # Article extraction queue and adapter
 │   ├── ai_analysis.py          # Structured analysis schema and adapter
+│   ├── publishing.py           # Source-linked Markdown generator
 │   ├── config.py               # Environment-based configuration
 │   ├── database.py             # SQLite connection and migrations
 │   ├── models.py               # Domain models and controlled values
@@ -78,6 +80,7 @@ uap-observer sync-sources
 uap-observer collect-rss --source nasa-recent
 uap-observer extract-articles --limit 20
 uap-observer analyze-articles --limit 10
+uap-observer publish-markdown --output site/generated
 ```
 
 Without installing the package, commands can be run from the repository root:
@@ -124,6 +127,18 @@ facts, viewpoints, named entities, analysis confidence, risk flags, model,
 response ID, prompt/schema version, and canonical JSON. Source credibility is
 not changed by the model. Failed items remain auditable and are retried only
 with `--retry-failed`; stale claims are recovered after one hour.
+
+Generate static pages after analysis:
+
+```bash
+.venv/bin/uap-observer publish-markdown --output site/generated
+.venv/bin/uap-observer publish-markdown --output site/generated --date 2026-07-28
+```
+
+The output contains `index.md`, `news/index.md`, one detail page per analyzed
+news item, `events/index.md`, and `timeline.md`. `site/generated/` is ignored
+by default so local previews do not dirty Git; a later deployment workflow can
+publish this directory as a build artifact.
 
 `collect-rss` synchronizes `config/sources.json` before collection. Use
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and

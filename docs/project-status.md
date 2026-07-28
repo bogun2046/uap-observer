@@ -39,10 +39,14 @@ Last updated: 2026-07-28
 - [x] Keep source credibility separate from AI analysis confidence
 - [x] Add `analyze-articles` CLI and environment-based model configuration
 - [x] Test successful, failed, retried, stale, and mocked provider paths
+- [x] Generate deterministic Markdown homepage and news detail pages
+- [x] Generate historical events index and timeline page
+- [x] Ensure published pages link sources without exposing article bodies
+- [x] Add `publish-markdown` CLI and empty-state output
+- [x] Test Markdown links, metadata, timeline, and no-body publishing
 
 ### Next
 
-- [ ] Generate Markdown pages
 - [ ] Add a scheduled GitHub Actions workflow
 
 ## Verification
@@ -69,7 +73,8 @@ relationships: 0
 
 After `sync-sources`, the current source count is `1`.
 
-Current regression result: `22 passed`. The real local database is migrated to
+Current regression result: `24 passed`. The real local database is migrated to
 `004_ai_analysis.sql`; it currently contains one configured source and zero
-news rows. The empty-queue AI CLI smoke test completes without requiring a key
-or making an API request.
+news rows. The empty-queue AI and Markdown CLI smoke tests complete without
+requiring a key or making an API request. Markdown smoke output contains four
+empty-state pages under `site/generated/`.

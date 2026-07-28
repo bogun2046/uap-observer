@@ -22,7 +22,8 @@ RSS / official APIs / monitored pages
 ```
 
 The SQLite foundation, incremental RSS collector, article extraction queue, and
-structured AI analysis queue are implemented.
+structured AI analysis queue are implemented. The Markdown publisher is also
+implemented and emits source-linked static pages.
 
 ## Design decisions
 
@@ -140,6 +141,16 @@ helper, disables response storage, and reads credentials only from
 reasoning effort, while environment and CLI overrides support controlled model
 migrations.
 
+### Markdown publishing
+
+`MarkdownPublisher` reads only completed AI records and dated historical events.
+It creates a deterministic homepage, news index, individual news detail pages,
+historical events index, and timeline. Detail pages include the original source
+link, but never include `extracted_content` or `raw_content`. Empty queues still
+produce valid pages with an explicit empty-state message. Generated files are
+written to `site/generated/`, which remains ignored until a deployment workflow
+is defined.
+
 ## Module layout
 
 ```text
@@ -147,11 +158,11 @@ src/uap_observer/
 ├── collectors/       # RSS, official API, and monitored-page adapters
 ├── processing/       # normalization, relevance, deduplication
 ├── ai_analysis.py    # schema-validated AI output and Responses API adapter
-├── publishing/       # Markdown generation
+├── publishing.py     # Markdown generation
 ├── database.py
 ├── models.py
 └── repositories.py
 ```
 
-The next module should generate source-linked Markdown from completed analysis
-without publishing copyrighted article bodies.
+The next module should schedule collection, extraction, analysis, and Markdown
+publishing through GitHub Actions.
