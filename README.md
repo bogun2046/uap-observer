@@ -25,6 +25,7 @@ Phase 1 establishes the local data foundation:
 - strict validation for Chinese summaries, fact state, entities, confidence,
   and risk flags
 - deterministic Markdown generation for homepage, news, events, and timeline
+- relationship graph pages for persons, events, and news evidence links
 - automated database tests
 
 The generated Markdown is ready for a GitHub Pages workflow. No frontend
@@ -141,7 +142,8 @@ Generate static pages after analysis:
 ```
 
 The output contains `index.md`, `news/index.md`, one detail page per analyzed
-news item, `events/index.md`, and `timeline.md`. `site/generated/` is ignored
+news item, `events/index.md`, `persons/index.md`, `relationships.md`, and
+`timeline.md`. `site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
 publish this directory as a build artifact.
 

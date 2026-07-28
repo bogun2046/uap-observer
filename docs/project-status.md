@@ -63,6 +63,9 @@ Last updated: 2026-07-28
 - [x] Create evidence-backed `news` to `persons/events` relationships
 - [x] Add `link-entities` CLI and daily workflow step
 - [x] Test relationship creation, confidence, deduplication, and invalid JSON
+- [x] Display related persons and events on news detail pages
+- [x] Generate persons index and relationship evidence table
+- [x] Test graph pages and detail-page entity rendering
 
 ### Next
 

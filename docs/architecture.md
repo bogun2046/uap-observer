@@ -197,6 +197,11 @@ human-review note. The operation is idempotent, so each daily run can safely
 reprocess completed analyses. Organizations remain person metadata until the
 knowledge-graph schema adds an organizations table.
 
+The Markdown publisher emits `persons/index.md` and `relationships.md`, and
+adds related people/events to each news detail page. Relationship rows include
+the evidence news title, relationship type, and confidence; empty graphs still
+produce valid empty-state pages.
+
 ## Module layout
 
 ```text
