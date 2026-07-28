@@ -46,7 +46,8 @@ framework or native App is included yet.
 │   ├── 001_initial.sql         # Initial schema
 │   ├── 002_sources.sql         # Managed source registry
 │   ├── 003_article_extraction.sql
-│   └── 004_ai_analysis.sql     # AI queue audit and validation fields
+│   ├── 004_ai_analysis.sql     # AI queue audit and validation fields
+│   └── 005_organizations.sql   # First-class organization entities
 ├── src/uap_observer/
 │   ├── cli.py                  # Pipeline commands
 │   ├── collectors/rss.py       # RSS/Atom incremental collector
@@ -145,17 +146,16 @@ Generate static pages after analysis:
 ```
 
 The output contains `index.md`, `news/index.md`, one detail page per analyzed
-news item, `events/index.md`, `persons/index.md`, `relationships.md`, and
-`timeline.md`. `site/generated/` is ignored
+news item, `events/index.md`, `persons/index.md`, `organizations.md`,
+`relationships.md`, and `timeline.md`. `site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
 publish this directory as a build artifact.
 
-After AI analysis, `link-entities` creates idempotent `news → persons` and
-`news → events` relationships from validated `analysis_json`. It creates a
-minimal `persons` or `events` record when needed, preserves the AI confidence
-on the relationship, and marks newly inferred events as unverified pending
-human review. Organizations are retained on the person's `organization` field
-until a dedicated organizations table is introduced.
+After AI analysis, `link-entities` creates idempotent `news → persons`,
+`news → organizations`, and `news → events` relationships from validated
+`analysis_json`. It creates minimal entity records when needed, preserves the
+AI confidence on each relationship, and marks newly inferred events as
+unverified pending human review.
 
 For Phase 3 migration preparation, `supabase/schema.sql` mirrors the current
 SQLite model using PostgreSQL `jsonb` and identity keys. Export a reviewed

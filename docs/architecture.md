@@ -190,15 +190,15 @@ treated as independent claims.
 ### Entity linking
 
 `link-entities` consumes only completed, schema-validated `analysis_json`. It
-creates or reuses case-insensitive `persons` and `events`, then adds unique
-`news → person` and `news → event` relationships with the analysis confidence
-and `evidence_news_id`. AI-inferred events start as `unverified` and include a
-human-review note. The operation is idempotent, so each daily run can safely
-reprocess completed analyses. Organizations remain person metadata until the
-knowledge-graph schema adds an organizations table.
+creates or reuses case-insensitive `persons`, `organizations`, and `events`,
+then adds unique relationships from each news item with the analysis
+confidence and `evidence_news_id`. AI-inferred events start as `unverified`
+and include a human-review note. The operation is idempotent, so each daily
+run can safely reprocess completed analyses.
 
-The Markdown publisher emits `persons/index.md` and `relationships.md`, and
-adds related people/events to each news detail page. Relationship rows include
+The Markdown publisher emits `persons/index.md`, `organizations.md`, and
+`relationships.md`, and adds related people, organizations, and events to each
+news detail page. Relationship rows include
 the evidence news title, relationship type, and confidence; empty graphs still
 produce valid empty-state pages.
 

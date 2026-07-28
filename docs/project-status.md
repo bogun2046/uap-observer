@@ -61,10 +61,12 @@ Last updated: 2026-07-28
 - [x] Preserve official case assessment descriptions as news summaries
 - [x] Add idempotent entity-linking service for analyzed persons and events
 - [x] Create evidence-backed `news` to `persons/events` relationships
+- [x] Add first-class organizations and `news` to `organizations` relationships
 - [x] Add `link-entities` CLI and daily workflow step
 - [x] Test relationship creation, confidence, deduplication, and invalid JSON
 - [x] Display related persons and events on news detail pages
 - [x] Generate persons index and relationship evidence table
+- [x] Generate organization index and render organization graph entities
 - [x] Test graph pages and detail-page entity rendering
 - [x] Add Supabase PostgreSQL schema baseline
 - [x] Add deterministic SQLite JSON snapshot export
@@ -91,18 +93,19 @@ The current baseline is verified with:
 Expected database status after initialization:
 
 ```text
-Schema version: 004_ai_analysis.sql
+Schema version: 005_organizations.sql
 sources: 0
 news: 0
 events: 0
 persons: 0
+organizations: 0
 relationships: 0
 ```
 
-After `sync-sources`, the current source count is `1`.
+After `sync-sources`, the current source count is `4`.
 
 Current regression result: `34 passed`. The real local database is migrated to
-`004_ai_analysis.sql`; it currently contains one configured source and zero
-news rows. The empty-queue AI and Markdown CLI smoke tests complete without
+`005_organizations.sql`; it currently contains four configured sources and
+zero news rows. The empty-queue AI and Markdown CLI smoke tests complete without
 requiring a key or making an API request. Markdown smoke output contains four
 empty-state pages under `site/generated/`.
