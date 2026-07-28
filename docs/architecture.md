@@ -181,6 +181,12 @@ HTTP 403 to automated runners. Such a failure remains visible in the Actions
 log and does not create a synthetic record; RSS collection and publishing
 continue independently.
 
+The case-resolution variant uses the first link in each row as the official
+resolution document, keeps the remaining text as the source description, and
+creates a matching `events` record keyed by case name and extracted start date.
+Video links in the same row remain in the source page but are not downloaded or
+treated as independent claims.
+
 ## Module layout
 
 ```text

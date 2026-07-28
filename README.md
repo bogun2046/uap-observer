@@ -17,7 +17,7 @@ Phase 1 establishes the local data foundation:
 - typed domain models and a small persistence layer
 - version-controlled source definitions
 - NASA official RSS and The Debrief RSS sources
-- AARO official press-products page registered for the future web-page collector
+- AARO official press-products and case-resolution pages
 - incremental RSS/Atom collection with conditional HTTP requests
 - URL normalization, keyword filtering, and duplicate prevention
 - article-body and metadata extraction with a durable processing queue
@@ -81,6 +81,7 @@ uap-observer db-status
 uap-observer sync-sources
 uap-observer collect-rss --source nasa-recent
 uap-observer collect-web --source aaro-press-products --limit 20
+uap-observer collect-web --source aaro-case-resolutions --limit 20
 uap-observer extract-articles --limit 20
 uap-observer analyze-articles --limit 10
 uap-observer publish-markdown --output site/generated
@@ -169,6 +170,9 @@ registered as an official web-page source and is collected by `collect-web`.
 If AARO's Akamai edge returns HTTP 403 to a scheduled runner, the workflow
 keeps the warning visible and continues with RSS sources; it does not fabricate
 records from an inaccessible page.
+The case-resolution collector also creates an `events` row for each new case,
+using the official assessment description and any date found in that text. The
+event is created only after the source-linked news item is deduplicated.
 NASA's feed is filtered for UAP keywords because the feed also contains
 unrelated space news. The Debrief is
 assigned source credibility 4 and `source_reported`; those values describe the

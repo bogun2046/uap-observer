@@ -56,6 +56,9 @@ Last updated: 2026-07-28
 - [x] Add AARO web-page collection to the daily GitHub Actions workflow
 - [x] Test AARO parsing, insertion, deduplication, and 304 handling
 - [x] Record AARO runner HTTP 403 as a visible non-blocking limitation
+- [x] Add AARO case-resolution page source
+- [x] Create historical `events` rows from official case-resolution records
+- [x] Preserve official case assessment descriptions as news summaries
 
 ### Next
 
@@ -86,7 +89,7 @@ relationships: 0
 
 After `sync-sources`, the current source count is `1`.
 
-Current regression result: `25 passed`. The real local database is migrated to
+Current regression result: `30 passed`. The real local database is migrated to
 `004_ai_analysis.sql`; it currently contains one configured source and zero
 news rows. The empty-queue AI and Markdown CLI smoke tests complete without
 requiring a key or making an API request. Markdown smoke output contains four
