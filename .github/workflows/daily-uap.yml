@@ -60,6 +60,10 @@ jobs:
         continue-on-error: true
         run: uap-observer collect-web --source aaro-case-resolutions --limit 20
 
+      - name: Record source health
+        if: ${{ always() }}
+        run: uap-observer source-status
+
       - name: Extract article text
         run: uap-observer extract-articles --limit 20 --retry-failed
 

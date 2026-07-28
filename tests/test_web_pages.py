@@ -54,6 +54,11 @@ class FakeFetcher:
         return self.response
 
 
+class FailingFetcher:
+    def fetch(self, url: str, *, etag: str | None, last_modified: str | None) -> WebPageResponse:
+        raise RuntimeError("edge HTTP 403")
+
+
 class WebPageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_directory = tempfile.TemporaryDirectory()
@@ -87,6 +92,13 @@ class WebPageTests(unittest.TestCase):
         self.assertEqual(records[0].publish_date, "2025")
         self.assertEqual(records[0].source_url, "https://www.aaro.mil/reports/fy25.pdf")
         self.assertEqual(records[2].publish_date, "2026-02-27")
+
+    def test_fetch_failure_is_persisted_for_source_status(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "edge HTTP 403"):
+            AaroCollector(self.repository, fetcher=FailingFetcher()).collect(self.source)
+        stored = self.repository.get_sources(slug="aaro-test")[0]
+        self.assertEqual(stored.last_error, "edge HTTP 403")
+        self.assertIsNone(stored.last_success_at)
 
     def test_collector_inserts_and_deduplicates_records(self) -> None:
         collector = AaroCollector(

@@ -171,11 +171,15 @@ class AaroCollector:
     def collect(self, source: Source, *, limit: int | None = None) -> WebCollectionResult:
         if source.source_type is not SourceType.WEB_PAGE:
             raise ValueError(f"Source {source.slug!r} is not a web page source")
-        response = self.fetcher.fetch(
-            source.homepage_url,
-            etag=source.etag,
-            last_modified=source.last_modified,
-        )
+        try:
+            response = self.fetcher.fetch(
+                source.homepage_url,
+                etag=source.etag,
+                last_modified=source.last_modified,
+            )
+        except Exception as error:
+            self.repository.record_source_fetch(source.id or 0, error=str(error)[:1000])
+            raise
         self.repository.record_source_fetch(
             source.id or 0,
             etag=response.etag,
@@ -241,11 +245,15 @@ class AaroCaseCollector:
     def collect(self, source: Source, *, limit: int | None = None) -> WebCollectionResult:
         if source.source_type is not SourceType.WEB_PAGE:
             raise ValueError(f"Source {source.slug!r} is not a web page source")
-        response = self.fetcher.fetch(
-            source.homepage_url,
-            etag=source.etag,
-            last_modified=source.last_modified,
-        )
+        try:
+            response = self.fetcher.fetch(
+                source.homepage_url,
+                etag=source.etag,
+                last_modified=source.last_modified,
+            )
+        except Exception as error:
+            self.repository.record_source_fetch(source.id or 0, error=str(error)[:1000])
+            raise
         self.repository.record_source_fetch(
             source.id or 0,
             etag=response.etag,
