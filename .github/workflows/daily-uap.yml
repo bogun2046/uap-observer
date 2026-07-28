@@ -68,6 +68,9 @@ jobs:
         if: ${{ env.OPENAI_API_KEY == '' }}
         run: echo "OPENAI_API_KEY is not configured; leaving extracted articles queued for a later run."
 
+      - name: Link analyzed entities
+        run: uap-observer link-entities --limit 1000
+
       - name: Generate Markdown site
         run: uap-observer publish-markdown --output site/generated
 

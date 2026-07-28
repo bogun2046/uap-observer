@@ -9,6 +9,7 @@ from uap_observer.models import (
     AnalysisRiskFlag,
     AnalysisTask,
     ArticleTask,
+    EntityType,
     Event,
     FactStatus,
     News,
@@ -438,6 +439,67 @@ class Repository:
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def get_completed_analysis_records(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, analysis_json, analysis_confidence, credibility
+                FROM news
+                WHERE processing_status = 'completed'
+                  AND analysis_json IS NOT NULL
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_person_id(self, *, name: str) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM persons WHERE lower(name) = lower(?) LIMIT 1",
+                (name,),
+            ).fetchone()
+        return int(row["id"]) if row else None
+
+    def get_event_id(self, *, event_name: str) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM events WHERE lower(event_name) = lower(?) LIMIT 1",
+                (event_name,),
+            ).fetchone()
+        return int(row["id"]) if row else None
+
+    def relationship_exists(
+        self,
+        *,
+        source_type: EntityType,
+        source_id: int,
+        target_type: EntityType,
+        target_id: int,
+        relationship_type: str,
+    ) -> bool:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT 1 FROM relationships
+                WHERE source_type = ? AND source_id = ?
+                  AND target_type = ? AND target_id = ?
+                  AND relationship_type = ?
+                LIMIT 1
+                """,
+                (
+                    source_type.value,
+                    source_id,
+                    target_type.value,
+                    target_id,
+                    relationship_type,
+                ),
+            ).fetchone()
+        return row is not None
 
     def upsert_source(self, source: Source) -> int:
         with self.database.connect() as connection:

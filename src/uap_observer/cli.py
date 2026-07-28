@@ -12,6 +12,7 @@ from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
+from uap_observer.entity_linking import EntityLinkingService
 from uap_observer.models import SourceType
 from uap_observer.publishing import MarkdownPublisher
 from uap_observer.repositories import Repository
@@ -92,6 +93,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Homepage date in YYYY-MM-DD format (defaults to local today).",
     )
     publish_parser.add_argument("--limit", type=int, default=1000)
+
+    link_parser = subparsers.add_parser(
+        "link-entities",
+        help="Create person/event relationships from completed AI analysis.",
+    )
+    link_parser.add_argument("--limit", type=int, default=1000)
     return parser
 
 
@@ -216,6 +223,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"Markdown publishing complete; news_pages={result.news_pages} "
             f"events={result.event_count} output={result.output_directory}"
+        )
+        return 0
+
+    if args.command == "link-entities":
+        if args.limit < 1:
+            raise SystemExit("--limit must be at least 1")
+        run = EntityLinkingService(repository).run(limit=args.limit)
+        print(
+            f"Entity linking complete; records={run.records} "
+            f"persons_created={run.persons_created} events_created={run.events_created} "
+            f"relationships_created={run.relationships_created} "
+            f"skipped_invalid={run.skipped_invalid}"
         )
         return 0
 
