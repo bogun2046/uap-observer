@@ -165,6 +165,22 @@ generated directory to GitHub Pages. The committed SQLite file is a deliberate
 Phase 1 persistence bridge; Supabase PostgreSQL should replace it before the
 database becomes large or receives concurrent writers.
 
+### Official HTML page collection
+
+Some official sources publish release tables without RSS. `AaroCollector`
+fetches the AARO Congressional/Press Products page, extracts linked table rows,
+normalizes relative links, preserves year or full publication dates, and inserts
+each linked report as a source-reported queue item for later extraction and AI
+analysis. It uses ETag/Last-Modified validators, a stable URL hash as the feed
+entry ID, and the same canonical URL deduplication as RSS. It intentionally
+stores the source link and table description only; it does not download PDF
+content during collection.
+
+The scheduled web-page step is non-blocking because AARO may return an edge
+HTTP 403 to automated runners. Such a failure remains visible in the Actions
+log and does not create a synthetic record; RSS collection and publishing
+continue independently.
+
 ## Module layout
 
 ```text

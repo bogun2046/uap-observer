@@ -80,6 +80,7 @@ uap-observer init-db
 uap-observer db-status
 uap-observer sync-sources
 uap-observer collect-rss --source nasa-recent
+uap-observer collect-web --source aaro-press-products --limit 20
 uap-observer extract-articles --limit 20
 uap-observer analyze-articles --limit 10
 uap-observer publish-markdown --output site/generated
@@ -164,9 +165,12 @@ Last-Modified values; a source that has not changed reports `not modified`.
 
 The active RSS registry currently includes NASA's recently published feed and
 The Debrief's feed. AARO's official Congressional/Press Products page is
-registered but disabled until the planned web-page collector is implemented;
-the current RSS collector will not scrape it. NASA's feed is filtered for UAP
-keywords because the feed also contains unrelated space news. The Debrief is
+registered as an official web-page source and is collected by `collect-web`.
+If AARO's Akamai edge returns HTTP 403 to a scheduled runner, the workflow
+keeps the warning visible and continues with RSS sources; it does not fabricate
+records from an inaccessible page.
+NASA's feed is filtered for UAP keywords because the feed also contains
+unrelated space news. The Debrief is
 assigned source credibility 4 and `source_reported`; those values describe the
 source, not the truth of individual claims.
 

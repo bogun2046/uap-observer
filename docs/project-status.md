@@ -51,11 +51,15 @@ Last updated: 2026-07-28
 - [x] Register AARO official press products for the future web-page collector
 - [x] Verify The Debrief RSS returns successfully through the HTTP fallback
 - [x] Fix curl fallback parsing when status markers are written to stdout
+- [x] Add AARO HTML table parser with relative-link normalization
+- [x] Add AARO web-page collection CLI with conditional requests and deduplication
+- [x] Add AARO web-page collection to the daily GitHub Actions workflow
+- [x] Test AARO parsing, insertion, deduplication, and 304 handling
+- [x] Record AARO runner HTTP 403 as a visible non-blocking limitation
 
 ### Next
 
 - [ ] Add more official and reputable RSS/API sources
-- [ ] Implement web-page collector for AARO's official release tables
 - [ ] Replace committed SQLite persistence with Supabase PostgreSQL
 
 ## Verification

@@ -49,6 +49,10 @@ jobs:
       - name: Collect RSS feeds
         run: uap-observer collect-rss --limit 30
 
+      - name: Collect official web release pages
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-press-products --limit 20
+
       - name: Extract article text
         run: uap-observer extract-articles --limit 20 --retry-failed
 
