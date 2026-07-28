@@ -107,8 +107,27 @@ class News:
     ai_model: str | None = None
     ai_processed_at: str | None = None
     processing_status: ProcessingStatus = ProcessingStatus.PENDING
+    extraction_status: ProcessingStatus = ProcessingStatus.PENDING
+    extracted_content: str | None = None
+    extracted_title: str | None = None
+    extracted_author: str | None = None
+    extracted_publish_date: str | None = None
+    extracted_language: str | None = None
+    extracted_by: str | None = None
+    extraction_attempts: int = 0
+    extraction_started_at: str | None = None
+    content_extracted_at: str | None = None
+    extraction_error: str | None = None
     created_time: str | None = None
     updated_time: str | None = None
+
+
+@dataclass(frozen=True)
+class ArticleTask:
+    news_id: int
+    url: str
+    original_title: str
+    extraction_attempts: int
 
 
 @dataclass

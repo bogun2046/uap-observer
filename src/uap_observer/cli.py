@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
+from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
@@ -39,6 +40,17 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--config", type=Path, help="Source JSON configuration path.")
     collect_parser.add_argument("--source", help="Collect one source slug only.")
     collect_parser.add_argument("--limit", type=int, help="Maximum feed entries per source.")
+
+    extraction_parser = subparsers.add_parser(
+        "extract-articles",
+        help="Download and extract queued article bodies.",
+    )
+    extraction_parser.add_argument("--limit", type=int, default=20)
+    extraction_parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Include previously failed extraction tasks.",
+    )
     return parser
 
 
@@ -91,6 +103,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"invalid={result.invalid}"
                 )
         print(f"RSS collection complete; inserted={total_inserted}")
+        return 0
+
+    if args.command == "extract-articles":
+        if args.limit < 1:
+            raise SystemExit("--limit must be at least 1")
+        run = ArticleExtractionService(repository).run(
+            limit=args.limit,
+            retry_failed=args.retry_failed,
+        )
+        print(
+            f"Article extraction complete; stale_recovered={run.stale_recovered} "
+            f"queued={run.queued} claimed={run.claimed} "
+            f"completed={run.completed} failed={run.failed} "
+            f"skipped_duplicates={run.skipped_duplicates}"
+        )
         return 0
 
     status = database.status()

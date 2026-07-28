@@ -36,7 +36,7 @@ class DatabaseTests(unittest.TestCase):
     def test_initialize_creates_core_tables_and_is_idempotent(self) -> None:
         self.assertEqual(
             self.database.initialize(),
-            ["001_initial.sql", "002_sources.sql"],
+            ["001_initial.sql", "002_sources.sql", "003_article_extraction.sql"],
         )
         self.assertEqual(self.database.initialize(), [])
 
@@ -49,7 +49,10 @@ class DatabaseTests(unittest.TestCase):
             }
 
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
-        self.assertEqual(self.database.status().schema_version, "002_sources.sql")
+        self.assertEqual(
+            self.database.status().schema_version,
+            "003_article_extraction.sql",
+        )
         self.assertEqual(
             self.database.status().row_counts,
             {table: 0 for table in CORE_TABLES},

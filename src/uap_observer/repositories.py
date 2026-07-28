@@ -6,6 +6,7 @@ import json
 
 from uap_observer.database import Database
 from uap_observer.models import (
+    ArticleTask,
     Event,
     FactStatus,
     News,
@@ -83,6 +84,173 @@ class Repository:
                 values,
             ).fetchone()
         return row is not None
+
+    def get_article_tasks(
+        self,
+        *,
+        limit: int,
+        retry_failed: bool = False,
+    ) -> list[ArticleTask]:
+        statuses = ("pending", "failed") if retry_failed else ("pending",)
+        placeholders = ", ".join("?" for _ in statuses)
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT id, COALESCE(canonical_url, source_url) AS article_url,
+                       original_title, extraction_attempts
+                FROM news
+                WHERE extraction_status IN ({placeholders})
+                  AND COALESCE(canonical_url, source_url) IS NOT NULL
+                ORDER BY publish_date ASC, id ASC
+                LIMIT ?
+                """,
+                (*statuses, limit),
+            ).fetchall()
+        return [
+            ArticleTask(
+                news_id=row["id"],
+                url=row["article_url"],
+                original_title=row["original_title"],
+                extraction_attempts=row["extraction_attempts"],
+            )
+            for row in rows
+        ]
+
+    def reset_stale_article_tasks(self, *, stale_after_minutes: int = 60) -> int:
+        if stale_after_minutes < 1:
+            raise ValueError("stale_after_minutes must be at least 1")
+        modifier = f"-{stale_after_minutes} minutes"
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'pending',
+                    extraction_started_at = NULL,
+                    extraction_error = 'Recovered stale processing task',
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE extraction_status = 'processing'
+                  AND extraction_started_at < strftime(
+                      '%Y-%m-%dT%H:%M:%fZ', 'now', ?
+                  )
+                """,
+                (modifier,),
+            )
+        return cursor.rowcount
+
+    def claim_article_task(self, news_id: int, *, retry_failed: bool = False) -> bool:
+        statuses = ("pending", "failed") if retry_failed else ("pending",)
+        placeholders = ", ".join("?" for _ in statuses)
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                f"""
+                UPDATE news
+                SET extraction_status = 'processing',
+                    extraction_attempts = extraction_attempts + 1,
+                    extraction_started_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    extraction_error = NULL,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND extraction_status IN ({placeholders})
+                """,
+                (news_id, *statuses),
+            )
+        return cursor.rowcount == 1
+
+    def find_news_by_content_hash(
+        self,
+        content_hash: str,
+        *,
+        exclude_news_id: int,
+    ) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id FROM news
+                WHERE content_hash = ? AND id <> ?
+                LIMIT 1
+                """,
+                (content_hash, exclude_news_id),
+            ).fetchone()
+        return int(row["id"]) if row else None
+
+    def complete_article_extraction(
+        self,
+        news_id: int,
+        *,
+        content: str,
+        content_hash: str,
+        title: str | None,
+        author: str | None,
+        publish_date: str | None,
+        language: str | None,
+        extracted_by: str,
+    ) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'completed',
+                    extracted_content = ?,
+                    content_hash = ?,
+                    extracted_title = ?,
+                    extracted_author = ?,
+                    extracted_publish_date = ?,
+                    extracted_language = ?,
+                    extracted_by = ?,
+                    content_extracted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    extraction_error = NULL,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND extraction_status = 'processing'
+                """,
+                (
+                    content,
+                    content_hash,
+                    title,
+                    author,
+                    publish_date,
+                    language,
+                    extracted_by,
+                    news_id,
+                ),
+            )
+
+    def fail_article_extraction(self, news_id: int, error: str) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'failed',
+                    extraction_error = ?,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND extraction_status = 'processing'
+                """,
+                (error[:1000], news_id),
+            )
+
+    def skip_duplicate_article(
+        self,
+        news_id: int,
+        *,
+        duplicate_of_news_id: int,
+        content_hash: str,
+        extracted_by: str,
+    ) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'skipped',
+                    extracted_by = ?,
+                    extraction_error = ?,
+                    content_extracted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND extraction_status = 'processing'
+                """,
+                (
+                    extracted_by,
+                    f"duplicate content of news_id={duplicate_of_news_id}; hash={content_hash}",
+                    news_id,
+                ),
+            )
 
     def upsert_source(self, source: Source) -> int:
         with self.database.connect() as connection:

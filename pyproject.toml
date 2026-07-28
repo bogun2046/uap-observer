@@ -12,7 +12,10 @@ license = { text = "MIT" }
 authors = [
   { name = "UAP Observer contributors" }
 ]
-dependencies = []
+dependencies = [
+  "trafilatura==1.12.2",
+  "urllib3>=1.26,<2",
+]
 
 [project.optional-dependencies]
 dev = [
