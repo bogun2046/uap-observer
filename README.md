@@ -82,6 +82,7 @@ python -m pip install -e .
 uap-observer init-db
 uap-observer db-status
 uap-observer sync-sources
+uap-observer source-status
 uap-observer collect-rss --source nasa-recent
 uap-observer collect-web --source aaro-press-products --limit 20
 uap-observer collect-web --source aaro-case-resolutions --limit 20
@@ -207,7 +208,11 @@ The collector uses Python's standard HTTP client first. If a server repeatedly
 terminates HTTP/1.1 chunked transfer early, it can safely fall back to the
 system `curl` executable using an argument list without a shell. This handles
 NASA's current Feed behavior on macOS while keeping Python runtime dependencies
-at zero.
+to zero.
+
+Use `source-status` to inspect whether each configured source is enabled and
+when it was last fetched successfully. Fetch errors are retained in SQLite for
+scheduled-run diagnostics.
 
 The default database is `data/uap.db`. Override it with either:
 

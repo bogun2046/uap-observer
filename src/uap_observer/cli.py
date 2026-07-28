@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("init-db", help="Create or migrate the SQLite database.")
     subparsers.add_parser("db-status", help="Show migration and row-count status.")
+    subparsers.add_parser("source-status", help="Show source enablement and fetch health.")
 
     sync_parser = subparsers.add_parser(
         "sync-sources",
@@ -132,6 +133,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     database.initialize()
     repository = Repository(database)
+
+    if args.command == "source-status":
+        sources = repository.get_sources(enabled_only=False)
+        if not sources:
+            print("No sources configured.")
+            return 0
+        for source in sources:
+            state = "enabled" if source.enabled else "disabled"
+            last_fetch = source.last_fetched_at or "never"
+            last_success = source.last_success_at or "never"
+            error = source.last_error or "none"
+            print(
+                f"{source.slug}: {state} type={source.source_type.value} "
+                f"last_fetch={last_fetch} last_success={last_success} error={error}"
+            )
+        return 0
 
     if args.command in {"sync-sources", "collect-rss"}:
         config_path = args.config or settings.sources_path
