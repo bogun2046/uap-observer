@@ -74,6 +74,8 @@ Last updated: 2026-07-28
 - [x] Persist official web collector failures for source health diagnostics
 - [x] Verify required generated Pages files before artifact upload
 - [x] Document GitHub Pages manual deployment and acceptance checklist
+- [x] Package migrations and default source registry in the wheel
+- [x] Test wheel installation with isolated runtime initialization
 - [x] Test graph pages and detail-page entity rendering
 - [x] Add Supabase PostgreSQL schema baseline
 - [x] Add deterministic SQLite JSON snapshot export

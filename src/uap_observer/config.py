@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATABASE_PATH = PROJECT_ROOT / "data" / "uap.db"
-DEFAULT_MIGRATIONS_PATH = PROJECT_ROOT / "migrations"
-DEFAULT_SOURCES_PATH = PROJECT_ROOT / "config" / "sources.json"
+PACKAGE_ROOT = Path(__file__).resolve().parent
+DEFAULT_DATABASE_PATH = Path.cwd() / "data" / "uap.db"
+DEFAULT_MIGRATIONS_PATH = PACKAGE_ROOT / "migrations"
+DEFAULT_SOURCES_PATH = PACKAGE_ROOT / "resources" / "sources.json"
 DEFAULT_OPENAI_MODEL = "gpt-5.6-luna"
 DEFAULT_REASONING_EFFORT = "low"
 

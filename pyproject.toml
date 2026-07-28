@@ -21,8 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.0",
-  "ruff>=0.6",
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "wheel>=0.43",
 ]
 
 [project.scripts]
@@ -33,6 +34,9 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+uap_observer = ["migrations/*.sql", "resources/*.json"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

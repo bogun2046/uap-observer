@@ -224,6 +224,10 @@ UAP_DB_PATH=/absolute/path/uap.db uap-observer init-db
 uap-observer --database /absolute/path/uap.db init-db
 ```
 
+The installed wheel includes the SQL migrations and default source registry as
+package data, so `init-db` and `sync-sources` do not depend on the repository
+working directory. The database remains an operator-selected runtime path.
+
 ## Run tests
 
 Run the full suite in the installed environment:

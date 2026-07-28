@@ -32,6 +32,9 @@ implemented and emits source-linked static pages.
 The MVP uses `sqlite3` and SQL migration files. This keeps local setup small,
 makes the schema explicit, and avoids binding the domain model to an ORM.
 Forward-only migrations provide a controlled path for later schema changes.
+The migration SQL and default source registry are packaged under
+`uap_observer` so installed CLI runs resolve resources from the package rather
+than from a repository-relative path.
 
 ### Raw and derived content
 
