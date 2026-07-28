@@ -9,6 +9,7 @@ from pathlib import Path
 from uap_observer.ai_analysis import AnalysisService, OpenAIAnalyzer
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
+from uap_observer.collectors.web_pages import AaroCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.models import SourceType
@@ -42,6 +43,13 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--config", type=Path, help="Source JSON configuration path.")
     collect_parser.add_argument("--source", help="Collect one source slug only.")
     collect_parser.add_argument("--limit", type=int, help="Maximum feed entries per source.")
+
+    web_parser = subparsers.add_parser(
+        "collect-web",
+        help="Collect enabled official HTML release pages.",
+    )
+    web_parser.add_argument("--source", default="aaro-press-products")
+    web_parser.add_argument("--limit", type=int, default=20)
 
     extraction_parser = subparsers.add_parser(
         "extract-articles",
@@ -136,6 +144,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"invalid={result.invalid}"
                 )
         print(f"RSS collection complete; inserted={total_inserted}")
+        return 0
+
+    if args.command == "collect-web":
+        if args.limit < 1:
+            raise SystemExit("--limit must be at least 1")
+        sources = repository.get_sources(
+            source_type=SourceType.WEB_PAGE,
+            slug=args.source,
+        )
+        if not sources:
+            raise SystemExit(f"Enabled web-page source not found: {args.source}")
+        result = AaroCollector(repository).collect(sources[0], limit=args.limit)
+        if result.not_modified:
+            print(f"{args.source}: not modified")
+        else:
+            print(
+                f"{args.source}: fetched={result.fetched} inserted={result.inserted} "
+                f"duplicates={result.duplicates} invalid={result.invalid}"
+            )
         return 0
 
     if args.command == "extract-articles":

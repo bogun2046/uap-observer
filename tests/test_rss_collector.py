@@ -183,7 +183,7 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(sources[0].default_credibility, 5)
         self.assertEqual(sources[1].feed_url, "https://thedebrief.org/feed/")
         self.assertEqual(sources[2].source_type, SourceType.WEB_PAGE)
-        self.assertFalse(sources[2].enabled)
+        self.assertTrue(sources[2].enabled)
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">

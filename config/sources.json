@@ -63,7 +63,7 @@
         "aaro"
       ],
       "exclude_keywords": [],
-      "enabled": false
+      "enabled": true
     }
   ]
 }
