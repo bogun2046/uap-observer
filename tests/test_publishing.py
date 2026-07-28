@@ -7,7 +7,16 @@ from pathlib import Path
 
 from uap_observer.ai_analysis import ANALYSIS_VERSION
 from uap_observer.database import Database
-from uap_observer.models import AnalysisRiskFlag, Event, FactStatus, News, NewsCategory
+from uap_observer.models import (
+    AnalysisRiskFlag,
+    EntityType,
+    Event,
+    FactStatus,
+    News,
+    NewsCategory,
+    Person,
+    Relationship,
+)
 from uap_observer.publishing import MarkdownPublisher
 from uap_observer.repositories import Repository
 
@@ -88,6 +97,18 @@ class PublishingTests(unittest.TestCase):
             )
         )
         self.assertGreater(event_id, 0)
+        person_id = self.repository.add_person(Person(name="Test Person", organization="Test Agency"))
+        self.repository.add_relationship(
+            Relationship(
+                source_type=EntityType.NEWS,
+                source_id=news_id,
+                target_type=EntityType.PERSON,
+                target_id=person_id,
+                relationship_type="mentions_person",
+                evidence_news_id=news_id,
+                confidence=0.9,
+            )
+        )
         output = Path(self.temp_directory.name) / "generated"
 
         result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
@@ -99,6 +120,8 @@ class PublishingTests(unittest.TestCase):
         detail = next((output / "news").glob(f"{news_id}-*.md")).read_text(encoding="utf-8")
         timeline = (output / "timeline.md").read_text(encoding="utf-8")
         events = (output / "events" / "index.md").read_text(encoding="utf-8")
+        persons = (output / "persons" / "index.md").read_text(encoding="utf-8")
+        relationships = (output / "relationships.md").read_text(encoding="utf-8")
 
         self.assertIn("今日UAP新闻", homepage)
         self.assertIn(f"news/{news_id}-", homepage)
@@ -109,6 +132,9 @@ class PublishingTests(unittest.TestCase):
         self.assertNotIn("内部正文不应出现在页面", detail)
         self.assertIn("2004", timeline)
         self.assertIn("Test Historical Event", events)
+        self.assertIn("Test Person", detail)
+        self.assertIn("Test Person", persons)
+        self.assertIn("mentions_person", relationships)
 
     def test_empty_publisher_writes_safe_empty_pages(self) -> None:
         output = Path(self.temp_directory.name) / "empty"

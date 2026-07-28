@@ -440,6 +440,56 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_persons(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, name, country, organization, description FROM persons ORDER BY lower(name) LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_news_entities(self, news_id: int) -> list[dict[str, object]]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT r.target_type AS entity_type, r.relationship_type,
+                       r.confidence, p.name AS entity_name, e.event_name
+                FROM relationships AS r
+                LEFT JOIN persons AS p
+                  ON r.target_type = 'person' AND r.target_id = p.id
+                LEFT JOIN events AS e
+                  ON r.target_type = 'event' AND r.target_id = e.id
+                WHERE r.source_type = 'news' AND r.source_id = ?
+                ORDER BY r.target_type, COALESCE(p.name, e.event_name)
+                """,
+                (news_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_relationships(self, *, limit: int = 2000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT r.id, r.source_id AS news_id, n.title AS news_title,
+                       r.target_type AS entity_type, r.relationship_type,
+                       r.confidence, p.name AS person_name, e.event_name
+                FROM relationships AS r
+                JOIN news AS n ON r.source_type = 'news' AND r.source_id = n.id
+                LEFT JOIN persons AS p
+                  ON r.target_type = 'person' AND r.target_id = p.id
+                LEFT JOIN events AS e
+                  ON r.target_type = 'event' AND r.target_id = e.id
+                ORDER BY r.id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_completed_analysis_records(self, *, limit: int = 1000) -> list[dict[str, object]]:
         if limit < 1:
             raise ValueError("limit must be at least 1")

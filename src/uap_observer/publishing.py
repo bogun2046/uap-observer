@@ -17,6 +17,8 @@ class PublishResult:
     news_pages: int
     event_count: int
     output_directory: Path
+    person_count: int = 0
+    relationship_count: int = 0
 
 
 class MarkdownPublisher:
@@ -30,6 +32,8 @@ class MarkdownPublisher:
         publish_date = today or datetime.now(timezone.utc).date().isoformat()
         news = self.repository.get_published_news(limit=limit)
         events = self.repository.get_events_for_timeline(limit=limit)
+        persons = self.repository.get_persons(limit=limit)
+        relationships = self.repository.get_relationships(limit=limit * 2)
         news_directory = self.output_directory / "news"
         events_directory = self.output_directory / "events"
         news_directory.mkdir(parents=True, exist_ok=True)
@@ -38,7 +42,15 @@ class MarkdownPublisher:
         pages: list[tuple[str, str]] = []
         for row in news:
             filename = _news_filename(row)
-            pages.append((filename, _render_news_detail(row)))
+            pages.append(
+                (
+                    filename,
+                    _render_news_detail(
+                        row,
+                        self.repository.get_news_entities(int(row["id"])),
+                    ),
+                )
+            )
         for filename, content in pages:
             (news_directory / filename).write_text(content, encoding="utf-8")
 
@@ -59,10 +71,21 @@ class MarkdownPublisher:
             _render_timeline(events),
             encoding="utf-8",
         )
+        (self.output_directory / "persons").mkdir(parents=True, exist_ok=True)
+        (self.output_directory / "persons" / "index.md").write_text(
+            _render_persons_index(persons),
+            encoding="utf-8",
+        )
+        (self.output_directory / "relationships.md").write_text(
+            _render_relationships(relationships),
+            encoding="utf-8",
+        )
         return PublishResult(
             news_pages=len(pages),
             event_count=len(events),
             output_directory=self.output_directory,
+            person_count=len(persons),
+            relationship_count=len(relationships),
         )
 
 
@@ -112,7 +135,7 @@ def _render_news_cards(
     return lines
 
 
-def _render_news_detail(row: dict[str, object]) -> str:
+def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]]) -> str:
     title = _text(row.get("title")) or _text(row.get("original_title")) or "未命名新闻"
     facts = _json_list(row.get("key_facts"))
     viewpoints = _json_list(row.get("viewpoints"))
@@ -141,6 +164,14 @@ def _render_news_detail(row: dict[str, object]) -> str:
     lines.extend([f"- {_escape_text(item)}" for item in facts] or ["- 暂无。"])
     lines.extend(("", "## 不同观点", ""))
     lines.extend([f"- {_escape_text(item)}" for item in viewpoints] or ["- 文中未识别到不同观点。"])
+    lines.extend(("", "## 相关人物与事件", ""))
+    if entities:
+        for entity in entities:
+            name = _text(entity.get("entity_name")) or _text(entity.get("event_name"))
+            kind = "人物" if entity.get("entity_type") == "person" else "事件"
+            lines.append(f"- {kind}：{_escape_text(name)}")
+    else:
+        lines.append("- 暂无已建立的关系。")
     lines.extend(("", "## 分析信息", "", f"- 模型：`{_escape_text(_text(row.get('ai_model')) or 'unknown')}`"))
     if row.get("analysis_confidence") is not None:
         lines.append(f"- 分析置信度：{float(row['analysis_confidence']):.2f}")
@@ -175,6 +206,41 @@ def _render_timeline(events: list[dict[str, object]]) -> str:
         year = (_date_prefix(event.get("date_start")) or "未知")[:4]
         name = _escape_text(_text(event.get("event_name")) or "未命名事件")
         lines.append(f"- **{year}**　{name}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _render_persons_index(persons: list[dict[str, object]]) -> str:
+    lines = ["---", 'title: "人物"', "layout: default", "---", ""]
+    if not persons:
+        return "\n".join(lines + ["暂无已建立的人物实体。", ""])
+    for person in persons:
+        name = _escape_text(_text(person.get("name")) or "未命名人物")
+        organization = _text(person.get("organization"))
+        lines.extend((f"## {name}", ""))
+        if organization:
+            lines.append(f"机构：{_escape_text(organization)}")
+        if person.get("country"):
+            lines.append(f"国家/地区：{_escape_text(_text(person.get('country')))}")
+        lines.extend(("", _escape_text(_text(person.get("description")) or "暂无描述。"), ""))
+    return "\n".join(lines)
+
+
+def _render_relationships(relationships: list[dict[str, object]]) -> str:
+    lines = ["---", 'title: "人物与事件关系"', "layout: default", "---", ""]
+    if not relationships:
+        return "\n".join(lines + ["暂无已建立的关系。", ""])
+    lines.extend(("| 新闻 | 关系 | 实体 | 置信度 |", "| --- | --- | --- | --- |"))
+    for relationship in relationships:
+        entity = _text(relationship.get("person_name")) or _text(relationship.get("event_name"))
+        confidence = relationship.get("confidence")
+        confidence_text = f"{float(confidence):.2f}" if confidence is not None else "—"
+        lines.append(
+            "| "
+            f"{_escape_table(_text(relationship.get('news_title')))} | "
+            f"{_escape_table(_text(relationship.get('relationship_type')))} | "
+            f"{_escape_table(entity)} | {confidence_text} |"
+        )
     lines.append("")
     return "\n".join(lines)
 
@@ -217,3 +283,7 @@ def _escape_text(value: str) -> str:
 
 def _yaml_text(value: str) -> str:
     return _escape_text(value).replace('"', '\\"')
+
+
+def _escape_table(value: str) -> str:
+    return _escape_text(value).replace("|", "\\|")
