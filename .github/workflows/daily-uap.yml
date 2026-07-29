@@ -108,6 +108,50 @@ jobs:
           test -f site/_site/search.json
           test -f site/_site/news/index.html
 
+      - name: Verify pipeline health
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sqlite3
+          from pathlib import Path
+
+          database = sqlite3.connect(os.environ["UAP_DB_PATH"])
+          completed_extraction = database.execute(
+              "SELECT COUNT(*) FROM news WHERE extraction_status = 'completed'"
+          ).fetchone()[0]
+          completed_analysis = database.execute(
+              "SELECT COUNT(*) FROM news WHERE processing_status = 'completed'"
+          ).fetchone()[0]
+          failed_extraction = database.execute(
+              "SELECT COUNT(*) FROM news WHERE extraction_status = 'failed'"
+          ).fetchone()[0]
+          failed_analysis = database.execute(
+              "SELECT COUNT(*) FROM news WHERE processing_status = 'failed'"
+          ).fetchone()[0]
+          if completed_extraction == 0 or completed_analysis == 0:
+              raise SystemExit(
+                  "Pipeline health check failed: no completed extraction or AI analysis"
+              )
+
+          search_index = json.loads(Path("site/generated/search.json").read_text())
+          missing_pages = [
+              item["url"]
+              for item in search_index
+              if not (Path("site/generated") / item["url"]).exists()
+          ]
+          if missing_pages:
+              raise SystemExit(f"Pipeline health check failed; missing pages: {missing_pages}")
+          print(
+              "Pipeline health OK; "
+              f"extraction_completed={completed_extraction} "
+              f"analysis_completed={completed_analysis} "
+              f"extraction_failed={failed_extraction} "
+              f"analysis_failed={failed_analysis} "
+              f"published_pages={len(search_index)}"
+          )
+          PY
+
       - name: Checkpoint SQLite WAL
         run: sqlite3 data/uap.db "PRAGMA wal_checkpoint(TRUNCATE);"
 
