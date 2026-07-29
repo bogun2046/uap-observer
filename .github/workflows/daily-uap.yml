@@ -68,11 +68,11 @@ jobs:
         run: uap-observer source-status
 
       - name: Extract article text
-        run: uap-observer extract-articles --limit 20 --retry-failed
+        run: uap-observer extract-articles --limit 100 --retry-failed
 
       - name: Analyze articles
         if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
-        run: uap-observer analyze-articles --limit 20 --retry-failed
+        run: uap-observer analyze-articles --limit 100 --retry-failed
 
       - name: Explain skipped AI step
         if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
