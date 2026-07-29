@@ -381,6 +381,21 @@ class ArticleExtractionService:
                 )
                 completed += 1
             except Exception as error:
+                fallback = _official_record_fallback(task)
+                if fallback is not None:
+                    content_hash = hashlib.sha256(fallback.content.encode("utf-8")).hexdigest()
+                    self.repository.complete_article_extraction(
+                        task.news_id,
+                        content=fallback.content,
+                        content_hash=content_hash,
+                        title=fallback.title,
+                        author=None,
+                        publish_date=None,
+                        language="en",
+                        extracted_by=fallback.extractor,
+                    )
+                    completed += 1
+                    continue
                 self.repository.fail_article_extraction(
                     task.news_id,
                     f"{type(error).__name__}: {error}",
@@ -394,3 +409,14 @@ class ArticleExtractionService:
             failed=failed,
             skipped_duplicates=skipped,
         )
+
+
+def _official_record_fallback(task: object) -> ExtractedArticle | None:
+    source = getattr(task, "source", "")
+    content = getattr(task, "fallback_content", None)
+    if source != "AARO UAP Case Resolution Reports" or not content:
+        return None
+    normalized = "\n\n".join(line.strip() for line in str(content).splitlines() if line.strip())
+    if len(normalized) < 80:
+        return None
+    return ExtractedArticle(content=normalized, extractor="official-record-fallback")

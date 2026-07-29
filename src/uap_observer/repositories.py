@@ -101,7 +101,7 @@ class Repository:
             rows = connection.execute(
                 f"""
                 SELECT id, COALESCE(canonical_url, source_url) AS article_url,
-                       original_title, extraction_attempts
+                       original_title, extraction_attempts, source, summary
                 FROM news
                 WHERE extraction_status IN ({placeholders})
                   AND COALESCE(canonical_url, source_url) IS NOT NULL
@@ -116,6 +116,8 @@ class Repository:
                 url=row["article_url"],
                 original_title=row["original_title"],
                 extraction_attempts=row["extraction_attempts"],
+                source=row["source"],
+                fallback_content=row["summary"],
             )
             for row in rows
         ]

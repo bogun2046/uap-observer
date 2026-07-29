@@ -136,6 +136,8 @@ class ArticleTask:
     url: str
     original_title: str
     extraction_attempts: int
+    source: str = ""
+    fallback_content: str | None = None
 
 
 @dataclass(frozen=True)
