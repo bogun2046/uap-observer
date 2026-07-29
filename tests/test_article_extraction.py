@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from uap_observer.article_extraction import (
     ArticleExtractionService,
@@ -13,7 +15,6 @@ from uap_observer.article_extraction import (
 from uap_observer.database import Database
 from uap_observer.models import FactStatus, News, NewsCategory
 from uap_observer.repositories import Repository
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -208,6 +209,42 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertNotIn("Navigation links", article.content)
         self.assertEqual(article.author, "Research Team")
         self.assertTrue(article.extractor.startswith("trafilatura/"))
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("pypdf"),
+        "pypdf is not installed in this interpreter",
+    )
+    def test_pdf_extraction_supports_official_documents(self) -> None:
+        from pypdf import PdfWriter
+
+        output = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=300, height=300)
+        writer.write(output)
+        # The blank-PDF branch is covered by the short-content guard; use a
+        # mocked reader to keep this unit test independent of PDF font layout.
+        with patch("pypdf.PdfReader") as reader_class:
+            reader_class.return_value.pages = [
+                type("Page", (), {"extract_text": lambda self: "Official report content. " * 20})()
+            ]
+            reader_class.return_value.metadata = None
+            article = TrafilaturaArticleExtractor().extract_pdf(output.getvalue(), url="https://example.test/report.pdf")
+        self.assertIn("Official report content", article.content)
+        self.assertEqual(article.extractor, "pypdf")
+
+    def test_html_fallback_extracts_official_main_content(self) -> None:
+        html = """
+        <html><head><title>Official release</title></head>
+        <body><nav>Navigation</nav><main><p>Official release content. </p>
+        <p>This text is long enough to be analyzed safely. </p></main></body></html>
+        """
+        with patch.object(TrafilaturaArticleExtractor, "_module") as module:
+            module.return_value.extract.return_value = None
+            article = TrafilaturaArticleExtractor(minimum_characters=40).extract_html(
+                html, url="https://example.test/release"
+            )
+        self.assertIn("Official release content", article.content)
+        self.assertEqual(article.extractor, "html-fallback")
 
 
 if __name__ == "__main__":

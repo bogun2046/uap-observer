@@ -15,6 +15,7 @@ authors = [
 dependencies = [
   "openai==2.46.0",
   "pydantic>=2.8,<3",
+  "pypdf>=5.0,<7",
   "trafilatura==1.12.2",
   "urllib3>=1.26,<2",
 ]
