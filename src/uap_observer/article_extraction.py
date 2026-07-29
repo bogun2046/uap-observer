@@ -45,6 +45,8 @@ class ArticleExtractor(Protocol):
 class TrafilaturaArticleExtractor:
     """Download and extract a readable article using a pinned Trafilatura API."""
 
+    _user_agent = "UAPObserver/0.1 (+public-source research)"
+
     def __init__(self, *, minimum_characters: int = 200) -> None:
         self.minimum_characters = minimum_characters
 
@@ -71,8 +73,25 @@ class TrafilaturaArticleExtractor:
         trafilatura = self._module()
         downloaded = trafilatura.fetch_url(url)
         if not downloaded:
-            raise RuntimeError(f"Unable to download article: {url}")
+            downloaded, content_type = self._fallback_download(url)
+            if content_type == "application/pdf" or (
+                isinstance(downloaded, bytes) and _is_pdf_payload(downloaded)
+            ):
+                return self.extract_pdf(downloaded, url=url)
         return self.extract_html(downloaded, url=url)
+
+    def _fallback_download(self, url: str) -> tuple[bytes, str]:
+        response = urllib3.PoolManager().request(
+            "GET",
+            url,
+            headers={"User-Agent": self._user_agent, "Accept": "text/html,application/pdf"},
+            timeout=30.0,
+            preload_content=True,
+        )
+        if response.status >= 400 or not response.data:
+            raise RuntimeError(f"Unable to download article ({response.status}): {url}")
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+        return response.data, content_type
 
     def extract_pdf_url(self, url: str) -> ExtractedArticle:
         """Download and extract text from an official PDF document."""
@@ -226,6 +245,10 @@ class _FallbackHtmlExtractor(HTMLParser):
 
 def _looks_like_pdf(url: str) -> bool:
     return urlsplit(url).path.lower().endswith(".pdf")
+
+
+def _is_pdf_payload(payload: bytes) -> bool:
+    return payload[:5] == b"%PDF-"
 
 
 def _normalize_text(value: object) -> str:
