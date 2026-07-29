@@ -229,6 +229,12 @@ Use `source-status` to inspect whether each configured source is enabled and
 when it was last fetched successfully. Fetch errors are retained in SQLite for
 scheduled-run diagnostics.
 
+Article extraction supports normal HTML pages, official PDFs, and a fallback
+for official release pages whose markup is not recognized by Trafilatura. AI
+analysis is only run after readable source text has been extracted; failed
+extractions remain visible with an explicit reason instead of being presented
+as an empty AI summary.
+
 The default database is `data/uap.db`. Override it with either:
 
 ```bash

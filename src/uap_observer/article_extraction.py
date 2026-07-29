@@ -5,9 +5,14 @@ from __future__ import annotations
 import hashlib
 import importlib
 import importlib.metadata
+import io
 import json
 from dataclasses import dataclass
-from typing import Protocol
+from html.parser import HTMLParser
+from typing import ClassVar, Protocol
+from urllib.parse import urlsplit
+
+import urllib3
 
 from uap_observer.repositories import Repository
 
@@ -61,11 +66,47 @@ class TrafilaturaArticleExtractor:
         return f"trafilatura/{version}"
 
     def extract_url(self, url: str) -> ExtractedArticle:
+        if _looks_like_pdf(url):
+            return self.extract_pdf_url(url)
         trafilatura = self._module()
         downloaded = trafilatura.fetch_url(url)
         if not downloaded:
             raise RuntimeError(f"Unable to download article: {url}")
         return self.extract_html(downloaded, url=url)
+
+    def extract_pdf_url(self, url: str) -> ExtractedArticle:
+        """Download and extract text from an official PDF document."""
+
+        response = urllib3.PoolManager().request(
+            "GET", url, timeout=30.0, preload_content=True
+        )
+        if response.status >= 400:
+            raise RuntimeError(f"Unable to download PDF ({response.status}): {url}")
+        return self.extract_pdf(response.data, url=url)
+
+    def extract_pdf(self, pdf: bytes, *, url: str) -> ExtractedArticle:
+        try:
+            from pypdf import PdfReader
+        except ModuleNotFoundError as error:
+            message = "pypdf is not installed; run 'python -m pip install -e .'"
+            raise RuntimeError(message) from error
+        reader = PdfReader(io.BytesIO(pdf))
+        content = "\n\n".join(
+            text.strip()
+            for page in reader.pages
+            if (text := page.extract_text() or "").strip()
+        )
+        if len(content) < self.minimum_characters:
+            raise RuntimeError(
+                f"Extracted PDF content is too short: {len(content)} characters"
+            )
+        metadata = reader.metadata
+        return ExtractedArticle(
+            content=content,
+            title=getattr(metadata, "title", None) if metadata else None,
+            author=getattr(metadata, "author", None) if metadata else None,
+            extractor="pypdf",
+        )
 
     def extract_html(self, html: str | bytes, *, url: str) -> ExtractedArticle:
         trafilatura = self._module()
@@ -77,26 +118,122 @@ class TrafilaturaArticleExtractor:
             include_comments=False,
             include_tables=False,
         )
-        if not result:
-            raise RuntimeError("No readable article content found")
-        payload = json.loads(result)
-        content = "\n\n".join(
-            line.strip()
-            for line in str(payload.get("text") or "").splitlines()
-            if line.strip()
-        )
+        payload = json.loads(result) if result else {}
+        content = _normalize_text(payload.get("text"))
+        extractor = self._extractor_id()
         if len(content) < self.minimum_characters:
-            raise RuntimeError(
-                f"Extracted content is too short: {len(content)} characters"
-            )
+            fallback = _FallbackHtmlExtractor().extract(html)
+            content = _normalize_text(fallback.content)
+            if len(content) >= self.minimum_characters:
+                extractor = fallback.extractor
+                payload = {
+                    **payload,
+                    "title": payload.get("title") or fallback.title,
+                    "author": payload.get("author") or fallback.author,
+                    "date": payload.get("date") or fallback.publish_date,
+                    "language": payload.get("language") or fallback.language,
+                }
+        if len(content) < self.minimum_characters:
+            raise RuntimeError(f"Extracted content is too short: {len(content)} characters")
         return ExtractedArticle(
             content=content,
             title=payload.get("title"),
             author=payload.get("author"),
             publish_date=payload.get("date"),
             language=payload.get("language"),
-            extractor=self._extractor_id(),
+            extractor=extractor,
         )
+
+
+class _FallbackHtmlExtractor(HTMLParser):
+    """Small dependency-free fallback for official pages with unusual markup."""
+
+    _ignored: ClassVar[set[str]] = {
+        "script",
+        "style",
+        "nav",
+        "footer",
+        "header",
+        "svg",
+        "noscript",
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._ignored_depth = 0
+        self._in_content = False
+        self._content_depth = 0
+        self._parts: list[str] = []
+        self._title_parts: list[str] = []
+        self._meta: dict[str, str] = {}
+        self._in_title = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag in self._ignored:
+            self._ignored_depth += 1
+        if tag == "title":
+            self._in_title = True
+        marker = f"{attributes.get('id', '')} {attributes.get('class', '')}".lower()
+        is_content_container = tag in {"main", "article"} or any(
+            token in marker for token in ("article", "content", "release", "body")
+        )
+        if is_content_container and self._content_depth == 0:
+            self._in_content = True
+            self._content_depth = 1
+        elif self._in_content and tag not in self._ignored:
+            self._content_depth += 1
+        if tag == "meta":
+            name = (attributes.get("name") or attributes.get("property") or "").lower()
+            value = attributes.get("content")
+            if name and value:
+                self._meta[name] = value.strip()
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self._in_title = False
+        if tag in self._ignored and self._ignored_depth:
+            self._ignored_depth -= 1
+        if self._in_content and tag not in self._ignored:
+            self._content_depth -= 1
+            if self._content_depth <= 0:
+                self._in_content = False
+                self._content_depth = 0
+
+    def handle_data(self, data: str) -> None:
+        text = " ".join(data.split())
+        if not text or self._ignored_depth:
+            return
+        if self._in_title:
+            self._title_parts.append(text)
+        if self._in_content:
+            self._parts.append(text)
+
+    def extract(self, html: str | bytes) -> ExtractedArticle:
+        self.feed(html.decode("utf-8", errors="replace") if isinstance(html, bytes) else html)
+        content = "\n\n".join(self._parts)
+        if not content:
+            content = self._meta.get("description", "")
+        return ExtractedArticle(
+            content=content,
+            title=" ".join(self._title_parts).strip() or None,
+            author=self._meta.get("author"),
+            publish_date=self._meta.get("article:published_time") or self._meta.get("date"),
+            language=self._meta.get("language") or self._meta.get("og:locale"),
+            extractor="html-fallback",
+        )
+
+
+def _looks_like_pdf(url: str) -> bool:
+    return urlsplit(url).path.lower().endswith(".pdf")
+
+
+def _normalize_text(value: object) -> str:
+    return "\n\n".join(
+        line.strip()
+        for line in str(value or "").splitlines()
+        if line.strip()
+    )
 
 
 class ArticleExtractionService:
