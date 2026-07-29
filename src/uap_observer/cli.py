@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -33,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("init-db", help="Create or migrate the SQLite database.")
     subparsers.add_parser("db-status", help="Show migration and row-count status.")
     subparsers.add_parser("source-status", help="Show source enablement and fetch health.")
+    subparsers.add_parser("analysis-status", help="Show AI queue and API key status.")
 
     sync_parser = subparsers.add_parser(
         "sync-sources",
@@ -148,6 +150,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{source.slug}: {state} type={source.source_type.value} "
                 f"last_fetch={last_fetch} last_success={last_success} error={error}"
             )
+        return 0
+
+    if args.command == "analysis-status":
+        counts = repository.get_pipeline_counts()
+        print(f"OPENAI_API_KEY: {'configured' if os.getenv('OPENAI_API_KEY') else 'not configured'}")
+        for status in ("pending", "processing", "completed", "failed", "skipped"):
+            print(f"{status}: {counts.get(status, 0)}")
         return 0
 
     if args.command in {"sync-sources", "collect-rss"}:

@@ -428,6 +428,14 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_pipeline_counts(self) -> dict[str, int]:
+        """Return queue counts used by local and scheduled-run diagnostics."""
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT processing_status, COUNT(*) AS count FROM news GROUP BY processing_status"
+            ).fetchall()
+        return {str(row["processing_status"]): int(row["count"]) for row in rows}
+
     def get_events_for_timeline(self, *, limit: int = 500) -> list[dict[str, object]]:
         if limit < 1:
             raise ValueError("limit must be at least 1")

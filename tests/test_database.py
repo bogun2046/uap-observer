@@ -148,6 +148,22 @@ class DatabaseTests(unittest.TestCase):
                 )
             )
 
+    def test_pipeline_counts_report_processing_queue(self) -> None:
+        self.database.initialize()
+        repository = Repository(self.database)
+        repository.add_news(
+            News(
+                title="Pending",
+                original_title="Pending",
+                source="Test",
+                source_url="https://example.test/pending",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        self.assertEqual(repository.get_pipeline_counts(), {"pending": 1})
+
 
 if __name__ == "__main__":
     unittest.main()

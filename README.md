@@ -83,6 +83,7 @@ uap-observer init-db
 uap-observer db-status
 uap-observer sync-sources
 uap-observer source-status
+uap-observer analysis-status
 uap-observer collect-rss --source nasa-recent
 uap-observer collect-web --source aaro-press-products --limit 20
 uap-observer collect-web --source aaro-case-resolutions --limit 20
