@@ -146,7 +146,7 @@ Generate static pages after analysis:
 .venv/bin/uap-observer publish-markdown --output site/generated --date 2026-07-28
 ```
 
-The output contains `index.md`, a category-grouped `news/index.md`, one detail page per analyzed
+The output contains `index.md`, a category-grouped `news/index.md`, one detail page per source-filtered
 news item, `events/index.md`, `persons/index.md`, `organizations.md`,
 `relationships.md`, `timeline.md`, a metadata-only `search.json`, and a
 client-side `search.md` page. `site/generated/` is ignored
@@ -158,6 +158,10 @@ After AI analysis, `link-entities` creates idempotent `news → persons`,
 `analysis_json`. It creates minimal entity records when needed, preserves the
 AI confidence on each relationship, and marks newly inferred events as
 unverified pending human review.
+
+Source-filtered news is published before AI analysis completes. These entries
+show their source, fact status, and an explicit pending-analysis label; the
+site never invents a summary or conclusion for them.
 
 For Phase 3 migration preparation, `supabase/schema.sql` mirrors the current
 SQLite model using PostgreSQL `jsonb` and identity keys. Export a reviewed

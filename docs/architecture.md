@@ -150,7 +150,8 @@ migrations.
 
 ### Markdown publishing
 
-`MarkdownPublisher` reads only completed AI records and dated historical events.
+`MarkdownPublisher` reads source-filtered news, including queued records that
+have not completed AI analysis, and dated historical events.
 It creates a deterministic homepage, news index, individual news detail pages,
 historical events index, and timeline. Detail pages include the original source
 link, but never include `extracted_content` or `raw_content`. Empty queues still

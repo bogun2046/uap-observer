@@ -405,6 +405,11 @@ class Repository:
             )
 
     def get_published_news(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        """Return source-filtered news safe for public metadata publishing.
+
+        AI-completed rows receive summaries and entity links; queued rows remain
+        visible with an explicit pending-analysis state instead of disappearing.
+        """
         if limit < 1:
             raise ValueError("limit must be at least 1")
         with self.database.connect() as connection:
@@ -413,10 +418,9 @@ class Repository:
                 SELECT id, title, original_title, source, source_url, publish_date,
                        country, category, summary, credibility, fact_status,
                        key_facts, viewpoints, analysis_confidence, risk_flags,
-                       ai_model, ai_processed_at
+                       ai_model, ai_processed_at, processing_status
                 FROM news
-                WHERE processing_status = 'completed'
-                  AND analysis_json IS NOT NULL
+                WHERE source_url IS NOT NULL
                 ORDER BY COALESCE(publish_date, '') DESC, id DESC
                 LIMIT ?
                 """,

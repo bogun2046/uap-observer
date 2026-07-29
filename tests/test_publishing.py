@@ -155,6 +155,28 @@ class PublishingTests(unittest.TestCase):
         self.assertIn("暂无已录入", (output / "events" / "index.md").read_text(encoding="utf-8"))
         self.assertEqual(json.loads((output / "search.json").read_text(encoding="utf-8")), [])
 
+    def test_publisher_includes_source_filtered_news_before_ai(self) -> None:
+        news_id = self.repository.add_news(
+            News(
+                title="Queued UAP report",
+                original_title="Queued UAP report",
+                source="Test source",
+                source_url="https://example.test/queued",
+                category=NewsCategory.OTHER,
+                credibility=3,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        output = Path(self.temp_directory.name) / "queued"
+
+        result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        self.assertEqual(result.news_pages, 1)
+        self.assertIn("Queued UAP report", (output / "news" / "index.md").read_text(encoding="utf-8"))
+        self.assertIn("Queued UAP report", (output / "search.json").read_text(encoding="utf-8"))
+        detail = next((output / "news").glob(f"{news_id}-*.md")).read_text(encoding="utf-8")
+        self.assertIn("AI摘要尚未生成", detail)
+
 
 if __name__ == "__main__":
     unittest.main()
