@@ -92,6 +92,19 @@ jobs:
           test -f site/generated/relationships.md
           python -m json.tool site/generated/search.json >/dev/null
 
+      - name: Build HTML site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: site/generated
+          destination: site/_site
+
+      - name: Verify HTML site
+        run: |
+          test -f site/_site/index.html
+          test -f site/_site/search.html
+          test -f site/_site/search.json
+          test -f site/_site/news/index.html
+
       - name: Checkpoint SQLite WAL
         run: sqlite3 data/uap.db "PRAGMA wal_checkpoint(TRUNCATE);"
 
@@ -113,7 +126,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site/generated
+          path: site/_site
 
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4

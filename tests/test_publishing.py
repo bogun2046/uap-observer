@@ -131,6 +131,8 @@ class PublishingTests(unittest.TestCase):
         self.assertIn(f"]({news_id}-", news_index)
         self.assertIn("官方报告", news_index)
         self.assertIn("../search.md", news_index)
+        self.assertTrue((output / "_config.yml").exists())
+        self.assertTrue((output / "_layouts" / "default.html").exists())
         self.assertNotIn(f"news/news/{news_id}", news_index)
         self.assertIn("原文请访问上方来源链接", detail)
         self.assertIn("https://example.test/article", detail)

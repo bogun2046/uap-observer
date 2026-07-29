@@ -183,6 +183,10 @@ The workflow installs the development extras and runs the full regression
 suite before touching the database or collecting remote sources. A failing
 test stops the scheduled publish.
 
+After Markdown generation, the workflow builds a Jekyll HTML site and uploads
+the generated `_site` directory, so GitHub Pages receives `index.html` rather
+than raw Markdown-only output.
+
 The workflow persists `data/uap.db` back to the repository after a successful
 run, then uploads the generated Markdown to GitHub Pages. The database remains
 ignored for normal local development, but the workflow uses `git add -f` so

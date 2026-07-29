@@ -9,7 +9,7 @@
 
 ## 工作流门禁
 
-工作流会先安装开发依赖并运行完整 pytest。采集和生成页面只有在测试通过后才会继续。生成完成后会检查首页、新闻、搜索、事件、时间线和关系页面，以及合法的 `search.json`；检查失败时不会上传 Pages artifact。
+工作流会先安装开发依赖并运行完整 pytest。采集和生成页面只有在测试通过后才会继续。生成完成后会检查 Markdown 页面、构建后的 `index.html`/`search.html` 和合法的 `search.json`；检查失败时不会上传 Pages artifact。
 
 ## 验收清单
 

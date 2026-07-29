@@ -39,6 +39,7 @@ class MarkdownPublisher:
         events_directory = self.output_directory / "events"
         news_directory.mkdir(parents=True, exist_ok=True)
         events_directory.mkdir(parents=True, exist_ok=True)
+        self._write_jekyll_support_files()
 
         pages: list[tuple[str, str]] = []
         for row in news:
@@ -99,6 +100,27 @@ class MarkdownPublisher:
             output_directory=self.output_directory,
             person_count=len(persons),
             relationship_count=len(relationships),
+        )
+
+    def _write_jekyll_support_files(self) -> None:
+        (self.output_directory / "_layouts").mkdir(parents=True, exist_ok=True)
+        (self.output_directory / "_config.yml").write_text(
+            "markdown: kramdown\nrelative_links:\n  enabled: true\n",
+            encoding="utf-8",
+        )
+        (self.output_directory / "_layouts" / "default.html").write_text(
+            """<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title | default: 'UAP Observer' }}</title>
+  <style>body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;line-height:1.6}a{color:#145da0}table{border-collapse:collapse}th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left}</style>
+</head>
+<body>{{ content }}</body>
+</html>
+""",
+            encoding="utf-8",
         )
 
 
