@@ -16,6 +16,11 @@ import urllib3
 
 from uap_observer.repositories import Repository
 
+_OFFICIAL_PDF_FALLBACKS = {
+    "https://www.defense.gov/News/Releases/Release/Article/3964824/department-of-defense-releases-the-annual-report-on-unidentified-anomalous-phen/":
+        "https://media.defense.gov/2024/Nov/14/2003583603/-1/-1/0/FY24-CONSOLIDATED-ANNUAL-REPORT-ON-UAP-508.PDF",
+}
+
 
 @dataclass(frozen=True)
 class ExtractedArticle:
@@ -71,14 +76,20 @@ class TrafilaturaArticleExtractor:
         if _looks_like_pdf(url):
             return self.extract_pdf_url(url)
         trafilatura = self._module()
-        downloaded = trafilatura.fetch_url(url)
-        if not downloaded:
-            downloaded, content_type = self._fallback_download(url)
-            if content_type == "application/pdf" or (
-                isinstance(downloaded, bytes) and _is_pdf_payload(downloaded)
-            ):
-                return self.extract_pdf(downloaded, url=url)
-        return self.extract_html(downloaded, url=url)
+        try:
+            downloaded = trafilatura.fetch_url(url)
+            if not downloaded:
+                downloaded, content_type = self._fallback_download(url)
+                if content_type == "application/pdf" or (
+                    isinstance(downloaded, bytes) and _is_pdf_payload(downloaded)
+                ):
+                    return self.extract_pdf(downloaded, url=url)
+            return self.extract_html(downloaded, url=url)
+        except Exception:
+            fallback_url = _OFFICIAL_PDF_FALLBACKS.get(url)
+            if not fallback_url:
+                raise
+            return self.extract_pdf_url(fallback_url)
 
     def _fallback_download(self, url: str) -> tuple[bytes, str]:
         response = urllib3.PoolManager().request(

@@ -246,6 +246,29 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertIn("Official release content", article.content)
         self.assertEqual(article.extractor, "html-fallback")
 
+    def test_defense_release_uses_matching_official_pdf_after_http_failure(self) -> None:
+        url = (
+            "https://www.defense.gov/News/Releases/Release/Article/3964824/"
+            "department-of-defense-releases-the-annual-report-on-unidentified-anomalous-phen/"
+        )
+        expected = type(
+            "Extracted",
+            (),
+            {"content": "Official PDF content. " * 20, "extractor": "pypdf"},
+        )()
+        with patch.object(TrafilaturaArticleExtractor, "_module") as module:
+            module.return_value.fetch_url.side_effect = RuntimeError("HTTP 403")
+            with patch.object(
+                TrafilaturaArticleExtractor,
+                "extract_pdf_url",
+                return_value=expected,
+            ) as extract_pdf_url:
+                article = TrafilaturaArticleExtractor().extract_url(url)
+        extract_pdf_url.assert_called_once_with(
+            "https://media.defense.gov/2024/Nov/14/2003583603/-1/-1/0/FY24-CONSOLIDATED-ANNUAL-REPORT-ON-UAP-508.PDF"
+        )
+        self.assertEqual(article.extractor, "pypdf")
+
 
 if __name__ == "__main__":
     unittest.main()
