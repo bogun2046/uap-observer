@@ -17,7 +17,7 @@ import urllib3
 from uap_observer.repositories import Repository
 
 _OFFICIAL_PDF_FALLBACKS = {
-    "https://www.defense.gov/News/Releases/Release/Article/3964824/department-of-defense-releases-the-annual-report-on-unidentified-anomalous-phen/":
+    "https://www.defense.gov/News/Releases/Release/Article/3964824/department-of-defense-releases-the-annual-report-on-unidentified-anomalous-phen":
         "https://media.defense.gov/2024/Nov/14/2003583603/-1/-1/0/FY24-CONSOLIDATED-ANNUAL-REPORT-ON-UAP-508.PDF",
 }
 
@@ -86,7 +86,7 @@ class TrafilaturaArticleExtractor:
                     return self.extract_pdf(downloaded, url=url)
             return self.extract_html(downloaded, url=url)
         except Exception:
-            fallback_url = _OFFICIAL_PDF_FALLBACKS.get(url)
+            fallback_url = _OFFICIAL_PDF_FALLBACKS.get(url.rstrip("/"))
             if not fallback_url:
                 raise
             return self.extract_pdf_url(fallback_url)
