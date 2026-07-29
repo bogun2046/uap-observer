@@ -118,6 +118,7 @@ class PublishingTests(unittest.TestCase):
         homepage = (output / "index.md").read_text(encoding="utf-8")
         news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
         detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        legacy_detail = output / "news" / f"{news_id}-public-uap-research-update.md"
         timeline = (output / "timeline.md").read_text(encoding="utf-8")
         events = (output / "events" / "index.md").read_text(encoding="utf-8")
         persons = (output / "persons" / "index.md").read_text(encoding="utf-8")
@@ -135,6 +136,8 @@ class PublishingTests(unittest.TestCase):
         self.assertTrue((output / "_layouts" / "default.html").exists())
         self.assertNotIn(f"news/news/{news_id}", news_index)
         self.assertIn("原文请访问上方来源链接", detail)
+        self.assertTrue(legacy_detail.exists())
+        self.assertIn(f"../news/{news_id}.md", legacy_detail.read_text(encoding="utf-8"))
         self.assertIn("https://example.test/article", detail)
         self.assertNotIn("内部正文不应出现在页面", detail)
         self.assertIn("2004", timeline)

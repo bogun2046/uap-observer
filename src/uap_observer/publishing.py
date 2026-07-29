@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -52,6 +53,8 @@ class MarkdownPublisher:
                     ),
                 )
             )
+            for alias in _legacy_news_filenames(row):
+                pages.append((alias, _render_news_redirect(filename)))
         for filename, content in pages:
             (news_directory / filename).write_text(content, encoding="utf-8")
 
@@ -94,7 +97,7 @@ class MarkdownPublisher:
             encoding="utf-8",
         )
         return PublishResult(
-            news_pages=len(pages),
+            news_pages=len(news),
             event_count=len(events),
             output_directory=self.output_directory,
             person_count=len(persons),
@@ -406,6 +409,36 @@ def _news_filename(row: dict[str, object]) -> str:
     """Use an immutable ID so translated titles never change the public URL."""
 
     return f"{int(row['id'])}.md"
+
+
+def _legacy_news_filenames(row: dict[str, object]) -> list[str]:
+    """Return old title-based filenames as compatibility redirects."""
+
+    filenames: list[str] = []
+    for value in (row.get("original_title"), row.get("title")):
+        title = _text(value)
+        slug = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", title.lower()).strip("-")[:70]
+        if not slug:
+            continue
+        filename = f"{int(row['id'])}-{slug}.md"
+        if filename != _news_filename(row) and filename not in filenames:
+            filenames.append(filename)
+    return filenames
+
+
+def _render_news_redirect(target_filename: str) -> str:
+    return "\n".join(
+        (
+            "---",
+            'title: "文章链接已更新"',
+            "layout: default",
+            "---",
+            "",
+            f'<meta http-equiv="refresh" content="0; url=../news/{target_filename}">',
+            f"文章链接已更新，请访问 [最新页面](../news/{target_filename})。",
+            "",
+        )
+    )
 
 
 def _json_list(value: object) -> list[str]:
