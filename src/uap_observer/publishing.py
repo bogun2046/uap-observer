@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -404,9 +403,9 @@ def _render_organizations(organizations: list[dict[str, object]]) -> str:
 
 
 def _news_filename(row: dict[str, object]) -> str:
-    title = _text(row.get("title")) or _text(row.get("original_title")) or "news"
-    slug = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", title.lower()).strip("-")[:70]
-    return f"{int(row['id'])}-{slug or 'news'}.md"
+    """Use an immutable ID so translated titles never change the public URL."""
+
+    return f"{int(row['id'])}.md"
 
 
 def _json_list(value: object) -> list[str]:

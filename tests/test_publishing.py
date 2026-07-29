@@ -117,7 +117,7 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(result.event_count, 1)
         homepage = (output / "index.md").read_text(encoding="utf-8")
         news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
-        detail = next((output / "news").glob(f"{news_id}-*.md")).read_text(encoding="utf-8")
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
         timeline = (output / "timeline.md").read_text(encoding="utf-8")
         events = (output / "events" / "index.md").read_text(encoding="utf-8")
         persons = (output / "persons" / "index.md").read_text(encoding="utf-8")
@@ -126,9 +126,9 @@ class PublishingTests(unittest.TestCase):
         search_page = (output / "search.md").read_text(encoding="utf-8")
 
         self.assertIn("今日UAP新闻", homepage)
-        self.assertIn(f"news/{news_id}-", homepage)
+        self.assertIn(f"news/{news_id}.md", homepage)
         self.assertIn("search.md", homepage)
-        self.assertIn(f"]({news_id}-", news_index)
+        self.assertIn(f"]({news_id}.md", news_index)
         self.assertIn("官方报告", news_index)
         self.assertIn("../search.md", news_index)
         self.assertTrue((output / "_config.yml").exists())
@@ -142,7 +142,7 @@ class PublishingTests(unittest.TestCase):
         self.assertIn("Test Person", detail)
         self.assertIn("Test Person", persons)
         self.assertIn("mentions_person", relationships)
-        self.assertTrue(search_index[0]["url"].startswith(f"news/{news_id}-"))
+        self.assertEqual(search_index[0]["url"], f"news/{news_id}.md")
         self.assertNotIn("内部正文不应出现在页面", json.dumps(search_index, ensure_ascii=False))
         self.assertIn("uap-search", search_page)
 
@@ -174,7 +174,7 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(result.news_pages, 1)
         self.assertIn("Queued UAP report", (output / "news" / "index.md").read_text(encoding="utf-8"))
         self.assertIn("Queued UAP report", (output / "search.json").read_text(encoding="utf-8"))
-        detail = next((output / "news").glob(f"{news_id}-*.md")).read_text(encoding="utf-8")
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
         self.assertIn("原文正文尚未提取", detail)
 
 
