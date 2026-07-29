@@ -134,6 +134,69 @@ class OpenAIAnalyzer:
         )
 
 
+class DeepSeekAnalyzer:
+    """OpenAI-compatible DeepSeek Chat Completions adapter with JSON Output."""
+
+    def __init__(
+        self,
+        *,
+        model: str,
+        api_key: str | None = None,
+        reasoning_effort: str = "low",
+        client: object | None = None,
+        max_content_characters: int = DEFAULT_MAX_CONTENT_CHARACTERS,
+    ) -> None:
+        if max_content_characters < 1_000:
+            raise ValueError("max_content_characters must be at least 1000")
+        self.client = client
+        self.api_key = api_key
+        self.model = model
+        self.reasoning_effort = reasoning_effort
+        self.max_content_characters = max_content_characters
+
+    def analyze(self, task: AnalysisTask) -> AnalyzerResult:
+        if self.client is None:
+            from openai import OpenAI
+
+            if not self.api_key:
+                raise ValueError("DEEPSEEK_API_KEY is required for DeepSeek analysis")
+            self.client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+        content = task.extracted_content[: self.max_content_characters]
+        payload = {
+            "original_title": task.original_title,
+            "source": task.source,
+            "source_url": task.source_url,
+            "publish_date": task.publish_date,
+            "content_truncated": len(task.extracted_content) > len(content),
+            "article_text": content,
+        }
+        instructions = (
+            f"{ANALYSIS_INSTRUCTIONS}\n\n"
+            "Return only one valid JSON object matching this schema. Use JSON, not Markdown.\n"
+            f"{json.dumps(ArticleAnalysis.model_json_schema(), ensure_ascii=False)}"
+        )
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=3000,
+            stream=False,
+        )
+        message = response.choices[0].message
+        raw_content = getattr(message, "content", None)
+        if not raw_content:
+            raise RuntimeError("DeepSeek response did not contain JSON content")
+        analysis = ArticleAnalysis.model_validate(json.loads(raw_content))
+        return AnalyzerResult(
+            analysis=analysis,
+            model=getattr(response, "model", None) or self.model,
+            response_id=getattr(response, "id", None),
+        )
+
+
 @dataclass(frozen=True)
 class AnalysisRun:
     stale_recovered: int = 0

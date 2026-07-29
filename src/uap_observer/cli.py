@@ -7,7 +7,7 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from uap_observer.ai_analysis import AnalysisService, OpenAIAnalyzer
+from uap_observer.ai_analysis import AnalysisService, DeepSeekAnalyzer, OpenAIAnalyzer
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
@@ -70,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     analysis_parser = subparsers.add_parser(
         "analyze-articles",
-        help="Analyze extracted articles with structured OpenAI output.",
+        help="Analyze extracted articles with the configured AI provider.",
     )
     analysis_parser.add_argument("--limit", type=int, default=10)
     analysis_parser.add_argument(
@@ -80,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analysis_parser.add_argument(
         "--model",
-        help="OpenAI model override (defaults to OPENAI_MODEL).",
+        help="Model override (defaults to provider-specific environment setting).",
     )
 
     publish_parser = subparsers.add_parser(
@@ -154,7 +154,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "analysis-status":
         counts = repository.get_pipeline_counts()
-        print(f"OPENAI_API_KEY: {'configured' if os.getenv('OPENAI_API_KEY') else 'not configured'}")
+        key_name = "DEEPSEEK_API_KEY" if settings.ai_provider == "deepseek" else "OPENAI_API_KEY"
+        print(f"AI_PROVIDER: {settings.ai_provider}")
+        print(f"{key_name}: {'configured' if os.getenv(key_name) else 'not configured'}")
         for status in ("pending", "processing", "completed", "failed", "skipped"):
             print(f"{status}: {counts.get(status, 0)}")
         return 0
@@ -237,9 +239,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "analyze-articles":
         if args.limit < 1:
             raise SystemExit("--limit must be at least 1")
-        analyzer = OpenAIAnalyzer(
-            model=args.model or settings.openai_model,
-            reasoning_effort=settings.reasoning_effort,
+        model = args.model or (
+            settings.deepseek_model
+            if settings.ai_provider == "deepseek"
+            else settings.openai_model
+        )
+        analyzer = (
+            DeepSeekAnalyzer(
+                model=model,
+                api_key=os.getenv("DEEPSEEK_API_KEY"),
+                reasoning_effort=settings.reasoning_effort,
+            )
+            if settings.ai_provider == "deepseek"
+            else OpenAIAnalyzer(model=model, reasoning_effort=settings.reasoning_effort)
         )
         run = AnalysisService(repository, analyzer).run(
             limit=args.limit,

@@ -21,7 +21,7 @@ Phase 1 establishes the local data foundation:
 - incremental RSS/Atom collection with conditional HTTP requests
 - URL normalization, keyword filtering, and duplicate prevention
 - article-body and metadata extraction with a durable processing queue
-- source-grounded structured AI analysis through the OpenAI Responses API
+- source-grounded structured AI analysis through OpenAI or DeepSeek
 - strict validation for Chinese summaries, fact state, entities, confidence,
   and risk flags
 - deterministic Markdown generation for homepage, news, events, and timeline
@@ -117,7 +117,7 @@ content hash, skips exact-content duplicates, and records bounded failure
 messages. Processing tasks left incomplete for more than one hour are recovered
 automatically.
 
-AI analysis requires `OPENAI_API_KEY` only when the queue contains extracted
+AI analysis requires a provider API key only when the queue contains extracted
 articles. Export it in the shell or a secret manager; do not put a real key in
 Git:
 
@@ -130,6 +130,8 @@ export OPENAI_MODEL="gpt-5.6-luna"
 
 The daily-processing default is `gpt-5.6-luna` with low reasoning effort to
 control cost. `OPENAI_MODEL` or `--model` can select another available model.
+To use DeepSeek's OpenAI-compatible JSON API, set `AI_PROVIDER=deepseek`,
+`DEEPSEEK_API_KEY`, and optionally `DEEPSEEK_MODEL=deepseek-v4-flash`.
 The adapter uses non-streaming Structured Outputs through the Responses API and
 sets `store=False`.
 
@@ -176,10 +178,11 @@ enabled by default.
 `.github/workflows/daily-uap.yml` runs daily at 09:15 Asia/Shanghai time and
 can also be started with `workflow_dispatch`. Before enabling it:
 
-1. Add the repository secret `OPENAI_API_KEY`.
+1. Add either the repository secret `OPENAI_API_KEY` (with `AI_PROVIDER=openai`)
+   or `DEEPSEEK_API_KEY` (with `AI_PROVIDER=deepseek`).
 2. Enable GitHub Pages with **GitHub Actions** as the build source.
-3. Optionally set repository variables `OPENAI_MODEL` and
-   `OPENAI_REASONING_EFFORT`.
+3. Optionally set repository variables `AI_PROVIDER`, `OPENAI_MODEL`,
+   `DEEPSEEK_MODEL`, and `OPENAI_REASONING_EFFORT`.
 
 See [`docs/deployment.md`](docs/deployment.md) for the manual trigger and
 Pages acceptance checklist.

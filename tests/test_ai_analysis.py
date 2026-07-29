@@ -13,6 +13,7 @@ from uap_observer.ai_analysis import (
     AnalysisService,
     AnalyzerResult,
     ArticleAnalysis,
+    DeepSeekAnalyzer,
     OpenAIAnalyzer,
 )
 from uap_observer.database import Database
@@ -230,6 +231,35 @@ class AnalysisTests(unittest.TestCase):
         payload = json.loads(call["input"])
         self.assertEqual(payload["source"], "Test Agency")
         self.assertFalse(payload["content_truncated"])
+
+    def test_deepseek_adapter_uses_json_output(self) -> None:
+        analysis = valid_analysis().model_dump(mode="json")
+        response = SimpleNamespace(
+            id="deepseek_resp",
+            model="deepseek-v4-flash",
+            choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(analysis)))],
+        )
+        calls: list[dict[str, object]] = []
+
+        class Completions:
+            def create(self, **kwargs: object) -> object:
+                calls.append(kwargs)
+                return response
+
+        analyzer = DeepSeekAnalyzer(
+            model="deepseek-v4-flash",
+            api_key="test-key",
+            client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
+        )
+        news_id = self.add_extracted_news("deepseek")
+
+        result = analyzer.analyze(self.repository.get_analysis_tasks(limit=1)[0])
+
+        self.assertEqual(result.response_id, "deepseek_resp")
+        self.assertEqual(result.model, "deepseek-v4-flash")
+        self.assertEqual(calls[0]["response_format"], {"type": "json_object"})
+        self.assertEqual(json.loads(calls[0]["messages"][1]["content"])["source"], "Test Agency")
+        self.assertEqual(news_id, self.repository.get_analysis_tasks(limit=1)[0].news_id)
 
 
 if __name__ == "__main__":

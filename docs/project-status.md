@@ -77,6 +77,7 @@ Last updated: 2026-07-28
 - [x] Build and upload HTML Pages output from generated Markdown
 - [x] Publish source-filtered news before optional AI analysis
 - [x] Add AI queue and API key status diagnostic
+- [x] Add DeepSeek OpenAI-compatible JSON analysis provider
 - [x] Package migrations and default source registry in the wheel
 - [x] Test wheel installation with isolated runtime initialization
 - [x] Test graph pages and detail-page entity rendering

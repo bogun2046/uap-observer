@@ -22,7 +22,10 @@ jobs:
     env:
       UAP_DB_PATH: data/uap.db
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      AI_PROVIDER: ${{ vars.AI_PROVIDER || 'openai' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.6-luna' }}
+      DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
       OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || 'low' }}
 
     steps:
@@ -68,12 +71,12 @@ jobs:
         run: uap-observer extract-articles --limit 20 --retry-failed
 
       - name: Analyze articles
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
         run: uap-observer analyze-articles --limit 20 --retry-failed
 
       - name: Explain skipped AI step
-        if: ${{ env.OPENAI_API_KEY == '' }}
-        run: echo "OPENAI_API_KEY is not configured; leaving extracted articles queued for a later run."
+        if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
+        run: echo "No API key is configured for ${AI_PROVIDER}; leaving extracted articles queued for a later run."
 
       - name: Link analyzed entities
         run: uap-observer link-entities --limit 1000
