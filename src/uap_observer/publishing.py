@@ -267,10 +267,11 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         f"可信度：{_stars(row.get('credibility'))}",
         f"事实状态：`{_escape_text(_text(row.get('fact_status')) or 'unknown')}`",
         f"分析状态：`{_escape_text(_text(row.get('processing_status')) or 'pending')}`",
+        f"正文提取状态：`{_escape_text(_text(row.get('extraction_status')) or 'pending')}`",
         "",
         "## AI摘要",
         "",
-        _escape_text(_text(row.get("summary")) or "该新闻已通过来源筛选，AI摘要尚未生成。"),
+        _escape_text(_text(row.get("summary")) or _analysis_unavailable_message(row)),
         "",
         "## 关键事实",
         "",
@@ -297,6 +298,15 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         lines.append(f"- 分析置信度：{float(row['analysis_confidence']):.2f}")
     lines.extend(("", "原文请访问上方来源链接。本站不转载抓取的文章正文。", ""))
     return "\n".join(lines)
+
+
+def _analysis_unavailable_message(row: dict[str, object]) -> str:
+    extraction_status = _text(row.get("extraction_status")) or "pending"
+    if extraction_status == "failed":
+        return "原文正文提取失败，暂无法生成有依据的 AI 摘要；请访问来源链接查看原文。"
+    if extraction_status != "completed":
+        return "原文正文尚未提取，AI 摘要将在正文提取完成后生成。"
+    return "该新闻已通过来源筛选，AI 摘要尚未生成。"
 
 
 def _render_events_index(events: list[dict[str, object]]) -> str:

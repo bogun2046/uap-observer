@@ -418,7 +418,8 @@ class Repository:
                 SELECT id, title, original_title, source, source_url, publish_date,
                        country, category, summary, credibility, fact_status,
                        key_facts, viewpoints, analysis_confidence, risk_flags,
-                       ai_model, ai_processed_at, processing_status
+                       ai_model, ai_processed_at, processing_status,
+                       extraction_status, extraction_error
                 FROM news
                 WHERE source_url IS NOT NULL
                 ORDER BY COALESCE(publish_date, '') DESC, id DESC

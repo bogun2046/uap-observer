@@ -175,7 +175,7 @@ class PublishingTests(unittest.TestCase):
         self.assertIn("Queued UAP report", (output / "news" / "index.md").read_text(encoding="utf-8"))
         self.assertIn("Queued UAP report", (output / "search.json").read_text(encoding="utf-8"))
         detail = next((output / "news").glob(f"{news_id}-*.md")).read_text(encoding="utf-8")
-        self.assertIn("AI摘要尚未生成", detail)
+        self.assertIn("原文正文尚未提取", detail)
 
 
 if __name__ == "__main__":
