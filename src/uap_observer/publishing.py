@@ -271,7 +271,7 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         "",
         "## AI摘要",
         "",
-        _escape_text(_text(row.get("summary")) or _analysis_unavailable_message(row)),
+        _escape_text(_ai_summary_or_status_message(row)),
         "",
         "## 关键事实",
         "",
@@ -307,6 +307,14 @@ def _analysis_unavailable_message(row: dict[str, object]) -> str:
     if extraction_status != "completed":
         return "原文正文尚未提取，AI 摘要将在正文提取完成后生成。"
     return "该新闻已通过来源筛选，AI 摘要尚未生成。"
+
+
+def _ai_summary_or_status_message(row: dict[str, object]) -> str:
+    """Only display a summary as AI output after analysis is complete."""
+
+    if _text(row.get("processing_status")) == "completed":
+        return _text(row.get("summary")) or "AI 摘要为空。"
+    return _analysis_unavailable_message(row)
 
 
 def _render_events_index(events: list[dict[str, object]]) -> str:
