@@ -48,6 +48,30 @@
       "enabled": true
     },
     {
+      "slug": "reddit-ufos",
+      "name": "Reddit r/UFOs",
+      "source_type": "rss",
+      "homepage_url": "https://www.reddit.com/r/UFOs/",
+      "feed_url": "https://www.reddit.com/r/UFOs/.rss",
+      "country": "International",
+      "language": "en",
+      "default_category": "other",
+      "default_credibility": 1,
+      "default_fact_status": "source_reported",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap",
+        "ufo",
+        "aaro"
+      ],
+      "exclude_keywords": [
+        "universal adversarial perturbation",
+        "adversarial attack"
+      ],
+      "enabled": true
+    },
+    {
       "slug": "aaro-press-products",
       "name": "AARO Congressional and Press Products",
       "source_type": "web_page",
