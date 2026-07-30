@@ -403,6 +403,21 @@ class ArticleExtractionService:
                     )
                     completed += 1
                     continue
+                fallback = _feed_description_fallback(task)
+                if fallback is not None:
+                    content_hash = hashlib.sha256(fallback.content.encode("utf-8")).hexdigest()
+                    self.repository.complete_article_extraction(
+                        task.news_id,
+                        content=fallback.content,
+                        content_hash=content_hash,
+                        title=fallback.title,
+                        author=None,
+                        publish_date=None,
+                        language=None,
+                        extracted_by=fallback.extractor,
+                    )
+                    completed += 1
+                    continue
                 self.repository.fail_article_extraction(
                     task.news_id,
                     f"{type(error).__name__}: {error}",
@@ -427,3 +442,17 @@ def _official_record_fallback(task: object) -> ExtractedArticle | None:
     if len(normalized) < 80:
         return None
     return ExtractedArticle(content=normalized, extractor="official-record-fallback")
+
+
+def _feed_description_fallback(task: object) -> ExtractedArticle | None:
+    content = getattr(task, "fallback_content", None)
+    if not content:
+        return None
+    normalized = _normalize_text(content)
+    if len(normalized) < 80:
+        return None
+    return ExtractedArticle(
+        content=normalized,
+        title=getattr(task, "original_title", None),
+        extractor="rss-description-fallback",
+    )

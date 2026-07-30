@@ -43,7 +43,7 @@ class ArticleExtractionTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_directory.cleanup()
 
-    def add_news(self, suffix: str) -> int:
+    def add_news(self, suffix: str, *, raw_content: str | None = None) -> int:
         return self.repository.add_news(
             News(
                 title=f"Article {suffix}",
@@ -54,6 +54,7 @@ class ArticleExtractionTests(unittest.TestCase):
                 category=NewsCategory.OTHER,
                 credibility=3,
                 fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content=raw_content,
             )
         )
 
@@ -136,6 +137,31 @@ class ArticleExtractionTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(row["extraction_status"], "completed")
         self.assertEqual(row["extraction_attempts"], 2)
+
+    def test_failed_extraction_uses_rss_description_fallback(self) -> None:
+        news_id = self.add_news(
+            "rss-fallback",
+            raw_content=(
+                "A Reddit post describes an unidentified aerial observation and includes "
+                "enough feed text to provide a useful source-reported summary."
+            ),
+        )
+        service = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({"https://example.test/rss-fallback": RuntimeError("HTTP 403")}),
+        )
+
+        result = service.run(limit=10)
+
+        self.assertEqual(result.completed, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, extracted_by, extracted_content FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "completed")
+        self.assertEqual(row["extracted_by"], "rss-description-fallback")
+        self.assertIn("unidentified aerial observation", row["extracted_content"])
 
     def test_claim_prevents_two_workers_from_processing_same_article(self) -> None:
         news_id = self.add_news("claim")
