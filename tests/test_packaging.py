@@ -26,6 +26,7 @@ class PackagingTests(unittest.TestCase):
                     "pip",
                     "wheel",
                     "--no-deps",
+                    "--no-build-isolation",
                     "--wheel-dir",
                     str(wheel_directory),
                     str(PROJECT_ROOT),
@@ -86,7 +87,7 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(sync.returncode, 0, sync.stdout + "\n" + sync.stderr)
 
             self.assertIn("005_organizations.sql", init.stdout)
-            self.assertIn("Synced 4 source(s)", sync.stdout)
+            self.assertIn("Synced 5 source(s)", sync.stdout)
             self.assertTrue(database_path.exists())
 
 
