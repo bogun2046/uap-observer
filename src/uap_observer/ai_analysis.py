@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -72,6 +73,19 @@ class ArticleAnalysis(BaseModel):
         return cleaned
 
 
+class TitleTranslation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    chinese_title: str = Field(min_length=2, max_length=320)
+
+    @field_validator("chinese_title")
+    @classmethod
+    def must_contain_simplified_chinese(cls, value: str) -> str:
+        if not re.search(r"[\u4e00-\u9fff]", value):
+            raise ValueError("translated title must contain Chinese characters")
+        return value.strip()
+
+
 @dataclass(frozen=True)
 class AnalyzerResult:
     analysis: ArticleAnalysis
@@ -132,6 +146,26 @@ class OpenAIAnalyzer:
             model=getattr(response, "model", None) or self.model,
             response_id=getattr(response, "id", None),
         )
+
+    def translate_title(self, original_title: str, source: str) -> str:
+        if self.client is None:
+            from openai import OpenAI
+
+            self.client = OpenAI()
+        response = self.client.responses.parse(
+            model=self.model,
+            instructions=(
+                "将新闻标题翻译成简体中文。只翻译，不补充事实；保留专有名词、缩写和不确定语气。"
+            ),
+            input=json.dumps({"title": original_title, "source": source}, ensure_ascii=False),
+            text_format=TitleTranslation,
+            reasoning={"effort": self.reasoning_effort},
+            store=False,
+        )
+        result = response.output_parsed
+        if result is None:
+            raise RuntimeError("OpenAI title translation returned no content")
+        return result.chinese_title
 
 
 class DeepSeekAnalyzer:
@@ -196,6 +230,31 @@ class DeepSeekAnalyzer:
             response_id=getattr(response, "id", None),
         )
 
+    def translate_title(self, original_title: str, source: str) -> str:
+        if self.client is None:
+            from openai import OpenAI
+
+            if not self.api_key:
+                raise ValueError("DEEPSEEK_API_KEY is required for title translation")
+            self.client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "将新闻标题翻译成简体中文。只翻译，不补充事实；保留专有名词、缩写和不确定语气。返回 JSON：{\"chinese_title\": \"...\"}。",
+                },
+                {"role": "user", "content": json.dumps({"title": original_title, "source": source}, ensure_ascii=False)},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=300,
+            stream=False,
+        )
+        raw_content = getattr(response.choices[0].message, "content", None)
+        if not raw_content:
+            raise RuntimeError("DeepSeek title translation returned no content")
+        return TitleTranslation.model_validate(json.loads(raw_content)).chinese_title
+
 
 @dataclass(frozen=True)
 class AnalysisRun:
@@ -204,6 +263,7 @@ class AnalysisRun:
     claimed: int = 0
     completed: int = 0
     failed: int = 0
+    titles_translated: int = 0
 
 
 class AnalysisService:
@@ -259,13 +319,30 @@ class AnalysisService:
             except Exception as error:  # noqa: BLE001
                 self.repository.fail_analysis(task.news_id, _safe_error(error))
                 failed += 1
+        titles_translated = self.translate_titles(limit=limit)
         return AnalysisRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),
             claimed=claimed,
             completed=completed,
             failed=failed,
+            titles_translated=titles_translated,
         )
+
+    def translate_titles(self, *, limit: int = 100) -> int:
+        translator = getattr(self.analyzer, "translate_title", None)
+        if translator is None:
+            return 0
+        translated = 0
+        for row in self.repository.get_untranslated_titles(limit=limit):
+            try:
+                title = str(translator(row["original_title"], row["source"]))
+                if title.strip():
+                    self.repository.update_translated_title(int(row["id"]), title.strip())
+                    translated += 1
+            except Exception:  # noqa: BLE001
+                continue
+        return translated
 
 
 def _safe_error(error: Exception) -> str:

@@ -1,6 +1,20 @@
 {
   "sources": [
     {
+      "slug": "x-uap",
+      "name": "X UAP Search",
+      "source_type": "api",
+      "homepage_url": "https://x.com/search?q=uap",
+      "country": "International",
+      "language": "en",
+      "default_category": "other",
+      "default_credibility": 1,
+      "default_fact_status": "source_reported",
+      "include_keywords": ["uap", "ufo", "unidentified anomalous phenomena"],
+      "exclude_keywords": [],
+      "enabled": true
+    },
+    {
       "slug": "nasa-recent",
       "name": "NASA Recently Published",
       "source_type": "rss",
@@ -33,6 +47,30 @@
       "language": "en",
       "default_category": "other",
       "default_credibility": 4,
+      "default_fact_status": "source_reported",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap",
+        "ufo",
+        "aaro"
+      ],
+      "exclude_keywords": [
+        "universal adversarial perturbation",
+        "adversarial attack"
+      ],
+      "enabled": true
+    },
+    {
+      "slug": "reddit-ufos",
+      "name": "Reddit r/UFOs",
+      "source_type": "rss",
+      "homepage_url": "https://www.reddit.com/r/UFOs/",
+      "feed_url": "https://www.reddit.com/r/UFOs/.rss",
+      "country": "International",
+      "language": "en",
+      "default_category": "other",
+      "default_credibility": 1,
       "default_fact_status": "source_reported",
       "include_keywords": [
         "unidentified anomalous phenomena",

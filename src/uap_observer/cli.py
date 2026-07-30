@@ -11,6 +11,7 @@ from uap_observer.ai_analysis import AnalysisService, DeepSeekAnalyzer, OpenAIAn
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
+from uap_observer.collectors.x_api import XApiCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.entity_linking import EntityLinkingService
@@ -67,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include previously failed extraction tasks.",
     )
+    extraction_parser.add_argument(
+        "--retry-blocked",
+        action="store_true",
+        help="Also retry extraction tasks previously blocked with HTTP 403.",
+    )
 
     analysis_parser = subparsers.add_parser(
         "analyze-articles",
@@ -78,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include previously failed analysis tasks.",
     )
+
+    x_parser = subparsers.add_parser("collect-x", help="Collect recent X posts with the X API v2.")
+    x_parser.add_argument("--limit", type=int, default=30)
+    x_parser.add_argument("--query", help="Override the X recent-search query.")
     analysis_parser.add_argument(
         "--model",
         help="Model override (defaults to provider-specific environment setting).",
@@ -182,8 +192,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise SystemExit(f"Enabled RSS source not found: {args.source}")
         collector = RssCollector(repository)
         total_inserted = 0
+        failed_sources = 0
         for source in sources:
-            result = collector.collect(source, limit=args.limit)
+            try:
+                result = collector.collect(source, limit=args.limit)
+            except Exception as error:  # noqa: BLE001
+                failed_sources += 1
+                print(f"{source.slug}: collection failed: {type(error).__name__}: {error}")
+                continue
             total_inserted += result.inserted
             if result.not_modified:
                 print(f"{source.slug}: not modified")
@@ -193,7 +209,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"duplicates={result.duplicates} filtered={result.filtered} "
                     f"invalid={result.invalid}"
                 )
-        print(f"RSS collection complete; inserted={total_inserted}")
+        print(
+            f"RSS collection complete; inserted={total_inserted} "
+            f"failed_sources={failed_sources}"
+        )
+        if args.source and failed_sources:
+            return 1
         return 0
 
     if args.command == "collect-web":
@@ -221,12 +242,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         return 0
 
+    if args.command == "collect-x":
+        if args.limit < 10 or args.limit > 100:
+            raise SystemExit("--limit must be between 10 and 100")
+        sources = repository.get_sources(source_type=SourceType.API, slug="x-uap")
+        if not sources:
+            raise SystemExit("Enabled X source not found; run sync-sources first")
+        result = XApiCollector(repository).collect(
+            sources[0], limit=args.limit, query=args.query
+        )
+        print(
+            f"X collection complete; fetched={result.fetched} inserted={result.inserted} "
+            f"duplicates={result.duplicates}"
+        )
+        return 0
+
     if args.command == "extract-articles":
         if args.limit < 1:
             raise SystemExit("--limit must be at least 1")
         run = ArticleExtractionService(repository).run(
             limit=args.limit,
             retry_failed=args.retry_failed,
+            retry_blocked=args.retry_blocked,
         )
         print(
             f"Article extraction complete; stale_recovered={run.stale_recovered} "
@@ -260,7 +297,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"AI analysis complete; stale_recovered={run.stale_recovered} "
             f"queued={run.queued} claimed={run.claimed} "
-            f"completed={run.completed} failed={run.failed}"
+            f"completed={run.completed} failed={run.failed} "
+            f"titles_translated={run.titles_translated}"
         )
         return 0
 

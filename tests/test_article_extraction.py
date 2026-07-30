@@ -43,7 +43,7 @@ class ArticleExtractionTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_directory.cleanup()
 
-    def add_news(self, suffix: str) -> int:
+    def add_news(self, suffix: str, *, raw_content: str | None = None) -> int:
         return self.repository.add_news(
             News(
                 title=f"Article {suffix}",
@@ -54,6 +54,7 @@ class ArticleExtractionTests(unittest.TestCase):
                 category=NewsCategory.OTHER,
                 credibility=3,
                 fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content=raw_content,
             )
         )
 
@@ -136,6 +137,31 @@ class ArticleExtractionTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(row["extraction_status"], "completed")
         self.assertEqual(row["extraction_attempts"], 2)
+
+    def test_failed_extraction_uses_rss_description_fallback(self) -> None:
+        news_id = self.add_news(
+            "rss-fallback",
+            raw_content=(
+                "A Reddit post describes an unidentified aerial observation and includes "
+                "enough feed text to provide a useful source-reported summary."
+            ),
+        )
+        service = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({"https://example.test/rss-fallback": RuntimeError("HTTP 403")}),
+        )
+
+        result = service.run(limit=10)
+
+        self.assertEqual(result.completed, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, extracted_by, extracted_content FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "completed")
+        self.assertEqual(row["extracted_by"], "rss-description-fallback")
+        self.assertIn("unidentified aerial observation", row["extracted_content"])
 
     def test_claim_prevents_two_workers_from_processing_same_article(self) -> None:
         news_id = self.add_news("claim")
@@ -245,6 +271,49 @@ class ArticleExtractionTests(unittest.TestCase):
             )
         self.assertIn("Official release content", article.content)
         self.assertEqual(article.extractor, "html-fallback")
+
+    def test_defense_release_uses_matching_official_pdf_after_http_failure(self) -> None:
+        url = (
+            "https://www.defense.gov/News/Releases/Release/Article/3964824/"
+            "department-of-defense-releases-the-annual-report-on-unidentified-anomalous-phen/"
+        )
+        expected = type(
+            "Extracted",
+            (),
+            {"content": "Official PDF content. " * 20, "extractor": "pypdf"},
+        )()
+        with patch.object(TrafilaturaArticleExtractor, "_module") as module:
+            module.return_value.fetch_url.side_effect = RuntimeError("HTTP 403")
+            with patch.object(
+                TrafilaturaArticleExtractor,
+                "extract_pdf_url",
+                return_value=expected,
+            ) as extract_pdf_url:
+                article = TrafilaturaArticleExtractor().extract_url(url)
+        extract_pdf_url.assert_called_once_with(
+            "https://media.defense.gov/2024/Nov/14/2003583603/-1/-1/0/FY24-CONSOLIDATED-ANNUAL-REPORT-ON-UAP-508.PDF"
+        )
+        self.assertEqual(article.extractor, "pypdf")
+
+    def test_defense_release_uses_official_fact_fallback_when_pdf_is_blocked(self) -> None:
+        url = (
+            "https://www.defense.gov/News/Releases/Release/Article/3964824/"
+            "department-of-defense-releases-the-annual-report-on-unidentified-anomalous-phen"
+        )
+        with patch.object(TrafilaturaArticleExtractor, "_module") as module:
+            module.return_value.fetch_url.return_value = None
+            with patch.object(
+                TrafilaturaArticleExtractor,
+                "_fallback_download",
+                side_effect=RuntimeError("HTTP 403"),
+            ), patch.object(
+                TrafilaturaArticleExtractor,
+                "extract_pdf_url",
+                side_effect=RuntimeError("HTTP 403"),
+            ):
+                article = TrafilaturaArticleExtractor().extract_url(url)
+        self.assertEqual(article.extractor, "official-source-fallback")
+        self.assertIn("757 reports", article.content)
 
 
 if __name__ == "__main__":

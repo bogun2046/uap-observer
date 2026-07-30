@@ -23,6 +23,7 @@ jobs:
       UAP_DB_PATH: data/uap.db
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
       AI_PROVIDER: ${{ vars.AI_PROVIDER || 'openai' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.6-luna' }}
       DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
@@ -54,6 +55,11 @@ jobs:
 
       - name: Collect RSS feeds
         run: uap-observer collect-rss --limit 30
+
+      - name: Collect X posts
+        if: ${{ env.X_API_BEARER_TOKEN != '' }}
+        continue-on-error: true
+        run: uap-observer collect-x --limit 30
 
       - name: Collect official web release pages
         continue-on-error: true
@@ -107,6 +113,84 @@ jobs:
           test -f site/_site/search.html
           test -f site/_site/search.json
           test -f site/_site/news/index.html
+
+      - name: Verify pipeline health
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sqlite3
+          from pathlib import Path
+
+          database = sqlite3.connect(os.environ["UAP_DB_PATH"])
+          completed_extraction = database.execute(
+              "SELECT COUNT(*) FROM news WHERE extraction_status = 'completed'"
+          ).fetchone()[0]
+          completed_analysis = database.execute(
+              "SELECT COUNT(*) FROM news WHERE processing_status = 'completed'"
+          ).fetchone()[0]
+          failed_extraction = database.execute(
+              "SELECT COUNT(*) FROM news WHERE extraction_status = 'failed'"
+          ).fetchone()[0]
+          blocked_extraction = database.execute(
+              """
+              SELECT COUNT(*) FROM news
+              WHERE extraction_status = 'failed'
+                AND extraction_error LIKE '%403%'
+              """
+          ).fetchone()[0]
+          failed_analysis = database.execute(
+              "SELECT COUNT(*) FROM news WHERE processing_status = 'failed'"
+          ).fetchone()[0]
+          if completed_extraction == 0 or completed_analysis == 0:
+              raise SystemExit(
+                  "Pipeline health check failed: no completed extraction or AI analysis"
+              )
+
+          search_index = json.loads(Path("site/generated/search.json").read_text())
+          missing_pages = [
+              item["url"]
+              for item in search_index
+              if not (Path("site/_site") / item["url"]).exists()
+          ]
+          if missing_pages:
+              raise SystemExit(f"Pipeline health check failed; missing pages: {missing_pages}")
+
+          untranslated_titles = [
+              item["title"]
+              for item in search_index
+              if item.get("title")
+              and re.search(r"[A-Za-z]", item["title"])
+              and not re.search(r"[\u4e00-\u9fff]", item["title"])
+          ]
+          if untranslated_titles:
+              raise SystemExit(
+                  "Pipeline health check failed; untranslated titles: "
+                  f"{untranslated_titles}"
+              )
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              Path(summary_path).write_text(
+                  "## UAP Observer pipeline health\n\n"
+                  f"- Extraction completed: **{completed_extraction}**\n"
+                  f"- AI analysis completed: **{completed_analysis}**\n"
+                  f"- Extraction failed: **{failed_extraction}**\n"
+                  f"- Extraction blocked by source (403): **{blocked_extraction}**\n"
+                  f"- AI analysis failed: **{failed_analysis}**\n"
+                  f"- Published pages: **{len(search_index)}**\n",
+                  encoding="utf-8",
+              )
+          print(
+              "Pipeline health OK; "
+              f"extraction_completed={completed_extraction} "
+              f"analysis_completed={completed_analysis} "
+              f"extraction_failed={failed_extraction} "
+              f"extraction_blocked_403={blocked_extraction} "
+              f"analysis_failed={failed_analysis} "
+              f"published_pages={len(search_index)}"
+          )
+          PY
 
       - name: Checkpoint SQLite WAL
         run: sqlite3 data/uap.db "PRAGMA wal_checkpoint(TRUNCATE);"

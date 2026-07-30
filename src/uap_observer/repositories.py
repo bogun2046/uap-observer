@@ -94,6 +94,7 @@ class Repository:
         *,
         limit: int,
         retry_failed: bool = False,
+        retry_blocked: bool = False,
     ) -> list[ArticleTask]:
         statuses = ("pending", "failed") if retry_failed else ("pending",)
         placeholders = ", ".join("?" for _ in statuses)
@@ -101,14 +102,21 @@ class Repository:
             rows = connection.execute(
                 f"""
                 SELECT id, COALESCE(canonical_url, source_url) AS article_url,
-                       original_title, extraction_attempts
+                       original_title, extraction_attempts, source, summary, raw_content
                 FROM news
                 WHERE extraction_status IN ({placeholders})
+                  AND (
+                    ? = 1
+                    OR extraction_status <> 'failed'
+                    OR extraction_error IS NULL
+                    OR extraction_error NOT LIKE '%403%'
+                    OR raw_content IS NOT NULL
+                  )
                   AND COALESCE(canonical_url, source_url) IS NOT NULL
                 ORDER BY publish_date ASC, id ASC
                 LIMIT ?
                 """,
-                (*statuses, limit),
+                (*statuses, int(retry_blocked), limit),
             ).fetchall()
         return [
             ArticleTask(
@@ -116,6 +124,8 @@ class Repository:
                 url=row["article_url"],
                 original_title=row["original_title"],
                 extraction_attempts=row["extraction_attempts"],
+                source=row["source"],
+                fallback_content=row["raw_content"] or row["summary"],
             )
             for row in rows
         ]
@@ -429,6 +439,33 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_untranslated_titles(self, *, limit: int = 100) -> list[dict[str, object]]:
+        """Return English or mixed-language titles that still equal the source title."""
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, title, original_title, source
+                FROM news
+                WHERE title GLOB '*[A-Za-z]*'
+                  AND title NOT GLOB '*[一-龥]*'
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_translated_title(self, news_id: int, title: str) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET title = ?, updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                """,
+                (title, news_id),
+            )
+
     def get_pipeline_counts(self) -> dict[str, int]:
         """Return queue counts used by local and scheduled-run diagnostics."""
         with self.database.connect() as connection:
@@ -471,6 +508,28 @@ class Repository:
             rows = connection.execute(
                 "SELECT id, name, country, description FROM organizations ORDER BY lower(name) LIMIT ?",
                 (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_entity_news(self, *, entity_type: str, entity_id: int, limit: int = 1000) -> list[dict[str, object]]:
+        """Return news evidence linked to one person or organization."""
+        if entity_type not in {"person", "organization", "event"}:
+            raise ValueError("unsupported entity type")
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT n.id, n.title, n.publish_date, n.summary, n.category,
+                       n.fact_status, r.relationship_type, r.confidence
+                FROM relationships AS r
+                JOIN news AS n
+                  ON r.source_type = 'news' AND r.source_id = n.id
+                WHERE r.target_type = ? AND r.target_id = ?
+                ORDER BY n.publish_date DESC, n.id DESC
+                LIMIT ?
+                """,
+                (entity_type, entity_id, limit),
             ).fetchall()
         return [dict(row) for row in rows]
 

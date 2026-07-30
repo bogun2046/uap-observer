@@ -35,6 +35,10 @@ class MarkdownPublisher:
         persons = self.repository.get_persons(limit=limit)
         organizations = self.repository.get_organizations(limit=limit)
         relationships = self.repository.get_relationships(limit=limit * 2)
+        news_entities = {
+            int(row["id"]): self.repository.get_news_entities(int(row["id"]))
+            for row in news
+        }
         news_directory = self.output_directory / "news"
         events_directory = self.output_directory / "events"
         news_directory.mkdir(parents=True, exist_ok=True)
@@ -53,20 +57,22 @@ class MarkdownPublisher:
                     ),
                 )
             )
+            for alias in _legacy_news_filenames(row):
+                pages.append((alias, _render_news_redirect(filename)))
         for filename, content in pages:
             (news_directory / filename).write_text(content, encoding="utf-8")
 
         today_news = [row for row in news if _date_prefix(row.get("publish_date")) == publish_date]
         (self.output_directory / "index.md").write_text(
-            _render_home(today_news, publish_date),
+            _render_home(today_news, publish_date, news_entities),
             encoding="utf-8",
         )
         (news_directory / "index.md").write_text(
-            _render_news_index(news),
+            _render_news_index(news, news_entities),
             encoding="utf-8",
         )
         (self.output_directory / "search.json").write_text(
-            json.dumps(_render_search_index(news), ensure_ascii=False, indent=2) + "\n",
+            json.dumps(_render_search_index(news, news_entities), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         (self.output_directory / "search.md").write_text(
@@ -82,12 +88,26 @@ class MarkdownPublisher:
             encoding="utf-8",
         )
         (self.output_directory / "persons").mkdir(parents=True, exist_ok=True)
+        person_news = {
+            int(person["id"]): self.repository.get_entity_news(entity_type="person", entity_id=int(person["id"]))
+            for person in persons
+        }
+        organization_news = {
+            int(organization["id"]): self.repository.get_entity_news(
+                entity_type="organization", entity_id=int(organization["id"])
+            )
+            for organization in organizations
+        }
         (self.output_directory / "persons" / "index.md").write_text(
-            _render_persons_index(persons),
+            _render_persons_index(persons, person_news),
             encoding="utf-8",
         )
         (self.output_directory / "organizations.md").write_text(
-            _render_organizations(organizations),
+            _render_organizations(organizations, organization_news),
+            encoding="utf-8",
+        )
+        (self.output_directory / "tags.md").write_text(
+            _render_tags_index(persons, organizations, person_news, organization_news),
             encoding="utf-8",
         )
         (self.output_directory / "relationships.md").write_text(
@@ -95,7 +115,7 @@ class MarkdownPublisher:
             encoding="utf-8",
         )
         return PublishResult(
-            news_pages=len(pages),
+            news_pages=len(news),
             event_count=len(events),
             output_directory=self.output_directory,
             person_count=len(persons),
@@ -115,7 +135,7 @@ class MarkdownPublisher:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page.title | default: 'UAP Observer' }}</title>
-  <style>body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;line-height:1.6}a{color:#145da0}table{border-collapse:collapse}th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left}</style>
+  <style>body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;line-height:1.6}a{color:#145da0}.entity-tags{display:flex;flex-wrap:wrap;gap:.45rem;margin:.35rem 0}.entity-tag{display:inline-block;padding:.12rem .55rem;border-radius:999px;background:#e8f1fb;color:#145da0;font-size:.9rem;text-decoration:none}.entity-tag:hover{background:#d3e5f7}table{border-collapse:collapse}th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left}</style>
 </head>
 <body>{{ content }}</body>
 </html>
@@ -124,26 +144,33 @@ class MarkdownPublisher:
         )
 
 
-def _render_home(rows: list[dict[str, object]], today: str) -> str:
+def _render_home(
+    rows: list[dict[str, object]],
+    today: str,
+    news_entities: dict[int, list[dict[str, object]]],
+) -> str:
     lines = ["---", 'title: "今日UAP新闻"', "layout: default", "---", "", f"更新时间：{today}", ""]
     if not rows:
         lines.append("今日暂无已完成 AI 分析的新闻。")
         lines.append("")
-        lines.append("[查看全部新闻](news/index.md) · [搜索新闻](search.md)")
+        lines.append("[查看全部新闻](news/index.html) · [搜索新闻](search.html) · [标签总览](tags.html)")
         return "\n".join(lines) + "\n"
-    lines.extend(_render_news_cards(rows, link_prefix="news/"))
-    lines.extend(("", "[查看全部新闻](news/index.md) · [搜索新闻](search.md)", ""))
+    lines.extend(_render_news_cards(rows, link_prefix="news/", tag_prefix="", news_entities=news_entities))
+    lines.extend(("", "[查看全部新闻](news/index.html) · [搜索新闻](search.html) · [标签总览](tags.html)", ""))
     return "\n".join(lines)
 
 
-def _render_news_index(rows: list[dict[str, object]]) -> str:
+def _render_news_index(
+    rows: list[dict[str, object]],
+    news_entities: dict[int, list[dict[str, object]]],
+) -> str:
     lines = [
         "---",
         'title: "UAP新闻"',
         "layout: default",
         "---",
         "",
-        "[搜索新闻](../search.md)",
+        "[搜索新闻](../search.html) · [标签总览](../tags.html)",
         "",
     ]
     if not rows:
@@ -156,11 +183,21 @@ def _render_news_index(rows: list[dict[str, object]]) -> str:
         categories.setdefault(category, []).append(row)
     for category, category_rows in categories.items():
         lines.extend((f"## {_escape_text(_category_label(category))}", ""))
-        lines.extend(_render_news_cards(category_rows, link_prefix=""))
+        lines.extend(
+            _render_news_cards(
+                category_rows,
+                link_prefix="",
+                tag_prefix="../",
+                news_entities=news_entities,
+            )
+        )
     return "\n".join(lines)
 
 
-def _render_search_index(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+def _render_search_index(
+    rows: list[dict[str, object]],
+    news_entities: dict[int, list[dict[str, object]]],
+) -> list[dict[str, object]]:
     """Return a small public index containing metadata, never article bodies."""
     return [
         {
@@ -170,9 +207,10 @@ def _render_search_index(rows: list[dict[str, object]]) -> list[dict[str, object
             "source": _text(row.get("source")),
             "publish_date": _date_prefix(row.get("publish_date")),
             "category": _text(row.get("category")) or "other",
+            "tags": _entity_names(news_entities.get(int(row["id"]), [])),
             "fact_status": _text(row.get("fact_status")),
             "credibility": row.get("credibility"),
-            "url": f"news/{_news_filename(row)}",
+            "url": f"news/{_news_url(row)}",
         }
         for row in rows
     ]
@@ -184,7 +222,7 @@ title: "搜索UAP新闻"
 layout: default
 ---
 
-<input id="uap-search" type="search" placeholder="搜索标题、摘要、来源或分类" style="width:100%;max-width:42rem;padding:.6rem" />
+<input id="uap-search" type="search" placeholder="搜索标题、摘要、来源、分类或标签" style="width:100%;max-width:42rem;padding:.6rem" />
 <div id="uap-search-results" aria-live="polite">正在加载索引……</div>
 
 <script>
@@ -196,7 +234,7 @@ layout: default
     const render = () => {
       const query = input.value.trim().toLowerCase();
       const matches = items.filter(item =>
-        [item.title, item.summary, item.source, item.category].join(' ').toLowerCase().includes(query));
+        [item.title, item.summary, item.source, item.category, ...(item.tags || [])].join(' ').toLowerCase().includes(query));
       results.innerHTML = matches.length
         ? matches.map(item => `<article><h2><a href="${escapeHtml(item.url)}">${escapeHtml(item.title || '未命名新闻')}</a></h2><p>${escapeHtml(item.publish_date || '日期未知')} · ${escapeHtml(item.source || '未知来源')}</p><p>${escapeHtml(item.summary || '暂无摘要。')}</p></article>`).join('')
         : '<p>没有匹配的新闻。</p>';
@@ -227,10 +265,12 @@ def _render_news_cards(
     rows: Iterable[dict[str, object]],
     *,
     link_prefix: str,
+    tag_prefix: str,
+    news_entities: dict[int, list[dict[str, object]]],
 ) -> list[str]:
     lines: list[str] = []
     for row in rows:
-        filename = _news_filename(row)
+        filename = _news_url(row)
         title = _text(row.get("title")) or _text(row.get("original_title")) or "未命名新闻"
         summary = _text(row.get("summary")) or "暂无摘要。"
         date_value = _date_prefix(row.get("publish_date")) or "日期未知"
@@ -245,6 +285,8 @@ def _render_news_cards(
                 "",
             )
         )
+        lines.extend(_render_entity_tags(news_entities.get(int(row["id"]), []), tag_prefix))
+        lines.append("")
     return lines
 
 
@@ -262,20 +304,19 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         f"# {_escape_text(title)}",
         "",
         f"原标题：{_escape_text(_text(row.get('original_title')))}",
-        f"来源：[{_escape_text(_text(row.get('source')))}](<{_text(row.get('source_url'))}>)",
         f"发布时间：{_date_prefix(row.get('publish_date')) or '未知'}",
         f"可信度：{_stars(row.get('credibility'))}",
         f"事实状态：`{_escape_text(_text(row.get('fact_status')) or 'unknown')}`",
-        f"分析状态：`{_escape_text(_text(row.get('processing_status')) or 'pending')}`",
-        f"正文提取状态：`{_escape_text(_text(row.get('extraction_status')) or 'pending')}`",
+            f"分析状态：`{_escape_text(_text(row.get('processing_status')) or 'pending')}`",
+            f"正文提取状态：`{_escape_text(_text(row.get('extraction_status')) or 'pending')}`",
         "",
-        "## AI摘要",
-        "",
-        _escape_text(_ai_summary_or_status_message(row)),
-        "",
-        "## 关键事实",
+        "## 实体标签",
         "",
     ]
+    lines.extend(_render_entity_tags(entities, "../"))
+    if not entities:
+        lines.append("- 暂无单位、人物或事件标签。")
+    lines.extend(("", "## AI摘要", "", _escape_text(_ai_summary_or_status_message(row)), "", "## 关键事实", ""))
     lines.extend([f"- {_escape_text(item)}" for item in facts] or ["- 暂无。"])
     lines.extend(("", "## 不同观点", ""))
     lines.extend([f"- {_escape_text(item)}" for item in viewpoints] or ["- 文中未识别到不同观点。"])
@@ -296,8 +337,36 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     lines.extend(("", "## 分析信息", "", f"- 模型：`{_escape_text(_text(row.get('ai_model')) or 'unknown')}`"))
     if row.get("analysis_confidence") is not None:
         lines.append(f"- 分析置信度：{float(row['analysis_confidence']):.2f}")
-    lines.extend(("", "原文请访问上方来源链接。本站不转载抓取的文章正文。", ""))
+    lines.extend(
+        (
+            "",
+            "## 采集说明",
+            "",
+            _escape_text(_extraction_status_message(row)),
+            "",
+            "## 原始来源",
+            "",
+            f"来源：{_escape_text(_text(row.get('source')) or '未知来源')}",
+            "",
+            f"[打开原文]({_text(row.get('source_url'))})",
+            "",
+            "本站不转载抓取的文章正文。",
+            "",
+        )
+    )
     return "\n".join(lines)
+
+
+def _extraction_status_message(row: dict[str, object]) -> str:
+    status = _text(row.get("extraction_status")) or "pending"
+    if status == "completed":
+        return "正文已成功提取。"
+    if status == "failed":
+        error = _text(row.get("extraction_error")) or ""
+        if "403" in error:
+            return "来源服务器拒绝自动抓取（HTTP 403）；请通过下方原始来源链接查看内容。"
+        return "正文提取失败；请通过下方原始来源链接查看内容。"
+    return "正文尚未提取完成。"
 
 
 def _analysis_unavailable_message(row: dict[str, object]) -> str:
@@ -327,7 +396,8 @@ def _render_events_index(events: list[dict[str, object]]) -> str:
         if event.get("date_end"):
             period += f"—{_date_prefix(event.get('date_end'))}"
         description = _text(event.get("description")) or "暂无描述。"
-        lines.extend((f"## {_escape_text(_text(event.get('event_name')))}", "", f"时间：{period}"))
+        event_name = _text(event.get("event_name")) or "未命名事件"
+        lines.extend((f'<a id="{_anchor_slug(event_name)}"></a>', f"## {_escape_text(event_name)}", "", f"时间：{period}"))
         if event.get("location") or event.get("country"):
             location = "，".join(filter(None, (_text(event.get("location")), _text(event.get("country")))))
             lines.append(f"地点：{_escape_text(location)}")
@@ -348,19 +418,24 @@ def _render_timeline(events: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
-def _render_persons_index(persons: list[dict[str, object]]) -> str:
+def _render_persons_index(
+    persons: list[dict[str, object]],
+    person_news: dict[int, list[dict[str, object]]],
+) -> str:
     lines = ["---", 'title: "人物"', "layout: default", "---", ""]
     if not persons:
         return "\n".join(lines + ["暂无已建立的人物实体。", ""])
     for person in persons:
         name = _escape_text(_text(person.get("name")) or "未命名人物")
         organization = _text(person.get("organization"))
-        lines.extend((f"## {name}", ""))
+        lines.extend((f'<a id="{_anchor_slug(_text(person.get("name")))}"></a>', f"## {name}", ""))
         if organization:
             lines.append(f"机构：{_escape_text(organization)}")
         if person.get("country"):
             lines.append(f"国家/地区：{_escape_text(_text(person.get('country')))}")
         lines.extend(("", _escape_text(_text(person.get("description")) or "暂无描述。"), ""))
+        lines.extend(_render_entity_news(person_news.get(int(person["id"]), []), "../news/"))
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -387,26 +462,163 @@ def _render_relationships(relationships: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
-def _render_organizations(organizations: list[dict[str, object]]) -> str:
+def _render_organizations(
+    organizations: list[dict[str, object]],
+    organization_news: dict[int, list[dict[str, object]]],
+) -> str:
     lines = ["---", 'title: "机构"', "layout: default", "---", ""]
     if not organizations:
         return "\n".join(lines + ["暂无已建立的机构实体。", ""])
     for organization in organizations:
         lines.extend(
             (
+                f'<a id="{_anchor_slug(_text(organization.get("name")))}"></a>',
                 f"## {_escape_text(_text(organization.get('name')) or '未命名机构')}",
                 "",
                 _escape_text(_text(organization.get("description")) or "暂无描述。"),
                 "",
             )
         )
+        lines.extend(_render_entity_news(organization_news.get(int(organization["id"]), []), "news/"))
+        lines.append("")
     return "\n".join(lines)
 
 
+def _render_tags_index(
+    persons: list[dict[str, object]],
+    organizations: list[dict[str, object]],
+    person_news: dict[int, list[dict[str, object]]],
+    organization_news: dict[int, list[dict[str, object]]],
+) -> str:
+    lines = [
+        "---",
+        'title: "标签总览"',
+        "layout: default",
+        "---",
+        "",
+        "标签按实体类型整理，并显示已关联的新闻数量。",
+        "",
+    ]
+    if organizations:
+        lines.extend(("## 单位", "", "| 标签 | 关联新闻 |", "| --- | ---: |"))
+        for organization in organizations:
+            name = _text(organization.get("name")) or "未命名单位"
+            count = len(organization_news.get(int(organization["id"]), []))
+            lines.append(
+                f'| [单位：{_escape_table(name)}](organizations.html#{_anchor_slug(name)}) | {count} |'
+            )
+        lines.append("")
+    if persons:
+        lines.extend(("## 人物", "", "| 标签 | 关联新闻 |", "| --- | ---: |"))
+        for person in persons:
+            name = _text(person.get("name")) or "未命名人物"
+            count = len(person_news.get(int(person["id"]), []))
+            lines.append(
+                f'| [人物：{_escape_table(name)}](persons/index.html#{_anchor_slug(name)}) | {count} |'
+            )
+        lines.append("")
+    if not organizations and not persons:
+        lines.append("暂无已建立的单位或人物标签。")
+    return "\n".join(lines)
+
+
+def _render_entity_news(news: list[dict[str, object]], link_prefix: str) -> list[str]:
+    if not news:
+        return ["关联新闻：暂无。"]
+    lines = ["关联新闻：", ""]
+    for item in news:
+        title = _escape_text(_text(item.get("title")) or "未命名新闻")
+        date = _date_prefix(item.get("publish_date")) or "日期未知"
+        lines.append(f"- [{title}]({link_prefix}{int(item['id'])}.html)（{date}）")
+    return lines
+
+
+def _render_entity_tags(entities: list[dict[str, object]], link_prefix: str) -> list[str]:
+    """Render stable, clickable entity labels for reuse across generated pages."""
+    tags: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for entity in entities:
+        entity_type = _text(entity.get("entity_type"))
+        name = (
+            _text(entity.get("entity_name"))
+            or _text(entity.get("event_name"))
+            or _text(entity.get("organization_name"))
+        )
+        if not name or (entity_type, name.lower()) in seen:
+            continue
+        seen.add((entity_type, name.lower()))
+        label = {"person": "人物", "organization": "单位", "event": "事件"}.get(entity_type, "实体")
+        href = {
+            "person": f"{link_prefix}persons/index.html#{_anchor_slug(name)}",
+            "organization": f"{link_prefix}organizations.html#{_anchor_slug(name)}",
+            "event": f"{link_prefix}events/index.html#{_anchor_slug(name)}",
+        }.get(entity_type, "")
+        tag_text = f"{label}：{_escape_text(name)}"
+        tags.append(f'<a class="entity-tag" href="{href}">{tag_text}</a>' if href else tag_text)
+    if not tags:
+        return []
+    return ["<div class=\"entity-tags\">", " ".join(tags), "</div>"]
+
+
+def _entity_names(entities: list[dict[str, object]]) -> list[str]:
+    names: list[str] = []
+    for entity in entities:
+        name = (
+            _text(entity.get("entity_name"))
+            or _text(entity.get("event_name"))
+            or _text(entity.get("organization_name"))
+        )
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _anchor_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", value.lower()).strip("-")
+    return slug or "entity"
+
+
 def _news_filename(row: dict[str, object]) -> str:
-    title = _text(row.get("title")) or _text(row.get("original_title")) or "news"
-    slug = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", title.lower()).strip("-")[:70]
-    return f"{int(row['id'])}-{slug or 'news'}.md"
+    """Use an immutable ID so translated titles never change the public URL."""
+
+    return f"{int(row['id'])}.md"
+
+
+def _news_url(row: dict[str, object]) -> str:
+    """Return the URL emitted by the GitHub Pages Jekyll build."""
+
+    return _news_filename(row).removesuffix(".md") + ".html"
+
+
+def _legacy_news_filenames(row: dict[str, object]) -> list[str]:
+    """Return old title-based filenames as compatibility redirects."""
+
+    filenames: list[str] = []
+    for value in (row.get("original_title"), row.get("title")):
+        title = _text(value)
+        slug = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", title.lower()).strip("-")[:70]
+        if not slug:
+            continue
+        filename = f"{int(row['id'])}-{slug}.md"
+        if filename != _news_filename(row) and filename not in filenames:
+            filenames.append(filename)
+    return filenames
+
+
+def _render_news_redirect(target_filename: str) -> str:
+    target_url = target_filename.removesuffix(".md") + ".html"
+    return "\n".join(
+        (
+            "---",
+            'title: "文章链接已更新"',
+            "layout: default",
+            "---",
+            "",
+            f'<meta http-equiv="refresh" content="0; url=../news/{target_url}">',
+            f"文章链接已更新，请访问 [最新页面](../news/{target_url})。",
+            "",
+        )
+    )
 
 
 def _json_list(value: object) -> list[str]:

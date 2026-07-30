@@ -15,6 +15,7 @@ from uap_observer.ai_analysis import (
     ArticleAnalysis,
     DeepSeekAnalyzer,
     OpenAIAnalyzer,
+    TitleTranslation,
 )
 from uap_observer.database import Database
 from uap_observer.models import (
@@ -62,6 +63,9 @@ class MappingAnalyzer:
             model="fake-structured-model",
             response_id=f"resp_{news_id}",
         )
+
+    def translate_title(self, original_title: str, source: str) -> str:
+        return f"中文：{original_title}"
 
 
 class RecordingResponses:
@@ -127,6 +131,8 @@ class AnalysisTests(unittest.TestCase):
                     "unsupported_conclusion": "aliens",
                 }
             )
+        with self.assertRaises(ValidationError):
+            TitleTranslation(chinese_title="English title only")
 
     def test_service_persists_validated_analysis_and_audit_data(self) -> None:
         news_id = self.add_extracted_news("success")
