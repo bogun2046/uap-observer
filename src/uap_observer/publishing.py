@@ -267,8 +267,8 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         f"发布时间：{_date_prefix(row.get('publish_date')) or '未知'}",
         f"可信度：{_stars(row.get('credibility'))}",
         f"事实状态：`{_escape_text(_text(row.get('fact_status')) or 'unknown')}`",
-        f"分析状态：`{_escape_text(_text(row.get('processing_status')) or 'pending')}`",
-        f"正文提取状态：`{_escape_text(_text(row.get('extraction_status')) or 'pending')}`",
+            f"分析状态：`{_escape_text(_text(row.get('processing_status')) or 'pending')}`",
+            f"正文提取状态：`{_escape_text(_text(row.get('extraction_status')) or 'pending')}`",
         "",
         "## AI摘要",
         "",
@@ -300,6 +300,10 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     lines.extend(
         (
             "",
+            "## 采集说明",
+            "",
+            _escape_text(_extraction_status_message(row)),
+            "",
             "## 原始来源",
             "",
             f"来源：{_escape_text(_text(row.get('source')) or '未知来源')}",
@@ -311,6 +315,18 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         )
     )
     return "\n".join(lines)
+
+
+def _extraction_status_message(row: dict[str, object]) -> str:
+    status = _text(row.get("extraction_status")) or "pending"
+    if status == "completed":
+        return "正文已成功提取。"
+    if status == "failed":
+        error = _text(row.get("extraction_error")) or ""
+        if "403" in error:
+            return "来源服务器拒绝自动抓取（HTTP 403）；请通过下方原始来源链接查看内容。"
+        return "正文提取失败；请通过下方原始来源链接查看内容。"
+    return "正文尚未提取完成。"
 
 
 def _analysis_unavailable_message(row: dict[str, object]) -> str:

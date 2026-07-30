@@ -138,6 +138,7 @@ class PublishingTests(unittest.TestCase):
         self.assertTrue(legacy_detail.exists())
         self.assertIn(f"../news/{news_id}.html", legacy_detail.read_text(encoding="utf-8"))
         self.assertIn("## 原始来源", detail)
+        self.assertIn("正文已成功提取。", detail)
         self.assertIn("[打开原文](https://example.test/article)", detail)
         self.assertNotIn("内部正文不应出现在页面", detail)
         self.assertIn("2004", timeline)
