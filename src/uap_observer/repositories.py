@@ -446,8 +446,8 @@ class Repository:
                 """
                 SELECT id, title, original_title, source
                 FROM news
-                WHERE title = original_title
-                  AND original_title GLOB '*[A-Za-z]*'
+                WHERE title GLOB '*[A-Za-z]*'
+                  AND title NOT GLOB '*[一-龥]*'
                 ORDER BY id ASC
                 LIMIT ?
                 """,
@@ -461,7 +461,7 @@ class Repository:
                 """
                 UPDATE news
                 SET title = ?, updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-                WHERE id = ? AND title = original_title
+                WHERE id = ?
                 """,
                 (title, news_id),
             )

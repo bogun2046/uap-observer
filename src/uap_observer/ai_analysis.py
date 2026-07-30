@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -76,6 +77,13 @@ class TitleTranslation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     chinese_title: str = Field(min_length=2, max_length=160)
+
+    @field_validator("chinese_title")
+    @classmethod
+    def must_contain_simplified_chinese(cls, value: str) -> str:
+        if not re.search(r"[\u4e00-\u9fff]", value):
+            raise ValueError("translated title must contain Chinese characters")
+        return value.strip()
 
 
 @dataclass(frozen=True)
