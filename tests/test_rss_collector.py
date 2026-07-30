@@ -26,7 +26,6 @@ from uap_observer.repositories import Repository
 from uap_observer.source_config import load_sources
 from uap_observer.url_utils import normalize_url
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RSS_PAYLOAD = b"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -179,6 +178,7 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(
             [source.slug for source in sources],
             [
+                "x-uap",
                 "nasa-recent",
                 "the-debrief",
                 "reddit-ufos",
@@ -186,13 +186,13 @@ class RssCollectorTests(unittest.TestCase):
                 "aaro-case-resolutions",
             ],
         )
-        self.assertEqual(sources[0].default_credibility, 5)
-        self.assertEqual(sources[1].feed_url, "https://thedebrief.org/feed/")
-        self.assertEqual(sources[2].feed_url, "https://www.reddit.com/r/UFOs/.rss")
-        self.assertEqual(sources[2].default_credibility, 1)
-        self.assertEqual(sources[3].source_type, SourceType.WEB_PAGE)
-        self.assertTrue(sources[3].enabled)
-        self.assertEqual(sources[4].default_category, NewsCategory.HISTORICAL_EVENT)
+        self.assertEqual(sources[1].default_credibility, 5)
+        self.assertEqual(sources[2].feed_url, "https://thedebrief.org/feed/")
+        self.assertEqual(sources[3].feed_url, "https://www.reddit.com/r/UFOs/.rss")
+        self.assertEqual(sources[3].default_credibility, 1)
+        self.assertEqual(sources[4].source_type, SourceType.WEB_PAGE)
+        self.assertTrue(sources[4].enabled)
+        self.assertEqual(sources[5].default_category, NewsCategory.HISTORICAL_EVENT)
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">

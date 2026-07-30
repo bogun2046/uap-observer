@@ -11,6 +11,7 @@ from uap_observer.ai_analysis import AnalysisService, DeepSeekAnalyzer, OpenAIAn
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
+from uap_observer.collectors.x_api import XApiCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.entity_linking import EntityLinkingService
@@ -83,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include previously failed analysis tasks.",
     )
+
+    x_parser = subparsers.add_parser("collect-x", help="Collect recent X posts with the X API v2.")
+    x_parser.add_argument("--limit", type=int, default=30)
+    x_parser.add_argument("--query", help="Override the X recent-search query.")
     analysis_parser.add_argument(
         "--model",
         help="Model override (defaults to provider-specific environment setting).",
@@ -235,6 +240,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"duplicates={result.duplicates} invalid={result.invalid} "
                 f"events={result.events_inserted}"
             )
+        return 0
+
+    if args.command == "collect-x":
+        if args.limit < 10 or args.limit > 100:
+            raise SystemExit("--limit must be between 10 and 100")
+        sources = repository.get_sources(source_type=SourceType.API, slug="x-uap")
+        if not sources:
+            raise SystemExit("Enabled X source not found; run sync-sources first")
+        result = XApiCollector(repository).collect(
+            sources[0], limit=args.limit, query=args.query
+        )
+        print(
+            f"X collection complete; fetched={result.fetched} inserted={result.inserted} "
+            f"duplicates={result.duplicates}"
+        )
         return 0
 
     if args.command == "extract-articles":
