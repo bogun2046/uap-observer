@@ -182,6 +182,7 @@ class RssCollectorTests(unittest.TestCase):
                 "nasa-recent",
                 "the-debrief",
                 "reddit-ufos",
+                "reddit-aliens",
                 "aaro-press-products",
                 "aaro-case-resolutions",
             ],
@@ -190,9 +191,12 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(sources[2].feed_url, "https://thedebrief.org/feed/")
         self.assertEqual(sources[3].feed_url, "https://www.reddit.com/r/UFOs/.rss")
         self.assertEqual(sources[3].default_credibility, 1)
-        self.assertEqual(sources[4].source_type, SourceType.WEB_PAGE)
-        self.assertTrue(sources[4].enabled)
-        self.assertEqual(sources[5].default_category, NewsCategory.HISTORICAL_EVENT)
+        self.assertEqual(sources[4].feed_url, "https://www.reddit.com/r/aliens/.rss")
+        self.assertEqual(sources[4].default_credibility, 1)
+        self.assertNotIn("alien", sources[4].include_keywords)
+        self.assertEqual(sources[5].source_type, SourceType.WEB_PAGE)
+        self.assertTrue(sources[5].enabled)
+        self.assertEqual(sources[6].default_category, NewsCategory.HISTORICAL_EVENT)
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">
