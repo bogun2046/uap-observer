@@ -612,6 +612,71 @@ class Repository:
             ).fetchone()
         return int(row["id"]) if row else None
 
+    def merge_organization_alias(self, *, alias_id: int, canonical_name: str) -> int:
+        """Rename or merge one verified organization alias without losing evidence."""
+        with self.database.connect() as connection:
+            alias = connection.execute(
+                "SELECT id, name, country, description FROM organizations WHERE id = ?",
+                (alias_id,),
+            ).fetchone()
+            if alias is None:
+                raise ValueError("organization alias does not exist")
+            canonical = connection.execute(
+                "SELECT id FROM organizations WHERE lower(name) = lower(?) LIMIT 1",
+                (canonical_name,),
+            ).fetchone()
+            if canonical is None:
+                connection.execute(
+                    """
+                    UPDATE organizations
+                    SET name = ?, updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                    """,
+                    (canonical_name, alias_id),
+                )
+                connection.execute(
+                    "UPDATE persons SET organization = ? WHERE lower(organization) = lower(?)",
+                    (canonical_name, alias["name"]),
+                )
+                return alias_id
+
+            canonical_id = int(canonical["id"])
+            if canonical_id == alias_id:
+                return canonical_id
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO relationships (
+                    source_type, source_id, target_type, target_id,
+                    relationship_type, evidence_news_id, confidence, created_time
+                )
+                SELECT source_type, source_id, target_type, ?, relationship_type,
+                       evidence_news_id, confidence, created_time
+                FROM relationships
+                WHERE target_type = 'organization' AND target_id = ?
+                """,
+                (canonical_id, alias_id),
+            )
+            connection.execute(
+                "DELETE FROM relationships WHERE target_type = 'organization' AND target_id = ?",
+                (alias_id,),
+            )
+            connection.execute(
+                """
+                UPDATE organizations
+                SET country = COALESCE(country, ?),
+                    description = COALESCE(description, ?),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                """,
+                (alias["country"], alias["description"], canonical_id),
+            )
+            connection.execute(
+                "UPDATE persons SET organization = ? WHERE lower(organization) = lower(?)",
+                (canonical_name, alias["name"]),
+            )
+            connection.execute("DELETE FROM organizations WHERE id = ?", (alias_id,))
+            return canonical_id
+
     def get_event_id(self, *, event_name: str) -> int | None:
         with self.database.connect() as connection:
             row = connection.execute(

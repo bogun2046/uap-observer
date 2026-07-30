@@ -6,8 +6,15 @@ import unittest
 from pathlib import Path
 
 from uap_observer.database import Database
-from uap_observer.entity_linking import EntityLinkingService
-from uap_observer.models import FactStatus, News, NewsCategory
+from uap_observer.entity_linking import EntityLinkingService, canonicalize_organization_name
+from uap_observer.models import (
+    EntityType,
+    FactStatus,
+    News,
+    NewsCategory,
+    Organization,
+    Relationship,
+)
 from uap_observer.repositories import Repository
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +115,87 @@ class EntityLinkingTests(unittest.TestCase):
 
         self.assertEqual(result.records, 1)
         self.assertEqual(result.skipped_invalid, 1)
+
+    def test_known_organization_aliases_link_to_one_canonical_entity(self) -> None:
+        news_id = self.add_analyzed_news()
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE news SET analysis_json = ? WHERE id = ?",
+                (
+                    json.dumps(
+                        {
+                            "named_persons": [],
+                            "named_organizations": [
+                                "AARO",
+                                "All-Domain Anomaly Resolution Office (AARO)",
+                                "全域异常解决办公室（AARO）",
+                            ],
+                            "related_events": [],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    news_id,
+                ),
+            )
+
+        result = EntityLinkingService(self.repository).run()
+
+        self.assertEqual(result.organizations_created, 1)
+        self.assertEqual(result.relationships_created, 1)
+        with self.database.connect() as connection:
+            organizations = connection.execute("SELECT name FROM organizations").fetchall()
+            relationships = connection.execute(
+                "SELECT * FROM relationships WHERE target_type = 'organization'"
+            ).fetchall()
+        self.assertEqual([row["name"] for row in organizations], ["AARO"])
+        self.assertEqual(len(relationships), 1)
+
+    def test_existing_alias_relationships_are_merged_without_duplicates(self) -> None:
+        news_id = self.add_analyzed_news()
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE news SET analysis_json = ? WHERE id = ?",
+                (
+                    json.dumps(
+                        {
+                            "named_persons": [],
+                            "named_organizations": [],
+                            "related_events": [],
+                        }
+                    ),
+                    news_id,
+                ),
+            )
+        canonical_id = self.repository.add_organization(Organization(name="AARO"))
+        alias_id = self.repository.add_organization(
+            Organization(name="All-domain Anomaly Resolution Office")
+        )
+        for organization_id in (canonical_id, alias_id):
+            self.repository.add_relationship(
+                Relationship(
+                    source_type=EntityType.NEWS,
+                    source_id=news_id,
+                    target_type=EntityType.ORGANIZATION,
+                    target_id=organization_id,
+                    relationship_type="mentions_organization",
+                    evidence_news_id=news_id,
+                    confidence=0.85,
+                )
+            )
+
+        result = EntityLinkingService(self.repository).run()
+
+        self.assertEqual(result.organizations_normalized, 1)
+        with self.database.connect() as connection:
+            organizations = connection.execute("SELECT id, name FROM organizations").fetchall()
+            relationships = connection.execute(
+                "SELECT target_id FROM relationships WHERE target_type = 'organization'"
+            ).fetchall()
+        self.assertEqual([(row["id"], row["name"]) for row in organizations], [(canonical_id, "AARO")])
+        self.assertEqual([row["target_id"] for row in relationships], [canonical_id])
+
+    def test_canonicalization_is_conservative_for_unknown_names(self) -> None:
+        self.assertEqual(canonicalize_organization_name("  Test   Agency  "), "Test Agency")
 
 
 if __name__ == "__main__":
