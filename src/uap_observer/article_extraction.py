@@ -339,11 +339,18 @@ class ArticleExtractionService:
         self.repository = repository
         self.extractor = extractor or TrafilaturaArticleExtractor()
 
-    def run(self, *, limit: int, retry_failed: bool = False) -> ExtractionRun:
+    def run(
+        self,
+        *,
+        limit: int,
+        retry_failed: bool = False,
+        retry_blocked: bool = False,
+    ) -> ExtractionRun:
         stale_recovered = self.repository.reset_stale_article_tasks()
         tasks = self.repository.get_article_tasks(
             limit=limit,
             retry_failed=retry_failed,
+            retry_blocked=retry_blocked,
         )
         claimed = completed = failed = skipped = 0
         for task in tasks:

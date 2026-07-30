@@ -94,6 +94,7 @@ class Repository:
         *,
         limit: int,
         retry_failed: bool = False,
+        retry_blocked: bool = False,
     ) -> list[ArticleTask]:
         statuses = ("pending", "failed") if retry_failed else ("pending",)
         placeholders = ", ".join("?" for _ in statuses)
@@ -104,11 +105,17 @@ class Repository:
                        original_title, extraction_attempts, source, summary
                 FROM news
                 WHERE extraction_status IN ({placeholders})
+                  AND (
+                    ? = 1
+                    OR extraction_status <> 'failed'
+                    OR extraction_error IS NULL
+                    OR extraction_error NOT LIKE '%403%'
+                  )
                   AND COALESCE(canonical_url, source_url) IS NOT NULL
                 ORDER BY publish_date ASC, id ASC
                 LIMIT ?
                 """,
-                (*statuses, limit),
+                (*statuses, int(retry_blocked), limit),
             ).fetchall()
         return [
             ArticleTask(

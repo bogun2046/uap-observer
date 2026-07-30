@@ -67,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include previously failed extraction tasks.",
     )
+    extraction_parser.add_argument(
+        "--retry-blocked",
+        action="store_true",
+        help="Also retry extraction tasks previously blocked with HTTP 403.",
+    )
 
     analysis_parser = subparsers.add_parser(
         "analyze-articles",
@@ -227,6 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run = ArticleExtractionService(repository).run(
             limit=args.limit,
             retry_failed=args.retry_failed,
+            retry_blocked=args.retry_blocked,
         )
         print(
             f"Article extraction complete; stale_recovered={run.stale_recovered} "
