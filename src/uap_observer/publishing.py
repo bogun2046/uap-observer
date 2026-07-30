@@ -131,10 +131,10 @@ def _render_home(rows: list[dict[str, object]], today: str) -> str:
     if not rows:
         lines.append("今日暂无已完成 AI 分析的新闻。")
         lines.append("")
-        lines.append("[查看全部新闻](news/index.md) · [搜索新闻](search.md)")
+        lines.append("[查看全部新闻](news/index.html) · [搜索新闻](search.html)")
         return "\n".join(lines) + "\n"
     lines.extend(_render_news_cards(rows, link_prefix="news/"))
-    lines.extend(("", "[查看全部新闻](news/index.md) · [搜索新闻](search.md)", ""))
+    lines.extend(("", "[查看全部新闻](news/index.html) · [搜索新闻](search.html)", ""))
     return "\n".join(lines)
 
 
@@ -145,7 +145,7 @@ def _render_news_index(rows: list[dict[str, object]]) -> str:
         "layout: default",
         "---",
         "",
-        "[搜索新闻](../search.md)",
+        "[搜索新闻](../search.html)",
         "",
     ]
     if not rows:
@@ -174,7 +174,7 @@ def _render_search_index(rows: list[dict[str, object]]) -> list[dict[str, object
             "category": _text(row.get("category")) or "other",
             "fact_status": _text(row.get("fact_status")),
             "credibility": row.get("credibility"),
-            "url": f"news/{_news_filename(row)}",
+            "url": f"news/{_news_url(row)}",
         }
         for row in rows
     ]
@@ -232,7 +232,7 @@ def _render_news_cards(
 ) -> list[str]:
     lines: list[str] = []
     for row in rows:
-        filename = _news_filename(row)
+        filename = _news_url(row)
         title = _text(row.get("title")) or _text(row.get("original_title")) or "未命名新闻"
         summary = _text(row.get("summary")) or "暂无摘要。"
         date_value = _date_prefix(row.get("publish_date")) or "日期未知"
@@ -411,6 +411,12 @@ def _news_filename(row: dict[str, object]) -> str:
     return f"{int(row['id'])}.md"
 
 
+def _news_url(row: dict[str, object]) -> str:
+    """Return the URL emitted by the GitHub Pages Jekyll build."""
+
+    return _news_filename(row).removesuffix(".md") + ".html"
+
+
 def _legacy_news_filenames(row: dict[str, object]) -> list[str]:
     """Return old title-based filenames as compatibility redirects."""
 
@@ -427,6 +433,7 @@ def _legacy_news_filenames(row: dict[str, object]) -> list[str]:
 
 
 def _render_news_redirect(target_filename: str) -> str:
+    target_url = target_filename.removesuffix(".md") + ".html"
     return "\n".join(
         (
             "---",
@@ -434,8 +441,8 @@ def _render_news_redirect(target_filename: str) -> str:
             "layout: default",
             "---",
             "",
-            f'<meta http-equiv="refresh" content="0; url=../news/{target_filename}">',
-            f"文章链接已更新，请访问 [最新页面](../news/{target_filename})。",
+            f'<meta http-equiv="refresh" content="0; url=../news/{target_url}">',
+            f"文章链接已更新，请访问 [最新页面](../news/{target_url})。",
             "",
         )
     )

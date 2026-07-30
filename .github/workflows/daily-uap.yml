@@ -145,7 +145,7 @@ jobs:
           missing_pages = [
               item["url"]
               for item in search_index
-              if not (Path("site/generated") / item["url"]).exists()
+              if not (Path("site/_site") / item["url"]).exists()
           ]
           if missing_pages:
               raise SystemExit(f"Pipeline health check failed; missing pages: {missing_pages}")
