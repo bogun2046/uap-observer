@@ -63,6 +63,9 @@ class MappingAnalyzer:
             response_id=f"resp_{news_id}",
         )
 
+    def translate_title(self, original_title: str, source: str) -> str:
+        return f"中文：{original_title}"
+
 
 class RecordingResponses:
     def __init__(self, analysis: ArticleAnalysis) -> None:

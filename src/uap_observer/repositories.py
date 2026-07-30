@@ -439,6 +439,33 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_untranslated_titles(self, *, limit: int = 100) -> list[dict[str, object]]:
+        """Return English or mixed-language titles that still equal the source title."""
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, title, original_title, source
+                FROM news
+                WHERE title = original_title
+                  AND original_title GLOB '*[A-Za-z]*'
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_translated_title(self, news_id: int, title: str) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET title = ?, updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND title = original_title
+                """,
+                (title, news_id),
+            )
+
     def get_pipeline_counts(self) -> dict[str, int]:
         """Return queue counts used by local and scheduled-run diagnostics."""
         with self.database.connect() as connection:

@@ -266,7 +266,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"AI analysis complete; stale_recovered={run.stale_recovered} "
             f"queued={run.queued} claimed={run.claimed} "
-            f"completed={run.completed} failed={run.failed}"
+            f"completed={run.completed} failed={run.failed} "
+            f"titles_translated={run.titles_translated}"
         )
         return 0
 
