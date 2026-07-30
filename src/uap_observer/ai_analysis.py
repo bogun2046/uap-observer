@@ -76,7 +76,7 @@ class ArticleAnalysis(BaseModel):
 class TitleTranslation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    chinese_title: str = Field(min_length=2, max_length=160)
+    chinese_title: str = Field(min_length=2, max_length=320)
 
     @field_validator("chinese_title")
     @classmethod
