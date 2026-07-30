@@ -110,6 +110,7 @@ class Repository:
                     OR extraction_status <> 'failed'
                     OR extraction_error IS NULL
                     OR extraction_error NOT LIKE '%403%'
+                    OR raw_content IS NOT NULL
                   )
                   AND COALESCE(canonical_url, source_url) IS NOT NULL
                 ORDER BY publish_date ASC, id ASC
