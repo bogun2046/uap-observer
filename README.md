@@ -16,7 +16,7 @@ Phase 1 establishes the local data foundation:
 - `sources`, `news`, `events`, `persons`, and `relationships` tables
 - typed domain models and a small persistence layer
 - version-controlled source definitions
-- NASA official RSS and The Debrief RSS sources
+- NASA, The Debrief, Reddit r/UFOs, and filtered Reddit r/aliens RSS sources
 - AARO official press-products and case-resolution pages
 - incremental RSS/Atom collection with conditional HTTP requests
 - URL normalization, keyword filtering, and duplicate prevention
@@ -205,8 +205,11 @@ database, source files, or committed workflow YAML.
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and
 Last-Modified values; a source that has not changed reports `not modified`.
 
-The active RSS registry currently includes NASA's recently published feed and
-The Debrief's feed. AARO's official Congressional/Press Products page is
+The active RSS registry currently includes NASA's recently published feed,
+The Debrief's feed, Reddit r/UFOs, and Reddit r/aliens. The r/aliens source
+uses strict UAP/UFO and evidence-oriented phrase filters rather than broad
+`alien` or `NHI` matches, and retains source credibility 1 with
+`source_reported` status. AARO's official Congressional/Press Products page is
 registered as an official web-page source and is collected by `collect-web`.
 If AARO's Akamai edge returns HTTP 403 to a scheduled runner, the workflow
 keeps the warning visible and continues with RSS sources; it does not fabricate

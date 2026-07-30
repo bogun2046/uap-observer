@@ -86,6 +86,34 @@
       "enabled": true
     },
     {
+      "slug": "reddit-aliens",
+      "name": "Reddit r/aliens",
+      "source_type": "rss",
+      "homepage_url": "https://www.reddit.com/r/aliens/",
+      "feed_url": "https://www.reddit.com/r/aliens/.rss",
+      "country": "International",
+      "language": "en",
+      "default_category": "other",
+      "default_credibility": 1,
+      "default_fact_status": "source_reported",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap",
+        "ufo",
+        "aaro",
+        "congressional hearing",
+        "government document",
+        "military radar",
+        "pilot sighting"
+      ],
+      "exclude_keywords": [
+        "universal adversarial perturbation",
+        "adversarial attack"
+      ],
+      "enabled": true
+    },
+    {
       "slug": "aaro-press-products",
       "name": "AARO Congressional and Press Products",
       "source_type": "web_page",
