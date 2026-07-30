@@ -264,7 +264,6 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
         f"# {_escape_text(title)}",
         "",
         f"原标题：{_escape_text(_text(row.get('original_title')))}",
-        f"来源：[{_escape_text(_text(row.get('source')))}](<{_text(row.get('source_url'))}>)",
         f"发布时间：{_date_prefix(row.get('publish_date')) or '未知'}",
         f"可信度：{_stars(row.get('credibility'))}",
         f"事实状态：`{_escape_text(_text(row.get('fact_status')) or 'unknown')}`",
@@ -298,7 +297,19 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     lines.extend(("", "## 分析信息", "", f"- 模型：`{_escape_text(_text(row.get('ai_model')) or 'unknown')}`"))
     if row.get("analysis_confidence") is not None:
         lines.append(f"- 分析置信度：{float(row['analysis_confidence']):.2f}")
-    lines.extend(("", "原文请访问上方来源链接。本站不转载抓取的文章正文。", ""))
+    lines.extend(
+        (
+            "",
+            "## 原始来源",
+            "",
+            f"来源：{_escape_text(_text(row.get('source')) or '未知来源')}",
+            "",
+            f"[打开原文]({_text(row.get('source_url'))})",
+            "",
+            "本站不转载抓取的文章正文。",
+            "",
+        )
+    )
     return "\n".join(lines)
 
 
