@@ -187,8 +187,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise SystemExit(f"Enabled RSS source not found: {args.source}")
         collector = RssCollector(repository)
         total_inserted = 0
+        failed_sources = 0
         for source in sources:
-            result = collector.collect(source, limit=args.limit)
+            try:
+                result = collector.collect(source, limit=args.limit)
+            except Exception as error:  # noqa: BLE001
+                failed_sources += 1
+                print(f"{source.slug}: collection failed: {type(error).__name__}: {error}")
+                continue
             total_inserted += result.inserted
             if result.not_modified:
                 print(f"{source.slug}: not modified")
@@ -198,7 +204,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"duplicates={result.duplicates} filtered={result.filtered} "
                     f"invalid={result.invalid}"
                 )
-        print(f"RSS collection complete; inserted={total_inserted}")
+        print(
+            f"RSS collection complete; inserted={total_inserted} "
+            f"failed_sources={failed_sources}"
+        )
+        if args.source and failed_sources:
+            return 1
         return 0
 
     if args.command == "collect-web":
