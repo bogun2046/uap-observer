@@ -126,6 +126,13 @@ jobs:
           failed_extraction = database.execute(
               "SELECT COUNT(*) FROM news WHERE extraction_status = 'failed'"
           ).fetchone()[0]
+          blocked_extraction = database.execute(
+              """
+              SELECT COUNT(*) FROM news
+              WHERE extraction_status = 'failed'
+                AND extraction_error LIKE '%403%'
+              """
+          ).fetchone()[0]
           failed_analysis = database.execute(
               "SELECT COUNT(*) FROM news WHERE processing_status = 'failed'"
           ).fetchone()[0]
@@ -149,6 +156,7 @@ jobs:
                   f"- Extraction completed: **{completed_extraction}**\n"
                   f"- AI analysis completed: **{completed_analysis}**\n"
                   f"- Extraction failed: **{failed_extraction}**\n"
+                  f"- Extraction blocked by source (403): **{blocked_extraction}**\n"
                   f"- AI analysis failed: **{failed_analysis}**\n"
                   f"- Published pages: **{len(search_index)}**\n",
                   encoding="utf-8",
@@ -158,6 +166,7 @@ jobs:
               f"extraction_completed={completed_extraction} "
               f"analysis_completed={completed_analysis} "
               f"extraction_failed={failed_extraction} "
+              f"extraction_blocked_403={blocked_extraction} "
               f"analysis_failed={failed_analysis} "
               f"published_pages={len(search_index)}"
           )
