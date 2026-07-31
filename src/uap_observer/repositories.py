@@ -491,6 +491,24 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_events(self, *, limit: int = 500) -> list[dict[str, object]]:
+        """Return all public event records, including records without a known date."""
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, event_name, date_start, date_end, location, country,
+                       description, status, credibility
+                FROM events
+                ORDER BY CASE WHEN date_start IS NULL OR date_start = '' THEN 1 ELSE 0 END,
+                         date_start ASC, id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_persons(self, *, limit: int = 1000) -> list[dict[str, object]]:
         if limit < 1:
             raise ValueError("limit must be at least 1")

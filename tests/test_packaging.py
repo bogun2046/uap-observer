@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from sysconfig import get_paths
 
@@ -37,6 +38,11 @@ class PackagingTests(unittest.TestCase):
             )
             self.assertEqual(build.returncode, 0, build.stdout + "\n" + build.stderr)
             wheel = next(wheel_directory.glob("uap_observer-*.whl"))
+            with zipfile.ZipFile(wheel) as archive:
+                packaged_files = set(archive.namelist())
+            self.assertIn("uap_observer/resources/site.css", packaged_files)
+            self.assertIn("uap_observer/resources/site.js", packaged_files)
+            self.assertIn("uap_observer/resources/og.png", packaged_files)
             create_venv = subprocess.run(
                 [sys.executable, "-m", "venv", "--system-site-packages", str(venv_directory)],
                 capture_output=True,

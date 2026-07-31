@@ -126,14 +126,18 @@ class PublishingTests(unittest.TestCase):
         search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
         search_page = (output / "search.md").read_text(encoding="utf-8")
 
-        self.assertIn("今日UAP新闻", homepage)
+        self.assertIn("开放观测档案", homepage)
+        self.assertIn("进入事件地图", homepage)
+        self.assertIn("最近新增的图片或视频证据", homepage)
         self.assertIn(f"news/{news_id}.html", homepage)
-        self.assertIn("search.html", homepage)
+        self.assertIn("当前无可公开的媒体附件", homepage)
         self.assertIn(f"]({news_id}.html", news_index)
         self.assertIn("官方报告", news_index)
         self.assertIn("../search.html", news_index)
         self.assertTrue((output / "_config.yml").exists())
         self.assertTrue((output / "_layouts" / "default.html").exists())
+        self.assertTrue((output / "assets" / "site.css").exists())
+        self.assertTrue((output / "assets" / "site.js").exists())
         self.assertNotIn(f"news/news/{news_id}", news_index)
         self.assertTrue(legacy_detail.exists())
         self.assertIn(f"../news/{news_id}.html", legacy_detail.read_text(encoding="utf-8"))
@@ -155,7 +159,10 @@ class PublishingTests(unittest.TestCase):
         result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
 
         self.assertEqual(result.news_pages, 0)
-        self.assertIn("今日暂无", (output / "index.md").read_text(encoding="utf-8"))
+        self.assertIn(
+            "暂无已发布的来源记录",
+            (output / "index.md").read_text(encoding="utf-8"),
+        )
         self.assertIn("暂无已录入", (output / "events" / "index.md").read_text(encoding="utf-8"))
         self.assertEqual(json.loads((output / "search.json").read_text(encoding="utf-8")), [])
 

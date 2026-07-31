@@ -25,6 +25,8 @@ Phase 1 establishes the local data foundation:
 - strict validation for Chinese summaries, fact state, entities, confidence,
   and risk flags
 - deterministic Markdown generation for homepage, news, events, and timeline
+- data-driven observatory-style homepage with source status, event map coverage,
+  category distribution, and an explicit media-evidence empty state
 - relationship graph pages for persons, events, and news evidence links
 - PostgreSQL/Supabase schema baseline and reviewed SQLite JSON export
 - automated database tests
@@ -152,7 +154,12 @@ Generate static pages after analysis:
 The output contains `index.md`, a category-grouped `news/index.md`, one detail page per source-filtered
 news item, `events/index.md`, `persons/index.md`, `organizations.md`,
 `relationships.md`, `timeline.md`, a metadata-only `search.json`, and a
-client-side `search.md` page. `site/generated/` is ignored
+client-side `search.md` page. The publisher also writes the shared dark
+observatory stylesheet, reduced-motion interaction script, and social preview
+asset under `site/generated/assets/`. Homepage counts and source health are
+derived from the current database; missing coordinates or media attachments
+are shown as explicit data-quality states rather than inferred or fabricated.
+`site/generated/` is ignored
 by default so local previews do not dirty Git; a later deployment workflow can
 publish this directory as a build artifact.
 
