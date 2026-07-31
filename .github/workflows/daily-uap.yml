@@ -20,8 +20,11 @@ concurrency:
 
 jobs:
   collect-analyze-publish:
+    # The persistence step pushes the SQLite checkpoint with the Actions bot
+    # identity. Do not start a second collection run for that generated commit.
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       UAP_DB_PATH: data/uap.db
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -86,11 +89,13 @@ jobs:
 
       - name: Extract article text
         continue-on-error: true
-        run: uap-observer extract-articles --limit 100 --retry-failed
+        # Extraction is intentionally bounded: each URL can take up to 30s.
+        run: uap-observer extract-articles --limit 40 --retry-failed
 
       - name: Analyze articles
         if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
-        run: uap-observer analyze-articles --limit 100 --retry-failed
+        # AI calls are sequential; keep one scheduled run within the job budget.
+        run: uap-observer analyze-articles --limit 40 --retry-failed
 
       - name: Explain skipped AI step
         if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
