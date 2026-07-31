@@ -181,10 +181,14 @@ jobs:
               and re.search(r"[A-Za-z]", item["title"])
               and not re.search(r"[\u4e00-\u9fff]", item["title"])
           ]
+          # English titles are expected for international sources and official
+          # document filenames. Report them for observability, but do not
+          # block publication solely because a title has no Chinese text.
           if untranslated_titles:
-              raise SystemExit(
-                  "Pipeline health check failed; untranslated titles: "
-                  f"{untranslated_titles}"
+              print(
+                  "Pipeline health notice; untranslated titles: "
+                  f"{untranslated_titles[:20]}"
+                  + (" ..." if len(untranslated_titles) > 20 else "")
               )
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
           if summary_path:
@@ -195,6 +199,7 @@ jobs:
                   f"- Extraction failed: **{failed_extraction}**\n"
                   f"- Extraction blocked by source (403): **{blocked_extraction}**\n"
                   f"- AI analysis failed: **{failed_analysis}**\n"
+                  f"- Titles without Chinese text (notice): **{len(untranslated_titles)}**\n"
                   f"- Published pages: **{len(search_index)}**\n",
                   encoding="utf-8",
               )
