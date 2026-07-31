@@ -1,6 +1,9 @@
 name: Daily UAP Observer
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # 01:15 UTC = 09:15 Asia/Shanghai.
     - cron: "15 1 * * *"
