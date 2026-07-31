@@ -167,7 +167,7 @@ class MarkdownPublisher:
       <span>UAP OBSERVER</span>
     </a>
     <nav aria-label="主导航">
-      <a href="{{ '/news/' | relative_url }}">最新记录</a>
+      <a href="{{ '/news/' | relative_url }}">每日更新</a>
       <a href="{{ '/events/' | relative_url }}">事件档案</a>
       <a href="{{ '/timeline.html' | relative_url }}">时间线</a>
       <a href="{{ '/search.html' | relative_url }}">搜索</a>
@@ -225,6 +225,7 @@ def _render_home(
         '    <p class="eyebrow">SOURCE-FIRST OPEN ARCHIVE</p>',
         "    <h1>记录未知，<br>保留证据。</h1>",
         "    <p class=\"hero-description\">独立整理公开 UAP 信息，以可追溯来源、时间与事实状态建立开放档案。</p>",
+        f'    <a class="daily-update-entry" href="news/index.html" aria-label="打开每日更新，最近同步 {_html(_display_datetime(last_sync))}"><span class="daily-update-marker" aria-hidden="true"></span><span><strong>每日更新</strong><small>最近同步 {_html(_display_datetime(last_sync))} · {len(news)} 条来源记录</small></span><span class="daily-update-arrow" aria-hidden="true">↗</span></a>',
         '    <div class="hero-actions"><a class="button button-primary" href="#event-map">进入事件地图 <span aria-hidden="true">↗</span></a><a class="button button-secondary" href="#method">查看方法</a></div>',
         '    <dl class="hero-metrics">',
         f"      <div><dt>来源记录</dt><dd>{len(news)}</dd></div>",

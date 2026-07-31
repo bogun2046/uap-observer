@@ -128,6 +128,8 @@ class PublishingTests(unittest.TestCase):
 
         self.assertIn("开放观测档案", homepage)
         self.assertIn("进入事件地图", homepage)
+        self.assertIn('class="daily-update-entry"', homepage)
+        self.assertIn('href="news/index.html"', homepage)
         self.assertIn("最近新增的图片或视频证据", homepage)
         self.assertIn(f"news/{news_id}.html", homepage)
         self.assertIn("当前无可公开的媒体附件", homepage)

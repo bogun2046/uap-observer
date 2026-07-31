@@ -157,6 +157,42 @@ button, input { font: inherit; }
   line-height: 1.75;
 }
 
+.daily-update-entry {
+  max-width: 580px;
+  margin-top: 24px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(121, 197, 227, 0.32);
+  border-left: 3px solid var(--ice);
+  background: rgba(121, 197, 227, 0.055);
+  color: var(--text);
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.daily-update-entry:hover,
+.daily-update-entry:focus-visible {
+  border-color: var(--ice);
+  background: rgba(121, 197, 227, 0.1);
+  transform: translateX(3px);
+}
+
+.daily-update-marker {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ice);
+  box-shadow: 0 0 0 4px rgba(121, 197, 227, 0.12);
+}
+
+.daily-update-entry strong,
+.daily-update-entry small { display: block; }
+.daily-update-entry strong { font-size: 13px; font-weight: 640; }
+.daily-update-entry small { margin-top: 4px; color: var(--muted); font: 10px/1.4 var(--font-mono); }
+.daily-update-arrow { color: var(--ice); font-size: 16px; }
+
 .hero-actions {
   display: flex;
   gap: 12px;
