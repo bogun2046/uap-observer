@@ -38,6 +38,41 @@
       "enabled": true
     },
     {
+      "slug": "nara-uap",
+      "name": "U.S. National Archives UAP Updates",
+      "source_type": "rss",
+      "homepage_url": "https://www.archives.gov/research/topics/uaps",
+      "feed_url": "https://www.archives.gov/rss.xml",
+      "country": "USA",
+      "language": "en",
+      "default_category": "government_document",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap records",
+        "ufo records"
+      ],
+      "exclude_keywords": [],
+      "enabled": true
+    },
+    {
+      "slug": "geipan-official",
+      "name": "GEIPAN Official Updates",
+      "source_type": "rss",
+      "homepage_url": "https://www.geipan.fr/",
+      "feed_url": "https://www.geipan.fr/rss.xml",
+      "country": "France",
+      "language": "fr",
+      "default_category": "official_report",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [],
+      "exclude_keywords": [],
+      "enabled": true
+    },
+    {
       "slug": "the-debrief",
       "name": "The Debrief",
       "source_type": "rss",
@@ -59,6 +94,21 @@
         "universal adversarial perturbation",
         "adversarial attack"
       ],
+      "enabled": true
+    },
+    {
+      "slug": "metabunk-ufo",
+      "name": "Metabunk UFO Videos and Reports",
+      "source_type": "rss",
+      "homepage_url": "https://www.metabunk.org/forums/ufo-videos-and-reports.4/",
+      "feed_url": "https://www.metabunk.org/forums/ufo-videos-and-reports.4/index.rss",
+      "country": "International",
+      "language": "en",
+      "default_category": "disputed_event",
+      "default_credibility": 3,
+      "default_fact_status": "disputed",
+      "include_keywords": [],
+      "exclude_keywords": [],
       "enabled": true
     },
     {
@@ -114,6 +164,32 @@
       "enabled": true
     },
     {
+      "slug": "reddit-high-strangeness",
+      "name": "Reddit r/HighStrangeness",
+      "source_type": "rss",
+      "homepage_url": "https://www.reddit.com/r/HighStrangeness/",
+      "feed_url": "https://www.reddit.com/r/HighStrangeness/.rss",
+      "country": "International",
+      "language": "en",
+      "default_category": "other",
+      "default_credibility": 1,
+      "default_fact_status": "source_reported",
+      "include_keywords": [
+        "unidentified anomalous phenomena",
+        "unidentified aerial phenomena",
+        "uap",
+        "ufo",
+        "flying saucer",
+        "pilot sighting",
+        "military radar"
+      ],
+      "exclude_keywords": [
+        "universal adversarial perturbation",
+        "adversarial attack"
+      ],
+      "enabled": true
+    },
+    {
       "slug": "aaro-press-products",
       "name": "AARO Congressional and Press Products",
       "source_type": "web_page",
@@ -145,6 +221,43 @@
         "uap",
         "case resolution",
         "unidentified"
+      ],
+      "exclude_keywords": [],
+      "enabled": true
+    },
+    {
+      "slug": "aaro-official-imagery",
+      "name": "AARO Official UAP Imagery",
+      "source_type": "web_page",
+      "homepage_url": "https://www.aaro.mil/UAP-Cases/Official-UAP-Imagery/",
+      "country": "USA",
+      "language": "en",
+      "default_category": "government_document",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [
+        "uap",
+        "official imagery",
+        "resolved",
+        "unresolved"
+      ],
+      "exclude_keywords": [],
+      "enabled": true
+    },
+    {
+      "slug": "aaro-efoia",
+      "name": "AARO EFOIA Reading Room",
+      "source_type": "web_page",
+      "homepage_url": "https://www.aaro.mil/EFOIA-Reading-Room/",
+      "country": "USA",
+      "language": "en",
+      "default_category": "government_document",
+      "default_credibility": 5,
+      "default_fact_status": "official_record",
+      "include_keywords": [
+        "uap",
+        "foia",
+        "aaro"
       ],
       "exclude_keywords": [],
       "enabled": true

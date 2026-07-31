@@ -173,30 +173,42 @@ class RssCollectorTests(unittest.TestCase):
         )
         self.assertEqual(normalized, "https://example.test/story?a=1&z=2")
 
-    def test_version_controlled_nasa_source_is_valid(self) -> None:
+    def test_version_controlled_source_registry_is_valid(self) -> None:
         sources = load_sources(PROJECT_ROOT / "config" / "sources.json")
         self.assertEqual(
             [source.slug for source in sources],
             [
                 "x-uap",
                 "nasa-recent",
+                "nara-uap",
+                "geipan-official",
                 "the-debrief",
+                "metabunk-ufo",
                 "reddit-ufos",
                 "reddit-aliens",
+                "reddit-high-strangeness",
                 "aaro-press-products",
                 "aaro-case-resolutions",
+                "aaro-official-imagery",
+                "aaro-efoia",
             ],
         )
         self.assertEqual(sources[1].default_credibility, 5)
-        self.assertEqual(sources[2].feed_url, "https://thedebrief.org/feed/")
-        self.assertEqual(sources[3].feed_url, "https://www.reddit.com/r/UFOs/.rss")
-        self.assertEqual(sources[3].default_credibility, 1)
-        self.assertEqual(sources[4].feed_url, "https://www.reddit.com/r/aliens/.rss")
-        self.assertEqual(sources[4].default_credibility, 1)
-        self.assertNotIn("alien", sources[4].include_keywords)
-        self.assertEqual(sources[5].source_type, SourceType.WEB_PAGE)
-        self.assertTrue(sources[5].enabled)
-        self.assertEqual(sources[6].default_category, NewsCategory.HISTORICAL_EVENT)
+        by_slug = {source.slug: source for source in sources}
+        self.assertEqual(by_slug["nara-uap"].default_credibility, 5)
+        self.assertEqual(by_slug["geipan-official"].language, "fr")
+        self.assertEqual(by_slug["the-debrief"].feed_url, "https://thedebrief.org/feed/")
+        self.assertEqual(by_slug["metabunk-ufo"].default_category, NewsCategory.DISPUTED_EVENT)
+        self.assertEqual(by_slug["reddit-ufos"].default_credibility, 1)
+        self.assertEqual(by_slug["reddit-aliens"].default_credibility, 1)
+        self.assertNotIn("alien", by_slug["reddit-aliens"].include_keywords)
+        self.assertEqual(by_slug["reddit-high-strangeness"].default_credibility, 1)
+        self.assertEqual(by_slug["aaro-press-products"].source_type, SourceType.WEB_PAGE)
+        self.assertTrue(by_slug["aaro-official-imagery"].enabled)
+        self.assertEqual(
+            by_slug["aaro-case-resolutions"].default_category,
+            NewsCategory.HISTORICAL_EVENT,
+        )
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">

@@ -72,6 +72,14 @@ jobs:
         continue-on-error: true
         run: uap-observer collect-web --source aaro-case-resolutions --limit 20
 
+      - name: Collect official UAP imagery
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-official-imagery --limit 30
+
+      - name: Collect AARO EFOIA releases
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-efoia --limit 30
+
       - name: Record source health
         if: ${{ always() }}
         run: uap-observer source-status
