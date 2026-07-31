@@ -34,7 +34,71 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 1.1s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+body[data-archive-theme="daily"] {
+  background-color: #285b71;
+  background-image:
+    radial-gradient(circle at 78% 20%, rgba(181, 232, 250, 0.42), transparent 30%),
+    linear-gradient(rgba(173, 218, 235, 0.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(173, 218, 235, 0.11) 1px, transparent 1px);
+  background-size: auto, 64px 64px, 64px 64px;
+}
+
+body[data-archive-theme="events"] {
+  background-color: #385c70;
+  background-image:
+    radial-gradient(circle at 78% 20%, rgba(181, 232, 250, 0.35), transparent 30%),
+    linear-gradient(rgba(173, 218, 235, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(173, 218, 235, 0.1) 1px, transparent 1px);
+  background-size: auto, 64px 64px, 64px 64px;
+}
+
+body[data-archive-theme="timeline"] {
+  background-color: #45697a;
+  background-image:
+    radial-gradient(circle at 78% 20%, rgba(196, 234, 246, 0.38), transparent 30%),
+    linear-gradient(rgba(189, 222, 235, 0.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(189, 222, 235, 0.11) 1px, transparent 1px);
+  background-size: auto, 64px 64px, 64px 64px;
+}
+
+body[data-archive-theme="evidence"] {
+  background-color: #1e6276;
+  background-image:
+    radial-gradient(circle at 78% 20%, rgba(174, 229, 242, 0.38), transparent 30%),
+    linear-gradient(rgba(173, 218, 235, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(173, 218, 235, 0.1) 1px, transparent 1px);
+  background-size: auto, 64px 64px, 64px 64px;
+}
+
+.page-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background: linear-gradient(120deg, #b6deeb 0%, #51859b 35%, #10212e 74%);
+  opacity: 1;
+  transition: opacity 1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-transition::after {
+  content: "OBSERVATION CHANNEL / ACQUIRING";
+  position: absolute;
+  right: clamp(20px, 8vw, 120px);
+  bottom: 10vh;
+  color: rgba(3, 18, 28, 0.74);
+  font: 10px var(--font-mono);
+  letter-spacing: 0.16em;
+}
+
+.page-transition[data-destination="daily"] { background: linear-gradient(120deg, #c2ebf7 0%, #5d94a9 38%, #16303e 76%); }
+.page-transition[data-destination="events"] { background: linear-gradient(120deg, #c0e2ee 0%, #6e93a5 38%, #1a2e3b 76%); }
+.page-transition[data-destination="timeline"] { background: linear-gradient(120deg, #d0edf5 0%, #769baa 38%, #203a46 76%); }
+.page-transition[data-destination="evidence"] { background: linear-gradient(120deg, #b7e9f1 0%, #4c9aae 38%, #123440 76%); }
+.page-transition.is-ready { opacity: 0; }
+.page-transition.is-leaving { opacity: 1; transition-duration: 720ms; }
 
 a { color: inherit; text-decoration: none; }
 button, input { font: inherit; }
