@@ -684,11 +684,16 @@ button, input { font: inherit; }
 }
 
 body[data-archive-theme] .content-shell {
-  --content-text: #f2f8fb;
-  --content-muted: #e0edf2;
-  --content-meta: #c5dbe4;
+  --content-text: #ffffff;
+  --content-muted: #f4f8fa;
+  --content-meta: #e5f0f4;
   position: relative;
   isolation: isolate;
+  padding-inline: clamp(22px, 3.2vw, 52px);
+  border: 1px solid rgba(201, 235, 246, 0.2);
+  border-radius: 8px;
+  background: rgba(3, 15, 24, 0.48);
+  box-shadow: 0 22px 80px rgba(1, 8, 14, 0.2);
   color: var(--content-text);
 }
 
@@ -700,7 +705,7 @@ body[data-archive-theme] .content-shell::before {
   min-height: calc(100% - 150px);
   margin: -100px 0 0;
   border-radius: 6px;
-  background: rgba(5, 20, 30, 0.16);
+  background: rgba(3, 15, 24, 0.22);
   box-shadow: 0 0 0 1px rgba(196, 234, 246, 0.08);
 }
 
@@ -716,12 +721,13 @@ body[data-archive-theme] .content-shell::before {
 .content-shell h1,
 .content-shell h2,
 .content-shell h3 { color: var(--text-strong); }
-.content-shell h2 { margin: 54px 0 18px; padding-top: 25px; border-top: 1px solid var(--line); font-size: 30px; font-weight: 560; letter-spacing: -0.025em; }
+.content-shell h2 { margin: 58px 0 20px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 36px; font-weight: 580; letter-spacing: -0.025em; }
 .content-shell h3 { margin-top: 34px; }
 .content-shell p,
-.content-shell li { color: var(--muted); font-size: 16px; line-height: 1.85; }
+.content-shell li { color: var(--muted); font-size: 18px; line-height: 1.95; }
 body[data-archive-theme] .content-shell p,
-body[data-archive-theme] .content-shell li { color: var(--content-muted); }
+body[data-archive-theme] .content-shell li { color: var(--content-muted); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
+body[data-archive-theme] .content-shell p { color: var(--content-muted); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
 .content-shell a { color: var(--ice); text-decoration: underline; text-decoration-color: rgba(121, 197, 227, 0.32); text-underline-offset: 3px; }
 body[data-archive-theme] .content-shell h2 a { color: #e4f7ff; text-decoration-color: rgba(228, 247, 255, 0.62); }
 body[data-archive-theme] .content-shell a { color: #d8f4ff; text-decoration-color: rgba(216, 244, 255, 0.6); }
@@ -737,8 +743,8 @@ body[data-archive-theme] .content-shell a { color: #d8f4ff; text-decoration-colo
   border: 1px solid var(--line);
   border-radius: 3px;
   background: var(--navy-850);
-  color: var(--ice);
-  font-size: 10px;
+  color: #dff6ff;
+  font-size: 14px;
   text-decoration: none;
 }
 #uap-search {
