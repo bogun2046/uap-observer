@@ -5,8 +5,8 @@ on:
     branches:
       - main
   schedule:
-    # 01:15 UTC = 09:15 Asia/Shanghai.
-    - cron: "15 1 * * *"
+    # 23:30 UTC = 07:30 Asia/Shanghai.
+    - cron: "30 23 * * *"
   workflow_dispatch:
 
 permissions:
