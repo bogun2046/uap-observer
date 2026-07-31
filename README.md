@@ -89,6 +89,8 @@ uap-observer analysis-status
 uap-observer collect-rss --source nasa-recent
 uap-observer collect-web --source aaro-press-products --limit 20
 uap-observer collect-web --source aaro-case-resolutions --limit 20
+uap-observer collect-web --source aaro-official-imagery --limit 30
+uap-observer collect-web --source aaro-efoia --limit 30
 uap-observer extract-articles --limit 20
 uap-observer analyze-articles --limit 10
 uap-observer link-entities --limit 1000
@@ -212,10 +214,14 @@ database, source files, or committed workflow YAML.
 `--limit 30` for a bounded smoke run. A second run sends the stored ETag and
 Last-Modified values; a source that has not changed reports `not modified`.
 
-The active RSS registry currently includes NASA's recently published feed,
-The Debrief's feed, Reddit r/UFOs, and Reddit r/aliens. The r/aliens source
-uses strict UAP/UFO and evidence-oriented phrase filters rather than broad
-`alien` or `NHI` matches, and retains source credibility 1 with
+The active RSS registry currently includes NASA and U.S. National Archives
+updates, France's official GEIPAN feed, The Debrief, Metabunk's UFO
+investigation forum, Reddit r/UFOs, Reddit r/aliens, and Reddit
+r/HighStrangeness. The broad National Archives feed is restricted to explicit
+UAP/UFO records phrases, while the GEIPAN and Metabunk feeds are already
+topic-specific. The r/aliens and r/HighStrangeness sources
+use strict UAP/UFO and evidence-oriented phrase filters rather than broad
+paranormal or `NHI` matches, and retain source credibility 1 with
 `source_reported` status. AARO's official Congressional/Press Products page is
 registered as an official web-page source and is collected by `collect-web`.
 If AARO's Akamai edge returns HTTP 403 to a scheduled runner, the workflow
@@ -224,6 +230,10 @@ records from an inaccessible page.
 The case-resolution collector also creates an `events` row for each new case,
 using the official assessment description and any date found in that text. The
 event is created only after the source-linked news item is deduplicated.
+AARO's Official UAP Imagery and EFOIA Reading Room are collected as separate
+official document streams. Their credibility value identifies the provenance
+of the publication; it does not turn an unresolved observation or quoted claim
+into an officially verified explanation.
 NASA's feed is filtered for UAP keywords because the feed also contains
 unrelated space news. The Debrief is
 assigned source credibility 4 and `source_reported`; those values describe the
