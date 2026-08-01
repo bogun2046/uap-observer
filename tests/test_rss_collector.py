@@ -191,6 +191,13 @@ class RssCollectorTests(unittest.TestCase):
                 "aaro-case-resolutions",
                 "aaro-official-imagery",
                 "aaro-efoia",
+                "brazil-national-archive-ovni",
+                "chile-sefaa",
+                "australia-national-archives-ufo",
+                "mexico-sedena-transparency",
+                "nasa-asrs",
+                "noaa-space-weather",
+                "imo-fireball-events",
             ],
         )
         self.assertEqual(sources[1].default_credibility, 5)
@@ -209,6 +216,10 @@ class RssCollectorTests(unittest.TestCase):
             by_slug["aaro-case-resolutions"].default_category,
             NewsCategory.HISTORICAL_EVENT,
         )
+        self.assertEqual(by_slug["brazil-national-archive-ovni"].language, "pt")
+        self.assertEqual(by_slug["chile-sefaa"].default_credibility, 5)
+        self.assertEqual(by_slug["mexico-sedena-transparency"].refresh_interval_hours, 168)
+        self.assertEqual(by_slug["reddit-ufos"].refresh_interval_hours, 24)
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">
