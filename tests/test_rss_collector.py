@@ -178,6 +178,7 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(
             [source.slug for source in sources],
             [
+                "youtube-uap",
                 "x-uap",
                 "nasa-recent",
                 "nara-uap",
@@ -200,7 +201,7 @@ class RssCollectorTests(unittest.TestCase):
                 "imo-fireball-events",
             ],
         )
-        self.assertEqual(sources[1].default_credibility, 5)
+        self.assertEqual(sources[2].default_credibility, 5)
         by_slug = {source.slug: source for source in sources}
         self.assertEqual(by_slug["nara-uap"].default_credibility, 5)
         self.assertEqual(by_slug["geipan-official"].language, "fr")
@@ -220,6 +221,7 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(by_slug["chile-sefaa"].default_credibility, 5)
         self.assertEqual(by_slug["mexico-sedena-transparency"].refresh_interval_hours, 168)
         self.assertEqual(by_slug["reddit-ufos"].refresh_interval_hours, 24)
+        self.assertEqual(by_slug["youtube-uap"].refresh_interval_hours, 24)
 
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">
