@@ -127,6 +127,8 @@ class PublishingTests(unittest.TestCase):
         search_page = (output / "search.md").read_text(encoding="utf-8")
 
         self.assertIn("开放观测档案", homepage)
+        self.assertIn("让未知", homepage)
+        self.assertIn("hero-material-note", homepage)
         self.assertIn("进入事件地图", homepage)
         self.assertIn('class="daily-update-entry"', homepage)
         self.assertIn('href="news/index.html"', homepage)
@@ -140,6 +142,7 @@ class PublishingTests(unittest.TestCase):
         self.assertTrue((output / "_layouts" / "default.html").exists())
         self.assertTrue((output / "assets" / "site.css").exists())
         self.assertTrue((output / "assets" / "site.js").exists())
+        self.assertTrue((output / "assets" / "silver-metal-background-hero.png").exists())
         self.assertNotIn(f"news/news/{news_id}", news_index)
         self.assertTrue(legacy_detail.exists())
         self.assertIn(f"../news/{news_id}.html", legacy_detail.read_text(encoding="utf-8"))

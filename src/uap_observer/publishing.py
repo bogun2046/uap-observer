@@ -132,6 +132,9 @@ class MarkdownPublisher:
         resources_directory = Path(__file__).parent / "resources"
         shutil.copyfile(resources_directory / "site.css", assets_directory / "site.css")
         shutil.copyfile(resources_directory / "site.js", assets_directory / "site.js")
+        silver_hero = resources_directory / "silver-metal-background-hero.png"
+        if silver_hero.exists():
+            shutil.copyfile(silver_hero, assets_directory / "silver-metal-background-hero.png")
         og_image = resources_directory / "og.png"
         if og_image.exists():
             shutil.copyfile(og_image, assets_directory / "og.png")
@@ -196,12 +199,6 @@ def _render_home(
     sources: list[object],
     today: str,
 ) -> str:
-    dated_events = sorted(
-        [event for event in events if _date_prefix(event.get("date_start"))],
-        key=lambda event: _date_prefix(event.get("date_start")),
-        reverse=True,
-    )
-    latest_event = dated_events[0] if dated_events else None
     sync_values = [
         str(getattr(source, "last_success_at", "") or "")
         for source in sources
@@ -223,17 +220,18 @@ def _render_home(
         '<section class="hero" id="top">',
         '  <div class="hero-copy hero-enter">',
         '    <p class="eyebrow">SOURCE-FIRST OPEN ARCHIVE</p>',
-        "    <h1>记录未知，<br>保留证据。</h1>",
-        "    <p class=\"hero-description\">独立整理公开 UAP 信息，以可追溯来源、时间与事实状态建立开放档案。</p>",
-        f'    <a class="daily-update-entry" href="news/index.html" aria-label="打开每日更新，最近同步 {_html(_display_datetime(last_sync))}"><span class="daily-update-marker" aria-hidden="true"></span><span><strong>每日更新</strong><small>最近同步 {_html(_display_datetime(last_sync))} · {len(news)} 条来源记录</small></span><span class="daily-update-arrow" aria-hidden="true">↗</span></a>',
+        "    <h1>让未知，<br>留下证据。</h1>",
+        "    <p class=\"hero-description\">持续整理公开 UAP 信息，以可追溯来源、时间与事实状态建立开放档案。</p>",
         '    <div class="hero-actions"><a class="button button-primary" href="#event-map">进入事件地图 <span aria-hidden="true">↗</span></a><a class="button button-secondary" href="#method">查看方法</a></div>',
-        '    <dl class="hero-metrics">',
+        f'    <a class="daily-update-entry" href="news/index.html" aria-label="打开每日更新，最近同步 {_html(_display_datetime(last_sync))}"><span><strong>每日更新</strong><small>最近同步 {_html(_display_datetime(last_sync))}，共 {len(news)} 条来源记录</small></span><span class="daily-update-arrow" aria-hidden="true">↗</span></a>',
+        '    <div class="hero-material-note"><strong>银色金属主题</strong><span>背景取自航空级拉丝铝材质。压印轮廓为视觉表达，不作为事件证据。</span></div>',
+        "  </div>",
+        '  <aside class="hero-visual-note hero-enter delay-one"><strong>VISUAL RECONSTRUCTION</strong><span>BRUSHED ALUMINUM SURFACE</span><span>NON-EVIDENTIARY</span></aside>',
+        '  <dl class="hero-metrics hero-enter delay-one">',
         f"      <div><dt>来源记录</dt><dd>{len(news)}</dd></div>",
         f"      <div><dt>事件档案</dt><dd>{len(events)}</dd></div>",
         f"      <div><dt>最后同步</dt><dd class=\"metric-time\">{_html(_display_datetime(last_sync))}</dd></div>",
         "    </dl>",
-        "  </div>",
-        _render_latest_event(latest_event),
         "</section>",
         '<div class="source-strip" aria-label="数据来源和更新时间">',
         "  <span>数据来源</span>",

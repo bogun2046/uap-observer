@@ -13,6 +13,7 @@ from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
 from uap_observer.collectors.x_api import XApiCollector
+from uap_observer.collectors.youtube_api import YouTubeApiCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.entity_linking import EntityLinkingService
@@ -98,6 +99,9 @@ def build_parser() -> argparse.ArgumentParser:
     x_parser.add_argument("--limit", type=int, default=30)
     x_parser.add_argument("--force", action="store_true", help="Collect even when the source interval has not elapsed.")
     x_parser.add_argument("--query", help="Override the X recent-search query.")
+    youtube_parser = subparsers.add_parser("collect-youtube", help="Collect videos from configured YouTube channels.")
+    youtube_parser.add_argument("--limit", type=int, default=10)
+    youtube_parser.add_argument("--force", action="store_true")
     analysis_parser.add_argument(
         "--model",
         help="Model override (defaults to provider-specific environment setting).",
@@ -283,6 +287,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"X collection complete; fetched={result.fetched} inserted={result.inserted} "
             f"duplicates={result.duplicates}"
+        )
+        return 0
+
+    if args.command == "collect-youtube":
+        if args.limit < 1 or args.limit > 50:
+            raise SystemExit("--limit must be between 1 and 50")
+        sources = repository.get_sources(source_type=SourceType.API, slug="youtube-uap")
+        if not sources:
+            raise SystemExit("Enabled YouTube source not found; run sync-sources first")
+        if not args.force and not source_due(sources[0]):
+            print(f"youtube-uap: skipped (next refresh in {sources[0].refresh_interval_hours}h interval)")
+            return 0
+        result = YouTubeApiCollector(repository).collect(sources[0], limit=args.limit)
+        print(
+            f"YouTube collection complete; channels={result.channels} fetched={result.fetched} "
+            f"inserted={result.inserted} duplicates={result.duplicates}"
         )
         return 0
 

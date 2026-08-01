@@ -184,7 +184,7 @@ enabled by default.
 
 ## Daily GitHub Actions workflow
 
-`.github/workflows/daily-uap.yml` runs daily at 09:15 Asia/Shanghai time and
+`.github/workflows/daily-uap.yml` runs daily at 07:30 Asia/Shanghai time and
 can also be started with `workflow_dispatch`. Before enabling it:
 
 1. Add either the repository secret `OPENAI_API_KEY` (with `AI_PROVIDER=openai`)
@@ -192,6 +192,10 @@ can also be started with `workflow_dispatch`. Before enabling it:
 2. Enable GitHub Pages with **GitHub Actions** as the build source.
 3. Optionally set repository variables `AI_PROVIDER`, `OPENAI_MODEL`,
    `DEEPSEEK_MODEL`, and `OPENAI_REASONING_EFFORT`.
+4. To enable YouTube metadata collection, add the `YOUTUBE_API_KEY` secret and
+   set `YOUTUBE_CHANNEL_IDS` to a comma-separated list of channel IDs. The
+   collector stores titles, descriptions, links, publish times, and daily
+   view/like/comment snapshots; it does not download or redistribute videos.
 
 See [`docs/deployment.md`](docs/deployment.md) for the manual trigger and
 Pages acceptance checklist.

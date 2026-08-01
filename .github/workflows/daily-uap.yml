@@ -30,6 +30,8 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      YOUTUBE_CHANNEL_IDS: ${{ vars.YOUTUBE_CHANNEL_IDS }}
       AI_PROVIDER: ${{ vars.AI_PROVIDER || 'openai' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.6-luna' }}
       DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
@@ -66,6 +68,11 @@ jobs:
         if: ${{ env.X_API_BEARER_TOKEN != '' }}
         continue-on-error: true
         run: uap-observer collect-x --limit 30
+
+      - name: Collect YouTube channel watchlist
+        if: ${{ env.YOUTUBE_API_KEY != '' && env.YOUTUBE_CHANNEL_IDS != '' }}
+        continue-on-error: true
+        run: uap-observer collect-youtube --limit 10
 
       - name: Collect official web release pages
         continue-on-error: true

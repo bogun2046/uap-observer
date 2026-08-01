@@ -89,6 +89,14 @@ class Repository:
             ).fetchone()
         return row is not None
 
+    def get_news_id(self, *, source_id: int, feed_entry_id: str) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM news WHERE source_id = ? AND feed_entry_id = ? LIMIT 1",
+                (source_id, feed_entry_id),
+            ).fetchone()
+        return int(row["id"]) if row else None
+
     def get_article_tasks(
         self,
         *,
@@ -857,6 +865,25 @@ class Repository:
                 WHERE id = ?
                 """,
                 (etag, last_modified, error, error, source_id),
+            )
+
+    def record_youtube_metric(
+        self,
+        *,
+        news_id: int,
+        video_id: str,
+        view_count: int,
+        like_count: int,
+        comment_count: int,
+    ) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO youtube_metrics
+                    (news_id, video_id, view_count, like_count, comment_count)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (news_id, video_id, view_count, like_count, comment_count),
             )
 
     def add_event(self, item: Event) -> int:
