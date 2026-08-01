@@ -448,7 +448,11 @@ class Repository:
                 FROM news
                 WHERE title GLOB '*[A-Za-z]*'
                   AND title NOT GLOB '*[一-龥]*'
-                ORDER BY id ASC
+                -- Title translation is deliberately newest-first.  Article analysis
+                -- is constrained by extraction throughput, whereas a short title
+                -- must be translated promptly so newly published entries do not
+                -- appear in English while waiting for body extraction.
+                ORDER BY COALESCE(publish_date, '') DESC, id DESC
                 LIMIT ?
                 """,
                 (limit,),

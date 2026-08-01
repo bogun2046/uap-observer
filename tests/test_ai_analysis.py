@@ -210,6 +210,47 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(result.stale_recovered, 1)
         self.assertEqual(result.completed, 1)
 
+    def test_service_translates_newest_titles_without_waiting_for_extraction(self) -> None:
+        older_id = self.repository.add_news(
+            News(
+                title="Older untranslated title",
+                original_title="Older untranslated title",
+                source="Test Agency",
+                source_url="https://example.test/older",
+                canonical_url="https://example.test/older",
+                publish_date="2026-07-28",
+                category=NewsCategory.OTHER,
+                credibility=4,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        newest_id = self.repository.add_news(
+            News(
+                title="Newest untranslated title",
+                original_title="Newest untranslated title",
+                source="Test Agency",
+                source_url="https://example.test/newest",
+                canonical_url="https://example.test/newest",
+                publish_date="2026-07-29",
+                category=NewsCategory.OTHER,
+                credibility=4,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+
+        result = AnalysisService(
+            self.repository,
+            MappingAnalyzer({}),
+        ).run(limit=1, title_translation_limit=1)
+
+        self.assertEqual(result.queued, 0)
+        self.assertEqual(result.titles_translated, 1)
+        with self.database.connect() as connection:
+            older = connection.execute("SELECT title FROM news WHERE id = ?", (older_id,)).fetchone()
+            newest = connection.execute("SELECT title FROM news WHERE id = ?", (newest_id,)).fetchone()
+        self.assertEqual(older["title"], "Older untranslated title")
+        self.assertEqual(newest["title"], "中文：Newest untranslated title")
+
     def test_openai_adapter_uses_non_streaming_structured_response(self) -> None:
         responses = RecordingResponses(valid_analysis())
         analyzer = OpenAIAnalyzer(
