@@ -14,6 +14,7 @@ from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
 from uap_observer.collectors.x_api import XApiCollector
 from uap_observer.collectors.youtube_api import YouTubeApiCollector
+from uap_observer.collectors.youtube_captions import YouTubeCaptionCollector
 from uap_observer.config import Settings
 from uap_observer.database import Database
 from uap_observer.entity_linking import EntityLinkingService
@@ -102,6 +103,8 @@ def build_parser() -> argparse.ArgumentParser:
     youtube_parser = subparsers.add_parser("collect-youtube", help="Collect videos from configured YouTube channels.")
     youtube_parser.add_argument("--limit", type=int, default=10)
     youtube_parser.add_argument("--force", action="store_true")
+    captions_parser = subparsers.add_parser("collect-youtube-transcripts", help="Collect captions for priority YouTube videos.")
+    captions_parser.add_argument("--limit", type=int, default=5)
     analysis_parser.add_argument(
         "--model",
         help="Model override (defaults to provider-specific environment setting).",
@@ -303,6 +306,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"YouTube collection complete; channels={result.channels} fetched={result.fetched} "
             f"inserted={result.inserted} duplicates={result.duplicates} priority={result.priority}"
+        )
+        return 0
+
+    if args.command == "collect-youtube-transcripts":
+        if args.limit < 1 or args.limit > 20:
+            raise SystemExit("--limit must be between 1 and 20")
+        result = YouTubeCaptionCollector(repository, max_videos=args.limit).collect()
+        print(
+            f"YouTube transcripts complete; requested={result.requested} completed={result.completed} "
+            f"skipped={result.skipped} failed={result.failed} estimated_tokens={result.token_count}"
         )
         return 0
 

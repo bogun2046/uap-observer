@@ -198,6 +198,10 @@ can also be started with `workflow_dispatch`. Before enabling it:
    view/like/comment snapshots. Videos below `YOUTUBE_HOT_VIEW_THRESHOLD`
    (default `100000`) are marked skipped so they do not enter extraction or AI
    analysis; it does not download or redistribute videos.
+5. Optional captions require `YOUTUBE_OAUTH_TOKEN`. Only priority videos are
+   requested, capped by `YOUTUBE_TRANSCRIPT_LIMIT` (default 5) and
+   `YOUTUBE_TRANSCRIPT_MAX_TOKENS` (default 12000). Unavailable captions are
+   recorded as skipped and do not stop the workflow.
 
 See [`docs/deployment.md`](docs/deployment.md) for the manual trigger and
 Pages acceptance checklist.

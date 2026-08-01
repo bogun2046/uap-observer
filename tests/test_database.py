@@ -44,6 +44,7 @@ class DatabaseTests(unittest.TestCase):
                 "006_source_refresh_schedule.sql",
                 "007_youtube_metrics.sql",
                 "008_youtube_priority.sql",
+                "009_youtube_transcripts.sql",
             ],
         )
         self.assertEqual(self.database.initialize(), [])
@@ -59,7 +60,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
         self.assertEqual(
             self.database.status().schema_version,
-            "008_youtube_priority.sql",
+            "009_youtube_transcripts.sql",
         )
         self.assertEqual(
             self.database.status().row_counts,
