@@ -901,6 +901,48 @@ class Repository:
             ).fetchone()
         return int(row["view_count"]) if row else None
 
+    def get_priority_youtube_news(self, *, limit: int) -> list[dict[str, object]]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT n.id, n.source_url, n.feed_entry_id
+                FROM news AS n
+                JOIN youtube_metrics AS m ON m.news_id = n.id
+                WHERE n.transcript_status IN ('not_requested', 'failed')
+                  AND m.priority = 1
+                  AND m.id = (
+                      SELECT latest.id FROM youtube_metrics AS latest
+                      WHERE latest.video_id = m.video_id
+                      ORDER BY latest.captured_at DESC, latest.id DESC LIMIT 1
+                  )
+                ORDER BY m.view_growth_24h DESC, m.view_count DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_youtube_transcript(
+        self,
+        *,
+        news_id: int,
+        status: str,
+        transcript: str | None = None,
+        token_count: int | None = None,
+    ) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET transcript_status = ?, transcript_tokens = ?,
+                    extracted_content = CASE WHEN ? = 'completed' THEN ? ELSE extracted_content END,
+                    extraction_status = CASE WHEN ? = 'completed' THEN 'completed' ELSE extraction_status END,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                """,
+                (status, token_count, status, transcript, status, news_id),
+            )
+
     def add_event(self, item: Event) -> int:
         with self.database.connect() as connection:
             cursor = connection.execute(

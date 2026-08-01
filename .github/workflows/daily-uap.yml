@@ -32,6 +32,9 @@ jobs:
       X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       YOUTUBE_CHANNEL_IDS: ${{ vars.YOUTUBE_CHANNEL_IDS }}
+      YOUTUBE_OAUTH_TOKEN: ${{ secrets.YOUTUBE_OAUTH_TOKEN }}
+      YOUTUBE_TRANSCRIPT_LIMIT: ${{ vars.YOUTUBE_TRANSCRIPT_LIMIT || '5' }}
+      YOUTUBE_TRANSCRIPT_MAX_TOKENS: ${{ vars.YOUTUBE_TRANSCRIPT_MAX_TOKENS || '12000' }}
       AI_PROVIDER: ${{ vars.AI_PROVIDER || 'openai' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.6-luna' }}
       DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
@@ -73,6 +76,11 @@ jobs:
         if: ${{ env.YOUTUBE_API_KEY != '' && env.YOUTUBE_CHANNEL_IDS != '' }}
         continue-on-error: true
         run: uap-observer collect-youtube --limit 10
+
+      - name: Collect priority YouTube captions
+        if: ${{ env.YOUTUBE_OAUTH_TOKEN != '' }}
+        continue-on-error: true
+        run: uap-observer collect-youtube-transcripts --limit 5
 
       - name: Collect official web release pages
         continue-on-error: true
