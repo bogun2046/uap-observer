@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from datetime import datetime, timedelta, timezone
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -50,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--config", type=Path, help="Source JSON configuration path.")
     collect_parser.add_argument("--source", help="Collect one source slug only.")
     collect_parser.add_argument("--limit", type=int, help="Maximum feed entries per source.")
+    collect_parser.add_argument("--force", action="store_true", help="Collect even when the source interval has not elapsed.")
 
     web_parser = subparsers.add_parser(
         "collect-web",
@@ -57,6 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     web_parser.add_argument("--source", default="aaro-press-products")
     web_parser.add_argument("--limit", type=int, default=20)
+    web_parser.add_argument("--force", action="store_true", help="Collect even when the source interval has not elapsed.")
 
     extraction_parser = subparsers.add_parser(
         "extract-articles",
@@ -87,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     x_parser = subparsers.add_parser("collect-x", help="Collect recent X posts with the X API v2.")
     x_parser.add_argument("--limit", type=int, default=30)
+    x_parser.add_argument("--force", action="store_true", help="Collect even when the source interval has not elapsed.")
     x_parser.add_argument("--query", help="Override the X recent-search query.")
     analysis_parser.add_argument(
         "--model",
@@ -146,6 +150,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     database.initialize()
     repository = Repository(database)
 
+    def source_due(source) -> bool:
+        if not source.last_success_at:
+            return True
+        try:
+            last_success = datetime.fromisoformat(source.last_success_at.replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        return datetime.now(timezone.utc) >= last_success + timedelta(hours=source.refresh_interval_hours)
+
     if args.command == "source-status":
         sources = repository.get_sources(enabled_only=False)
         if not sources:
@@ -159,6 +172,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 f"{source.slug}: {state} type={source.source_type.value} "
                 f"last_fetch={last_fetch} last_success={last_success} error={error}"
+                f" refresh_interval={source.refresh_interval_hours}h"
             )
         return 0
 
@@ -194,6 +208,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         total_inserted = 0
         failed_sources = 0
         for source in sources:
+            if not args.force and not source_due(source):
+                print(f"{source.slug}: skipped (next refresh in {source.refresh_interval_hours}h interval)")
+                continue
             try:
                 result = collector.collect(source, limit=args.limit)
             except Exception as error:  # noqa: BLE001
@@ -226,6 +243,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if not sources:
             raise SystemExit(f"Enabled web-page source not found: {args.source}")
+        if not args.force and not source_due(sources[0]):
+            print(f"{args.source}: skipped (next refresh in {sources[0].refresh_interval_hours}h interval)")
+            return 0
         collector = (
             AaroCaseCollector(repository)
             if args.source == "aaro-case-resolutions"
@@ -248,6 +268,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         sources = repository.get_sources(source_type=SourceType.API, slug="x-uap")
         if not sources:
             raise SystemExit("Enabled X source not found; run sync-sources first")
+        if not args.force and not source_due(sources[0]):
+            print(f"x-uap: skipped (next refresh in {sources[0].refresh_interval_hours}h interval)")
+            return 0
         result = XApiCollector(repository).collect(
             sources[0], limit=args.limit, query=args.query
         )

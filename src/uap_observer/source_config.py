@@ -40,10 +40,13 @@ def load_sources(path: Path) -> list[Source]:
             include_keywords=[str(value) for value in raw.get("include_keywords", [])],
             exclude_keywords=[str(value) for value in raw.get("exclude_keywords", [])],
             enabled=bool(raw.get("enabled", True)),
+            refresh_interval_hours=int(raw.get("refresh_interval_hours", 24)),
         )
         if source.source_type is SourceType.RSS and not source.feed_url:
             raise ValueError(f"RSS source {slug!r} requires feed_url")
         if not 1 <= source.default_credibility <= 5:
             raise ValueError(f"Source {slug!r} credibility must be between 1 and 5")
+        if source.refresh_interval_hours < 1:
+            raise ValueError(f"Source {slug!r} refresh_interval_hours must be at least 1")
         sources.append(source)
     return sources
