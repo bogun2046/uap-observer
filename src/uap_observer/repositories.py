@@ -739,7 +739,8 @@ class Repository:
                     slug, name, source_type, homepage_url, feed_url, country,
                     language, default_category, default_credibility,
                     default_fact_status, include_keywords, exclude_keywords, enabled
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    , refresh_interval_hours
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(slug) DO UPDATE SET
                     name = excluded.name,
                     source_type = excluded.source_type,
@@ -753,6 +754,7 @@ class Repository:
                     include_keywords = excluded.include_keywords,
                     exclude_keywords = excluded.exclude_keywords,
                     enabled = excluded.enabled,
+                    refresh_interval_hours = excluded.refresh_interval_hours,
                     updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 """,
                 (
@@ -769,6 +771,7 @@ class Repository:
                     json.dumps(source.include_keywords, ensure_ascii=False),
                     json.dumps(source.exclude_keywords, ensure_ascii=False),
                     int(source.enabled),
+                    source.refresh_interval_hours,
                 ),
             )
             row = connection.execute(
@@ -821,6 +824,7 @@ class Repository:
                 last_fetched_at=row["last_fetched_at"],
                 last_success_at=row["last_success_at"],
                 last_error=row["last_error"],
+                refresh_interval_hours=row["refresh_interval_hours"] if "refresh_interval_hours" in row.keys() else 24,
             )
             for row in rows
         ]

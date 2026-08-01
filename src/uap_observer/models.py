@@ -85,6 +85,7 @@ class Source:
     include_keywords: list[str] = field(default_factory=list)
     exclude_keywords: list[str] = field(default_factory=list)
     enabled: bool = True
+    refresh_interval_hours: int = 24
     etag: str | None = None
     last_modified: str | None = None
     last_fetched_at: str | None = None

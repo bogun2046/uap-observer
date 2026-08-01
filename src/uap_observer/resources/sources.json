@@ -13,6 +13,7 @@
       "include_keywords": ["uap", "ufo", "unidentified anomalous phenomena"],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "nasa-recent",
@@ -36,6 +37,7 @@
         "adversarial attack"
       ],
       "enabled": true
+      ,"refresh_interval_hours": 48
     },
     {
       "slug": "nara-uap",
@@ -56,6 +58,7 @@
       ],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 72
     },
     {
       "slug": "geipan-official",
@@ -71,6 +74,7 @@
       "include_keywords": [],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 72
     },
     {
       "slug": "the-debrief",
@@ -95,6 +99,7 @@
         "adversarial attack"
       ],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "metabunk-ufo",
@@ -110,6 +115,7 @@
       "include_keywords": [],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 48
     },
     {
       "slug": "reddit-ufos",
@@ -134,6 +140,7 @@
         "adversarial attack"
       ],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "reddit-aliens",
@@ -162,6 +169,7 @@
         "adversarial attack"
       ],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "reddit-high-strangeness",
@@ -188,6 +196,7 @@
         "adversarial attack"
       ],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "aaro-press-products",
@@ -206,6 +215,7 @@
       ],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "aaro-case-resolutions",
@@ -224,6 +234,7 @@
       ],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "aaro-official-imagery",
@@ -243,6 +254,7 @@
       ],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 24
     },
     {
       "slug": "aaro-efoia",
@@ -261,6 +273,7 @@
       ],
       "exclude_keywords": [],
       "enabled": true
+      ,"refresh_interval_hours": 24
     }
   ]
 }
