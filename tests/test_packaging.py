@@ -93,7 +93,7 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(sync.returncode, 0, sync.stdout + "\n" + sync.stderr)
 
             self.assertIn("005_organizations.sql", init.stdout)
-            self.assertIn("Synced 13 source(s)", sync.stdout)
+            self.assertIn("Synced 20 source(s)", sync.stdout)
             self.assertTrue(database_path.exists())
 
 

@@ -83,6 +83,20 @@ jobs:
         continue-on-error: true
         run: uap-observer collect-web --source aaro-efoia --limit 30
 
+      - name: Collect international official and scientific sources
+        continue-on-error: true
+        run: |
+          for source in \
+            brazil-national-archive-ovni \
+            chile-sefaa \
+            australia-national-archives-ufo \
+            mexico-sedena-transparency \
+            nasa-asrs \
+            noaa-space-weather \
+            imo-fireball-events; do
+            uap-observer collect-web --source "$source" --limit 30 || true
+          done
+
       - name: Record source health
         if: ${{ always() }}
         run: uap-observer source-status
