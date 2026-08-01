@@ -13,6 +13,7 @@ from uap_observer.repositories import Repository
 from uap_observer.url_utils import normalize_url
 
 API_ROOT = "https://www.googleapis.com/youtube/v3"
+MAX_VIDEO_IDS_PER_REQUEST = 50
 
 
 @dataclass(frozen=True)
@@ -73,13 +74,19 @@ class YouTubeApiCollector:
             self.repository.record_source_fetch(source.id)
             return YouTubeCollectionResult(channels=len(self.channel_ids))
 
-        details = self._get(
-            "videos",
-            {
-                "part": "snippet,contentDetails,statistics",
-                "id": ",".join(dict.fromkeys(video_ids)),
-            },
-        ).get("items", [])
+        unique_video_ids = list(dict.fromkeys(video_ids))
+        details: list[dict] = []
+        for start in range(0, len(unique_video_ids), MAX_VIDEO_IDS_PER_REQUEST):
+            batch_ids = unique_video_ids[start : start + MAX_VIDEO_IDS_PER_REQUEST]
+            details.extend(
+                self._get(
+                    "videos",
+                    {
+                        "part": "snippet,contentDetails,statistics",
+                        "id": ",".join(batch_ids),
+                    },
+                ).get("items", [])
+            )
         inserted = duplicates = 0
         priority_count = 0
         hot_threshold = int(os.getenv("YOUTUBE_HOT_VIEW_THRESHOLD", "100000"))
