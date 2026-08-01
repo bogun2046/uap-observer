@@ -277,6 +277,7 @@ class AnalysisService:
         limit: int = 10,
         retry_failed: bool = False,
         stale_after_minutes: int = 60,
+        title_translation_limit: int | None = None,
     ) -> AnalysisRun:
         if limit < 1:
             raise ValueError("limit must be at least 1")
@@ -319,7 +320,12 @@ class AnalysisService:
             except Exception as error:  # noqa: BLE001
                 self.repository.fail_analysis(task.news_id, _safe_error(error))
                 failed += 1
-        titles_translated = self.translate_titles(limit=limit)
+        titles_translated = self.translate_titles(
+            # Title translation does not require a completed extraction.  Keep it
+            # independently bounded, so fresh records are translated even when
+            # the article-analysis queue is full.
+            limit=title_translation_limit if title_translation_limit is not None else limit
+        )
         return AnalysisRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),

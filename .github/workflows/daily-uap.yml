@@ -109,7 +109,9 @@ jobs:
       - name: Analyze articles
         if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
         # AI calls are sequential; keep one scheduled run within the job budget.
-        run: uap-observer analyze-articles --limit 40 --retry-failed
+        # Translate a wider, newest-first title queue independently of the
+        # extraction-bound article-analysis batch.
+        run: uap-observer analyze-articles --limit 40 --title-translation-limit 100 --retry-failed
 
       - name: Explain skipped AI step
         if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}

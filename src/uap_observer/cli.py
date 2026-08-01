@@ -83,6 +83,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analysis_parser.add_argument("--limit", type=int, default=10)
     analysis_parser.add_argument(
+        "--title-translation-limit",
+        type=int,
+        default=100,
+        help="Maximum untranslated titles to process independently of article analysis.",
+    )
+    analysis_parser.add_argument(
         "--retry-failed",
         action="store_true",
         help="Include previously failed analysis tasks.",
@@ -316,6 +322,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run = AnalysisService(repository, analyzer).run(
             limit=args.limit,
             retry_failed=args.retry_failed,
+            title_translation_limit=args.title_translation_limit,
         )
         print(
             f"AI analysis complete; stale_recovered={run.stale_recovered} "
