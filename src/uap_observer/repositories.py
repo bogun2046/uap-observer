@@ -875,16 +875,31 @@ class Repository:
         view_count: int,
         like_count: int,
         comment_count: int,
+        view_growth_24h: int = 0,
+        priority: bool = False,
     ) -> None:
         with self.database.connect() as connection:
             connection.execute(
                 """
                 INSERT INTO youtube_metrics
-                    (news_id, video_id, view_count, like_count, comment_count)
-                VALUES (?, ?, ?, ?, ?)
+                    (news_id, video_id, view_count, like_count, comment_count,
+                     view_growth_24h, priority)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (news_id, video_id, view_count, like_count, comment_count),
+                (news_id, video_id, view_count, like_count, comment_count,
+                 view_growth_24h, int(priority)),
             )
+
+    def get_previous_youtube_views(self, *, video_id: str) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT view_count FROM youtube_metrics
+                WHERE video_id = ? ORDER BY captured_at DESC, id DESC LIMIT 1
+                """,
+                (video_id,),
+            ).fetchone()
+        return int(row["view_count"]) if row else None
 
     def add_event(self, item: Event) -> int:
         with self.database.connect() as connection:

@@ -302,7 +302,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = YouTubeApiCollector(repository).collect(sources[0], limit=args.limit)
         print(
             f"YouTube collection complete; channels={result.channels} fetched={result.fetched} "
-            f"inserted={result.inserted} duplicates={result.duplicates}"
+            f"inserted={result.inserted} duplicates={result.duplicates} priority={result.priority}"
         )
         return 0
 

@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
-from uap_observer.models import News, Source
+from uap_observer.models import News, ProcessingStatus, Source
 from uap_observer.repositories import Repository
 from uap_observer.url_utils import normalize_url
 
@@ -21,6 +21,7 @@ class YouTubeCollectionResult:
     inserted: int = 0
     duplicates: int = 0
     channels: int = 0
+    priority: int = 0
 
 
 class YouTubeApiCollector:
@@ -80,10 +81,17 @@ class YouTubeApiCollector:
             },
         ).get("items", [])
         inserted = duplicates = 0
+        priority_count = 0
+        hot_threshold = int(os.getenv("YOUTUBE_HOT_VIEW_THRESHOLD", "100000"))
         for item in details:
             video_id = str(item["id"])
             snippet = item.get("snippet", {})
             statistics = item.get("statistics", {})
+            view_count = int(statistics.get("viewCount", 0))
+            previous_views = self.repository.get_previous_youtube_views(video_id=video_id)
+            growth = max(0, view_count - previous_views) if previous_views is not None else 0
+            is_priority = view_count >= hot_threshold or growth >= hot_threshold
+            priority_count += int(is_priority)
             source_url = f"https://www.youtube.com/watch?v={video_id}"
             canonical_url = normalize_url(source_url)
             news_id = self.repository.get_news_id(source_id=source.id, feed_entry_id=video_id)
@@ -113,6 +121,9 @@ class YouTubeApiCollector:
                         fact_status=source.default_fact_status,
                         summary=description or None,
                         raw_content=raw_content,
+                        processing_status=(
+                            ProcessingStatus.PENDING if is_priority else ProcessingStatus.SKIPPED
+                        ),
                         source_id=source.id,
                         feed_entry_id=video_id,
                     )
@@ -123,9 +134,11 @@ class YouTubeApiCollector:
             self.repository.record_youtube_metric(
                 news_id=news_id,
                 video_id=video_id,
-                view_count=int(statistics.get("viewCount", 0)),
+                view_count=view_count,
                 like_count=int(statistics.get("likeCount", 0)),
                 comment_count=int(statistics.get("commentCount", 0)),
+                view_growth_24h=growth,
+                priority=is_priority,
             )
         self.repository.record_source_fetch(source.id)
         return YouTubeCollectionResult(
@@ -133,4 +146,5 @@ class YouTubeApiCollector:
             inserted=inserted,
             duplicates=duplicates,
             channels=len(self.channel_ids),
+            priority=priority_count,
         )
