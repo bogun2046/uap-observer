@@ -257,6 +257,11 @@ jobs:
             echo "SQLite database unchanged"
           else
             git commit -m "chore: update daily UAP database"
+            # A manual merge or another workflow run may have advanced main
+            # while this job was collecting. Rebase the generated checkpoint
+            # before pushing so the publish job does not fail on a stale ref.
+            git fetch origin main
+            git rebase origin/main
             git push
           fi
 
