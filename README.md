@@ -195,7 +195,9 @@ can also be started with `workflow_dispatch`. Before enabling it:
 4. To enable YouTube metadata collection, add the `YOUTUBE_API_KEY` secret and
    set `YOUTUBE_CHANNEL_IDS` to a comma-separated list of channel IDs. The
    collector stores titles, descriptions, links, publish times, and daily
-   view/like/comment snapshots; it does not download or redistribute videos.
+   view/like/comment snapshots. Videos below `YOUTUBE_HOT_VIEW_THRESHOLD`
+   (default `100000`) are marked skipped so they do not enter extraction or AI
+   analysis; it does not download or redistribute videos.
 
 See [`docs/deployment.md`](docs/deployment.md) for the manual trigger and
 Pages acceptance checklist.
