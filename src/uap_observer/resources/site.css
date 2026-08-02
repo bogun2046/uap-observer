@@ -78,25 +78,13 @@ body[data-archive-theme="evidence"] {
   inset: 0;
   z-index: 100;
   pointer-events: none;
-  background: linear-gradient(120deg, #b6deeb 0%, #51859b 35%, #10212e 74%);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0 1px, rgba(35, 42, 46, 0.025) 1px 2px, transparent 2px 5px),
+    linear-gradient(112deg, #a9afb2 0%, #e3e6e7 46%, #aeb5b8 100%);
   opacity: 1;
   transition: opacity 1s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.page-transition::after {
-  content: "OBSERVATION CHANNEL / ACQUIRING";
-  position: absolute;
-  right: clamp(20px, 8vw, 120px);
-  bottom: 10vh;
-  color: rgba(3, 18, 28, 0.74);
-  font: 10px var(--font-mono);
-  letter-spacing: 0.16em;
-}
-
-.page-transition[data-destination="daily"] { background: linear-gradient(120deg, #c2ebf7 0%, #5d94a9 38%, #16303e 76%); }
-.page-transition[data-destination="events"] { background: linear-gradient(120deg, #c0e2ee 0%, #6e93a5 38%, #1a2e3b 76%); }
-.page-transition[data-destination="timeline"] { background: linear-gradient(120deg, #d0edf5 0%, #769baa 38%, #203a46 76%); }
-.page-transition[data-destination="evidence"] { background: linear-gradient(120deg, #b7e9f1 0%, #4c9aae 38%, #123440 76%); }
 .page-transition.is-ready { opacity: 0; }
 .page-transition.is-leaving { opacity: 1; transition-duration: 720ms; }
 
