@@ -138,6 +138,9 @@ class MarkdownPublisher:
         og_image = resources_directory / "og.png"
         if og_image.exists():
             shutil.copyfile(og_image, assets_directory / "og.png")
+        world_map = resources_directory / "world-map.svg"
+        if world_map.exists():
+            shutil.copyfile(world_map, assets_directory / "world-map.svg")
         (self.output_directory / "_config.yml").write_text(
             "title: UAP Observer\n"
             "description: 开放、可追溯的 UAP 信息档案\n"
@@ -335,24 +338,26 @@ def _render_map_overview(
     event_count: int,
 ) -> str:
     positions = {
-        "USA": ("21%", "40%"),
-        "United States": ("21%", "40%"),
-        "China": ("78%", "42%"),
-        "Japan": ("86%", "39%"),
-        "France": ("48%", "35%"),
-        "UK": ("46%", "31%"),
-        "Chile": ("29%", "73%"),
-        "Brazil": ("35%", "66%"),
-        "Australia": ("82%", "72%"),
+        "USA": (-98.0, 39.0),
+        "United States": (-98.0, 39.0),
+        "China": (104.0, 35.0),
+        "Japan": (138.0, 36.0),
+        "France": (2.2, 46.0),
+        "UK": (-3.0, 55.0),
+        "Chile": (-71.0, -33.0),
+        "Brazil": (-52.0, -10.0),
+        "Australia": (134.0, -25.0),
     }
     markers: list[str] = []
     for country, count in country_counts.most_common(8):
         position = positions.get(country)
         if not position:
             continue
-        x, y = position
+        longitude, latitude = position
+        x = (longitude + 180.0) / 360.0 * 100.0
+        y = (90.0 - latitude) / 180.0 * 100.0
         markers.append(
-            f'<a class="map-point" href="events/index.html" style="left:{x};top:{y}" '
+            f'<a class="map-point" href="events/index.html" style="left:{x:.2f}%;top:{y:.2f}%" '
             f'aria-label="{_html_attr(country)}，{count} 条事件"><i></i><span>{count}</span>'
             f"<em>{_html(country)}</em></a>"
         )
@@ -370,8 +375,10 @@ def _render_map_overview(
             "  </div>",
             '  <div class="map-layout">',
             '    <div class="map-canvas" role="img" aria-label="事件国家或地区分布概览">',
-            '      <div class="map-graticule"></div><span class="land land-na"></span><span class="land land-sa"></span><span class="land land-eu"></span><span class="land land-af"></span><span class="land land-as"></span><span class="land land-au"></span>',
-            f"      {''.join(markers)}",
+            '      <div class="map-graticule"></div>',
+            '      <div class="map-plot"><img class="world-map" src="assets/world-map.svg" alt="" aria-hidden="true">',
+            f"        {''.join(markers)}",
+            "      </div>",
             '      <div class="map-scale"><span>区域级定位</span><i></i><span>非精确坐标</span></div>',
             "    </div>",
             '    <aside class="map-aside">',
