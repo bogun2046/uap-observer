@@ -152,7 +152,7 @@ class MarkdownPublisher:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#06101c">
+  <meta name="theme-color" content="#c8cdd0">
   <meta name="description" content="{{ page.description | default: site.description | escape }}">
   <meta property="og:title" content="{{ page.title | default: site.title | escape }}">
   <meta property="og:description" content="{{ page.description | default: site.description | escape }}">
@@ -654,21 +654,48 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     title = _text(row.get("title")) or _text(row.get("original_title")) or "未命名新闻"
     facts = _json_list(row.get("key_facts"))
     viewpoints = _json_list(row.get("viewpoints"))
+    source = _text(row.get("source")) or "未知来源"
+    source_url = _text(row.get("source_url"))
+    publish_date = _date_prefix(row.get("publish_date")) or "未知"
+    fact_status_value = _text(row.get("fact_status")) or "unknown"
+    fact_status = _fact_status_label(fact_status_value)
+    processing_status = _text(row.get("processing_status")) or "pending"
+    extraction_status = _text(row.get("extraction_status")) or "pending"
+    processing_label = {"completed": "已完成", "processing": "处理中", "failed": "失败"}.get(
+        processing_status, "待处理"
+    )
+    extraction_label = {"completed": "已提取", "processing": "提取中", "failed": "提取失败"}.get(
+        extraction_status, "待提取"
+    )
     lines = [
         "---",
         f'title: "{_yaml_text(title)}"',
         "layout: default",
-        f"source: {_yaml_text(_text(row.get('source')))}",
+        "page_kind: news-detail",
+        f"source: {_yaml_text(source)}",
         "---",
         "",
-        f"# {_escape_text(title)}",
+        '<article class="archive-detail">',
+        '<header class="archive-detail-header">',
+        '<p class="archive-kicker">公开来源档案</p>',
+        f"<h1>{_html(title)}</h1>",
+        '<dl class="archive-meta-band">',
+        f"<div><dt>发布日期</dt><dd>{_html(publish_date)}</dd></div>",
+        f"<div><dt>来源</dt><dd>{_html(source)}</dd></div>",
+        f"<div><dt>类别</dt><dd>{_html(_category_label(_text(row.get('category')) or 'other'))}</dd></div>",
+        f'<div><dt>事实状态</dt><dd class="archive-status-value">{_html(fact_status)}</dd></div>',
+        "</dl>",
+        "</header>",
+        '<div class="archive-reading-layout">',
+        '<div class="archive-main-copy" markdown="1">',
+        "## 目击记录与公开证据",
         "",
-        f"原标题：{_escape_text(_text(row.get('original_title')))}",
-        f"发布时间：{_date_prefix(row.get('publish_date')) or '未知'}",
-        f"可信度：{_stars(row.get('credibility'))}",
-        f"事实状态：`{_escape_text(_text(row.get('fact_status')) or 'unknown')}`",
-            f"分析状态：`{_escape_text(_text(row.get('processing_status')) or 'pending')}`",
-            f"正文提取状态：`{_escape_text(_text(row.get('extraction_status')) or 'pending')}`",
+        _escape_text(_ai_summary_or_status_message(row)),
+        "",
+        '<section class="archive-media-status" aria-label="媒体证据状态">',
+        '<strong>媒体证据</strong>',
+        '<p>当前记录未附带可公开验证的图片或视频附件。</p>',
+        '</section>',
         "",
         "## 实体标签",
         "",
@@ -676,7 +703,7 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     lines.extend(_render_entity_tags(entities, "../"))
     if not entities:
         lines.append("- 暂无单位、人物或事件标签。")
-    lines.extend(("", "## AI摘要", "", _escape_text(_ai_summary_or_status_message(row)), "", "## 关键事实", ""))
+    lines.extend(("", "## 关键事实", ""))
     lines.extend([f"- {_escape_text(item)}" for item in facts] or ["- 暂无。"])
     lines.extend(("", "## 不同观点", ""))
     lines.extend([f"- {_escape_text(item)}" for item in viewpoints] or ["- 文中未识别到不同观点。"])
@@ -700,18 +727,36 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     lines.extend(
         (
             "",
+            "</div>",
+            '<aside class="source-ledger" markdown="1">',
+            "## 来源核验",
+            "",
+            f"事实状态：**{_escape_text(fact_status)}**",
+            "",
+            f"可信度：{_stars(row.get('credibility'))}",
+            "",
+            "### 处理状态",
+            "",
+            f"- 内容分析：{_escape_text(processing_label)}",
+            f"- 正文提取：{_escape_text(extraction_label)}",
+            "",
             "## 采集说明",
             "",
             _escape_text(_extraction_status_message(row)),
             "",
             "## 原始来源",
             "",
-            f"来源：{_escape_text(_text(row.get('source')) or '未知来源')}",
+            f"来源：{_escape_text(source)}",
             "",
-            f"[打开原文]({_text(row.get('source_url'))})",
+            f'<a class="source-button" href="{_html_attr(source_url)}">查看原始资料</a>',
+            "",
+            f"[打开原文]({source_url})",
             "",
             "本站不转载抓取的文章正文。",
             "",
+            "</aside>",
+            "</div>",
+            "</article>",
         )
     )
     return "\n".join(lines)
@@ -754,7 +799,7 @@ def _render_events_index(events: list[dict[str, object]]) -> str:
     for event in events:
         period = _date_prefix(event.get("date_start")) or "日期未知"
         if event.get("date_end"):
-            period += f"—{_date_prefix(event.get('date_end'))}"
+            period += f"-{_date_prefix(event.get('date_end'))}"
         description = _text(event.get("description")) or "暂无描述。"
         event_name = _text(event.get("event_name")) or "未命名事件"
         lines.extend((f'<a id="{_anchor_slug(event_name)}"></a>', f"## {_escape_text(event_name)}", "", f"时间：{period}"))
@@ -811,7 +856,7 @@ def _render_relationships(relationships: list[dict[str, object]]) -> str:
             or _text(relationship.get("organization_name"))
         )
         confidence = relationship.get("confidence")
-        confidence_text = f"{float(confidence):.2f}" if confidence is not None else "—"
+        confidence_text = f"{float(confidence):.2f}" if confidence is not None else "-"
         lines.append(
             "| "
             f"{_escape_table(_text(relationship.get('news_title')))} | "
