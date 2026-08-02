@@ -1293,10 +1293,10 @@ body:not(.home) #uap-search-results article { padding: 0 0 30px; border-bottom: 
   letter-spacing: 0.08em;
 }
 .archive-detail-header h1 {
-  max-width: 980px;
+  max-width: 1180px;
   margin: 0;
   color: var(--text-strong);
-  font-size: clamp(46px, 5.2vw, 76px);
+  font-size: clamp(44px, 4.2vw, 66px);
   font-weight: 570;
   line-height: 1.09;
   letter-spacing: -0.05em;
