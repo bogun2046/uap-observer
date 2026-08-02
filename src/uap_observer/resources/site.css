@@ -511,19 +511,15 @@ button, input { font: inherit; }
 }
 .map-canvas { position: relative; min-height: 540px; overflow: hidden; background: #081521; }
 .map-graticule { background-size: 10% 16.66%; opacity: 0.65; }
-.land {
+.map-plot {
   position: absolute;
-  display: block;
-  border: 1px solid #1f3b4f;
-  background: #132a3a;
-  opacity: 0.72;
+  left: 3%;
+  right: 3%;
+  top: 50%;
+  aspect-ratio: 2 / 1;
+  transform: translateY(-50%);
 }
-.land-na { left: 7%; top: 22%; width: 25%; height: 25%; border-radius: 55% 38% 48% 28%; transform: rotate(-10deg); }
-.land-sa { left: 24%; top: 51%; width: 12%; height: 28%; border-radius: 48% 32% 70% 26%; transform: rotate(13deg); }
-.land-eu { left: 43%; top: 26%; width: 15%; height: 13%; border-radius: 45% 60% 30% 50%; }
-.land-af { left: 45%; top: 40%; width: 15%; height: 29%; border-radius: 45% 55% 70% 35%; transform: rotate(-4deg); }
-.land-as { left: 54%; top: 21%; width: 32%; height: 30%; border-radius: 40% 58% 38% 55%; transform: rotate(4deg); }
-.land-au { left: 76%; top: 63%; width: 13%; height: 13%; border-radius: 58% 45% 55% 42%; transform: rotate(-8deg); }
+.world-map { width: 100%; height: 100%; display: block; object-fit: fill; opacity: 0.82; }
 .map-point {
   position: absolute;
   z-index: 2;
@@ -791,7 +787,7 @@ body[data-archive-theme] .content-shell a { color: #d8f4ff; text-decoration-colo
   .record-type { display: none; }
   .record-open { grid-column: 4; grid-row: 1; }
   .map-layout { grid-template-columns: 1fr; }
-  .map-canvas { min-height: 410px; }
+  .map-canvas { min-height: clamp(270px, 52vw, 410px); }
   .map-aside { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; border-top: 1px solid var(--line); border-left: 0; }
   .map-register,
   .map-button { grid-column: 1 / -1; }
@@ -1030,7 +1026,7 @@ body.home .map-layout,
 body.home .evidence-empty { box-shadow: inset 0 1px rgba(255, 255, 255, 0.45); }
 body.home .map-canvas { background: #b1b7ba; }
 body.home .map-graticule { filter: contrast(1.8); opacity: 0.45; }
-body.home .land { border-color: #7c858a; background: #929a9e; opacity: 0.72; }
+body.home .world-map { opacity: 0.9; }
 body.home .map-point { border-color: rgba(20, 25, 28, 0.45); background: #242a2d; color: #edf0f1; font-size: 11px; }
 body.home .map-point em { color: #2f363a; font-size: 11px; }
 body.home .map-scale { color: #343b3f; font-size: 10px; }
