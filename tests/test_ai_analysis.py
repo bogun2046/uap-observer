@@ -251,6 +251,46 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(older["title"], "Older untranslated title")
         self.assertEqual(newest["title"], "中文：Newest untranslated title")
 
+    def test_service_prioritizes_youtube_titles_for_translation(self) -> None:
+        youtube_id = self.repository.add_news(
+            News(
+                title="English YouTube title",
+                original_title="English YouTube title",
+                source="YouTube UAP Channel Watchlist",
+                source_url="https://youtube.example/video",
+                canonical_url="https://youtube.example/video",
+                publish_date="2026-07-01",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        other_id = self.repository.add_news(
+            News(
+                title="Newer English article",
+                original_title="Newer English article",
+                source="Test Agency",
+                source_url="https://example.test/newer",
+                canonical_url="https://example.test/newer",
+                publish_date="2026-08-01",
+                category=NewsCategory.OTHER,
+                credibility=4,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+
+        result = AnalysisService(
+            self.repository,
+            MappingAnalyzer({}),
+        ).run(limit=1, title_translation_limit=1)
+
+        self.assertEqual(result.titles_translated, 1)
+        with self.database.connect() as connection:
+            youtube = connection.execute("SELECT title FROM news WHERE id = ?", (youtube_id,)).fetchone()
+            other = connection.execute("SELECT title FROM news WHERE id = ?", (other_id,)).fetchone()
+        self.assertEqual(youtube["title"], "中文：English YouTube title")
+        self.assertEqual(other["title"], "Newer English article")
+
     def test_openai_adapter_uses_non_streaming_structured_response(self) -> None:
         responses = RecordingResponses(valid_analysis())
         analyzer = OpenAIAnalyzer(

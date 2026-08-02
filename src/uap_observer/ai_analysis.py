@@ -284,6 +284,12 @@ class AnalysisService:
         stale_recovered = self.repository.reset_stale_analysis_tasks(
             stale_after_minutes=stale_after_minutes
         )
+        # Translate short titles before the slower article-analysis queue. This
+        # keeps freshly collected YouTube titles publishable in Chinese even
+        # when extraction or analysis is slow.
+        titles_translated = self.translate_titles(
+            limit=title_translation_limit if title_translation_limit is not None else limit
+        )
         tasks = self.repository.get_analysis_tasks(
             limit=limit,
             retry_failed=retry_failed,
@@ -320,12 +326,6 @@ class AnalysisService:
             except Exception as error:  # noqa: BLE001
                 self.repository.fail_analysis(task.news_id, _safe_error(error))
                 failed += 1
-        titles_translated = self.translate_titles(
-            # Title translation does not require a completed extraction.  Keep it
-            # independently bounded, so fresh records are translated even when
-            # the article-analysis queue is full.
-            limit=title_translation_limit if title_translation_limit is not None else limit
-        )
         return AnalysisRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),
