@@ -7,13 +7,24 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from uap_observer.models import AnalysisRiskFlag, AnalysisTask, FactStatus, NewsCategory
 from uap_observer.repositories import Repository
 
-ANALYSIS_VERSION = "uap-analysis-v1"
+ANALYSIS_VERSION = "uap-analysis-v2"
 DEFAULT_MAX_CONTENT_CHARACTERS = 40_000
+SUPPORTED_PERSON_RELATIONSHIP_TYPES = {
+    "supports",
+    "questions",
+    "criticizes",
+    "responds_to",
+    "quotes",
+    "works_with",
+    "investigates",
+    "participates_with",
+    "affiliated_with",
+}
 
 ANALYSIS_INSTRUCTIONS = """
 You organize public-source UAP reporting for a neutral research database.
@@ -34,6 +45,14 @@ Rules:
   return an empty list if none are present.
 - named entities must appear in the supplied text. Do not resolve identities using
   outside knowledge.
+- topic_tags are short, source-supported labels such as "信息公开" or
+  "国会听证"; do not invent a taxonomy or use sensational conclusions.
+- person_relationships may only include two names that also appear in
+  named_persons. Extract a relationship only when the supplied text explicitly
+  describes it. Use an empty list for co-occurrence alone. Include a short
+  evidence quote and preserve attribution in the quote.
+- Allowed relationship types are supports, questions, criticizes, responds_to,
+  quotes, works_with, investigates, participates_with, and affiliated_with.
 - confidence measures confidence that this extraction accurately represents the
   supplied article, not confidence that extraordinary claims are true.
 """.strip()
@@ -53,6 +72,11 @@ class ArticleAnalysis(BaseModel):
     named_persons: list[str] = Field(default_factory=list, max_length=20)
     named_organizations: list[str] = Field(default_factory=list, max_length=20)
     related_events: list[str] = Field(default_factory=list, max_length=20)
+    topic_tags: list[str] = Field(default_factory=list, max_length=12)
+    person_relationships: list[PersonRelationshipCandidate] = Field(
+        default_factory=list,
+        max_length=12,
+    )
     confidence: float = Field(ge=0.0, le=1.0)
     risk_flags: list[AnalysisRiskFlag] = Field(default_factory=list, max_length=5)
 
@@ -62,6 +86,7 @@ class ArticleAnalysis(BaseModel):
         "named_persons",
         "named_organizations",
         "related_events",
+        "topic_tags",
     )
     @classmethod
     def validate_string_lists(cls, values: list[str]) -> list[str]:
@@ -71,6 +96,39 @@ class ArticleAnalysis(BaseModel):
         if len(cleaned) != len(set(cleaned)):
             raise ValueError("list items must be unique")
         return cleaned
+
+
+class PersonRelationshipCandidate(BaseModel):
+    """A source-grounded, reviewable relationship extracted from one article."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_person: str = Field(min_length=1, max_length=160)
+    target_person: str = Field(min_length=1, max_length=160)
+    relationship_type: str = Field(min_length=1, max_length=40)
+    evidence_quote: str = Field(min_length=8, max_length=500)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("source_person", "target_person", "relationship_type", "evidence_quote")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("relationship_type")
+    @classmethod
+    def validate_relationship_type(cls, value: str) -> str:
+        if value not in SUPPORTED_PERSON_RELATIONSHIP_TYPES:
+            raise ValueError("unsupported person relationship type")
+        return value
+
+    @model_validator(mode="after")
+    def distinct_people(self) -> PersonRelationshipCandidate:
+        if self.source_person.casefold() == self.target_person.casefold():
+            raise ValueError("source and target person must differ")
+        return self
+
+
+ArticleAnalysis.model_rebuild()
 
 
 class TitleTranslation(BaseModel):

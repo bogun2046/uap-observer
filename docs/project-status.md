@@ -81,6 +81,9 @@ Last updated: 2026-07-28
 - [x] Package migrations and default source registry in the wheel
 - [x] Test wheel installation with isolated runtime initialization
 - [x] Test graph pages and detail-page entity rendering
+- [x] Add topic tags and reviewable person-to-person relationship candidates
+- [x] Generate explicit/co-occurrence person graph JSON with evidence links
+- [x] Publish interactive person graph page with tag and relation filters
 - [x] Add Supabase PostgreSQL schema baseline
 - [x] Add deterministic SQLite JSON snapshot export
 - [x] Test snapshot table coverage and row preservation
@@ -107,19 +110,22 @@ The current baseline is verified with:
 Expected database status after initialization:
 
 ```text
-Schema version: 005_organizations.sql
+Schema version: 010_graph.sql
 sources: 0
 news: 0
 events: 0
 persons: 0
 organizations: 0
 relationships: 0
+tags: 0
+tag_assignments: 0
+person_relationships: 0
 ```
 
 After `sync-sources`, the current source count is `4`.
 
-Current regression result: `34 passed`. The real local database is migrated to
-`005_organizations.sql`; it currently contains four configured sources and
+Current regression result is reported by the test command above. The real local
+database is migrated to `010_graph.sql`; it currently contains four configured sources and
 zero news rows. The empty-queue AI and Markdown CLI smoke tests complete without
 requiring a key or making an API request. Markdown smoke output contains four
 empty-state pages under `site/generated/`.

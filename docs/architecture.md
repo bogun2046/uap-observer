@@ -201,10 +201,28 @@ and include a human-review note. The operation is idempotent, so each daily
 run can safely reprocess completed analyses.
 
 The Markdown publisher emits `persons/index.md`, `organizations.md`, and
-`relationships.md`, and adds related people, organizations, and events to each
-news detail page. Relationship rows include
+`relationships.md`, `graph.md`, and `graph.json`, and adds related people,
+organizations, and events to each news detail page. Relationship rows include
 the evidence news title, relationship type, and confidence; empty graphs still
 produce valid empty-state pages.
+
+### Tags and person graph
+
+The graph migration adds independent `tags` and `tag_assignments` tables, plus
+reviewable `person_relationships` and `person_relationship_evidence` tables.
+AI analysis may propose short topic tags and explicit person-to-person
+relations, but the linker stores both as candidates with the source news ID and
+evidence quote. A deterministic graph builder then adds statistical
+co-occurrence edges for person pairs appearing together in at least two news
+items. Explicit and co-occurrence edges have different `kind` values so the
+static page can render them with different visual treatment. Tag membership is
+a filter over people; it never silently becomes a person-to-person fact.
+
+The graph page is static and loads `graph.json` in the browser. It uses
+Cytoscape.js from a pinned public CDN version, so no graph server or graph
+database is required for the current SQLite/GitHub Pages deployment. The
+database can move to Supabase/PostgreSQL later because the graph tables are
+included in `supabase/schema.sql` and the snapshot export order.
 
 ## Module layout
 

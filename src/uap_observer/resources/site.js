@@ -4,7 +4,7 @@
     if (pathname.includes("/news/")) return "daily";
     if (pathname.includes("/events/")) return "events";
     if (pathname.endsWith("/timeline.html")) return "timeline";
-    if (pathname.includes("/relationships") || pathname.includes("/tags")) return "evidence";
+    if (pathname.includes("/relationships") || pathname.includes("/tags") || pathname.includes("/graph")) return "evidence";
     return "home";
   };
 

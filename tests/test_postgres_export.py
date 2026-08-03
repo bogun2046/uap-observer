@@ -19,9 +19,10 @@ class PostgresExportTests(unittest.TestCase):
                     {
                         "tables": {
                             "sources": [],
-                            "events": [],
-                            "persons": [],
-                            "news": [
+                        "events": [],
+                        "persons": [],
+                        "tags": [],
+                        "news": [
                                 {
                                     "id": 1,
                                     "title": "O'Reilly",
@@ -29,7 +30,10 @@ class PostgresExportTests(unittest.TestCase):
                                     "analysis_json": '{"confidence":0.8}',
                                 }
                             ],
-                            "relationships": [],
+                        "relationships": [],
+                        "tag_assignments": [],
+                        "person_relationships": [],
+                        "person_relationship_evidence": [],
                         }
                     }
                 ),
