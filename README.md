@@ -184,8 +184,10 @@ enabled by default.
 
 ## Daily GitHub Actions workflow
 
-`.github/workflows/daily-uap.yml` runs daily at 07:30 Asia/Shanghai time and
-can also be started with `workflow_dispatch`. Before enabling it:
+`.github/workflows/daily-uap.yml` starts daily at 06:30 Asia/Shanghai time so
+the collection, analysis, and Pages deployment can finish in the 07:30
+publication window. It can also be started with `workflow_dispatch`. Before
+enabling it:
 
 1. Add either the repository secret `OPENAI_API_KEY` (with `AI_PROVIDER=openai`)
    or `DEEPSEEK_API_KEY` (with `AI_PROVIDER=deepseek`).
@@ -208,7 +210,9 @@ Pages acceptance checklist.
 
 The workflow installs the development extras and runs the full regression
 suite before touching the database or collecting remote sources. A failing
-test stops the scheduled publish.
+test stops the scheduled publish. Individual source or AI-analysis failures
+are reported in the Actions summary while the site continues to publish
+available source records with pending-analysis labels.
 
 After Markdown generation, the workflow builds a Jekyll HTML site and uploads
 the generated `_site` directory, so GitHub Pages receives `index.html` rather
