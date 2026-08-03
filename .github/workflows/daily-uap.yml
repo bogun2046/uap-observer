@@ -5,8 +5,9 @@ on:
     branches:
       - main
   schedule:
-    # 23:30 UTC = 07:30 Asia/Shanghai.
-    - cron: "30 23 * * *"
+    # 22:30 UTC = 06:30 Asia/Shanghai; leave time for the pipeline to
+    # finish before the target 07:30 publication window.
+    - cron: "30 22 * * *"
   workflow_dispatch:
 
 permissions:
@@ -122,11 +123,17 @@ jobs:
         run: uap-observer extract-articles --limit 40 --retry-failed
 
       - name: Analyze articles
+        id: analyze
         if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
+        continue-on-error: true
         # AI calls are sequential; keep one scheduled run within the job budget.
         # Translate a wider, newest-first title queue independently of the
         # extraction-bound article-analysis batch.
         run: uap-observer analyze-articles --limit 40 --title-translation-limit 100 --retry-failed
+
+      - name: Report AI analysis failure
+        if: ${{ always() && steps.analyze.outcome == 'failure' }}
+        run: echo "AI analysis failed; continuing with source records and pending-analysis labels."
 
       - name: Explain skipped AI step
         if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
@@ -191,9 +198,14 @@ jobs:
           failed_analysis = database.execute(
               "SELECT COUNT(*) FROM news WHERE processing_status = 'failed'"
           ).fetchone()[0]
-          if completed_extraction == 0 or completed_analysis == 0:
+          if completed_extraction == 0:
               raise SystemExit(
-                  "Pipeline health check failed: no completed extraction or AI analysis"
+                  "Pipeline health check failed: no completed article extraction"
+              )
+          if completed_analysis == 0:
+              print(
+                  "Pipeline health notice: no completed AI analysis; "
+                  "publishing source records with pending-analysis labels."
               )
 
           search_index = json.loads(Path("site/generated/search.json").read_text())
@@ -249,6 +261,8 @@ jobs:
         run: sqlite3 data/uap.db "PRAGMA wal_checkpoint(TRUNCATE);"
 
       - name: Persist SQLite database
+        id: persist_db
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -264,6 +278,10 @@ jobs:
             git rebase origin/main
             git push
           fi
+
+      - name: Report database persistence failure
+        if: ${{ always() && steps.persist_db.outcome == 'failure' }}
+        run: echo "SQLite checkpoint persistence failed; Pages deployment will continue with this run's generated artifact."
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
