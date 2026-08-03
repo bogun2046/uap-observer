@@ -155,7 +155,7 @@ Generate static pages after analysis:
 
 The output contains `index.md`, a category-grouped `news/index.md`, one detail page per source-filtered
 news item, `events/index.md`, `persons/index.md`, `organizations.md`,
-`relationships.md`, `timeline.md`, a metadata-only `search.json`, and a
+`relationships.md`, `graph.md`, `graph.json`, `timeline.md`, a metadata-only `search.json`, and a
 client-side `search.md` page. The publisher also writes the shared dark
 observatory stylesheet, reduced-motion interaction script, and social preview
 asset under `site/generated/assets/`. Homepage counts and source health are
@@ -168,8 +168,13 @@ publish this directory as a build artifact.
 After AI analysis, `link-entities` creates idempotent `news → persons`,
 `news → organizations`, and `news → events` relationships from validated
 `analysis_json`. It creates minimal entity records when needed, preserves the
-AI confidence on each relationship, and marks newly inferred events as
-unverified pending human review.
+AI confidence on each relationship, and marks newly inferred events and
+person-to-person relations as pending human review. It also creates
+source-backed topic tags. `graph.json` combines explicit relationship
+candidates with person pairs that co-occur in at least two separate news
+items; co-occurrence is labelled as a statistical association and is never
+presented as a confirmed fact. The static `graph.md` page uses a pinned
+Cytoscape.js CDN asset for tag filtering and evidence drill-down.
 
 Source-filtered news is published before AI analysis completes. These entries
 show their source, fact status, and an explicit pending-analysis label; the

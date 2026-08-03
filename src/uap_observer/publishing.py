@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from uap_observer.graph import build_person_graph
 from uap_observer.repositories import Repository
 
 
@@ -38,6 +39,8 @@ class MarkdownPublisher:
         persons = self.repository.get_persons(limit=limit)
         organizations = self.repository.get_organizations(limit=limit)
         relationships = self.repository.get_relationships(limit=limit * 2)
+        tags = self.repository.get_tags(limit=limit)
+        tag_assignments = self.repository.get_tag_assignments(limit=limit * 5)
         sources = self.repository.get_sources(enabled_only=False)
         news_entities = {
             int(row["id"]): self.repository.get_news_entities(int(row["id"]))
@@ -110,7 +113,23 @@ class MarkdownPublisher:
             encoding="utf-8",
         )
         (self.output_directory / "tags.md").write_text(
-            _render_tags_index(persons, organizations, person_news, organization_news),
+            _render_tags_index(
+                persons,
+                organizations,
+                person_news,
+                organization_news,
+                tags,
+                tag_assignments,
+            ),
+            encoding="utf-8",
+        )
+        graph = build_person_graph(self.repository)
+        (self.output_directory / "graph.json").write_text(
+            json.dumps(graph, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (self.output_directory / "graph.md").write_text(
+            _render_graph_page(graph),
             encoding="utf-8",
         )
         (self.output_directory / "relationships.md").write_text(
@@ -132,6 +151,7 @@ class MarkdownPublisher:
         resources_directory = Path(__file__).parent / "resources"
         shutil.copyfile(resources_directory / "site.css", assets_directory / "site.css")
         shutil.copyfile(resources_directory / "site.js", assets_directory / "site.js")
+        shutil.copyfile(resources_directory / "graph.js", assets_directory / "graph.js")
         silver_hero = resources_directory / "silver-metal-background-hero.png"
         if silver_hero.exists():
             shutil.copyfile(silver_hero, assets_directory / "silver-metal-background-hero.png")
@@ -186,7 +206,7 @@ class MarkdownPublisher:
   <footer class="site-footer">
     <div class="footer-brand"><span class="wordmark-mark" aria-hidden="true"><i></i></span><strong>UAP OBSERVER</strong></div>
     <p>开放记录未知现象，不预设结论。</p>
-    <div><a href="{{ '/tags.html' | relative_url }}">标签</a><a href="{{ '/relationships.html' | relative_url }}">关系</a><a href="{{ '/organizations.html' | relative_url }}">机构</a></div>
+    <div><a href="{{ '/tags.html' | relative_url }}">标签</a><a href="{{ '/graph.html' | relative_url }}">关系图</a><a href="{{ '/relationships.html' | relative_url }}">关系</a><a href="{{ '/organizations.html' | relative_url }}">机构</a></div>
   </footer>
   <script src="{{ '/assets/site.js' | relative_url }}" defer></script>
 </body>
@@ -874,6 +894,43 @@ def _render_relationships(relationships: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
+def _render_graph_page(graph: dict[str, object]) -> str:
+    meta = graph.get("meta") if isinstance(graph.get("meta"), dict) else {}
+    person_count = int(meta.get("person_count") or 0)
+    edge_count = int(meta.get("edge_count") or 0)
+    return "\n".join(
+        [
+            "---",
+            'title: "人物关系图"',
+            "layout: default",
+            "page_kind: graph",
+            "---",
+            "",
+            '<section class="graph-page" data-person-graph>',
+            '  <div class="graph-heading">',
+            '    <p class="eyebrow">RELATIONSHIP FIELD / 人物网络</p>',
+            '    <h1>人物关系图</h1>',
+            '    <p class="graph-intro">图中同时保留来源明确的关系和新闻共现关系。共现只表示资料中的关联，不等于事实关系。</p>',
+            "  </div>",
+            '  <div class="graph-toolbar" role="group" aria-label="关系图筛选">',
+            '    <label>标签 <select data-graph-tag><option value="">全部人物</option></select></label>',
+            '    <label>关系 <select data-graph-kind><option value="">全部关系</option><option value="explicit">明确关系</option><option value="cooccurrence">共同出现</option></select></label>',
+            '    <button type="button" data-graph-reset>重置视图</button>',
+            "  </div>",
+            f'  <p class="graph-meta" data-graph-meta>当前图谱包含 {person_count} 位人物和 {edge_count} 条关系。</p>',
+            '  <div class="graph-layout">',
+            '    <div class="graph-canvas" data-graph-canvas role="img" aria-label="人物关系网络图"></div>',
+            '    <aside class="graph-detail" data-graph-detail aria-live="polite">选择一个人物或关系查看证据。</aside>',
+            "  </div>",
+            '  <noscript><p>启用 JavaScript 后可以查看交互式关系图。静态关系记录见<a href="relationships.html">关系表</a>。</p></noscript>',
+            "</section>",
+            '<script src="https://unpkg.com/cytoscape@3.30.3/dist/cytoscape.min.js"></script>',
+            '<script src="assets/graph.js" defer></script>',
+            "",
+        ]
+    )
+
+
 def _render_organizations(
     organizations: list[dict[str, object]],
     organization_news: dict[int, list[dict[str, object]]],
@@ -901,16 +958,35 @@ def _render_tags_index(
     organizations: list[dict[str, object]],
     person_news: dict[int, list[dict[str, object]]],
     organization_news: dict[int, list[dict[str, object]]],
+    tags: list[dict[str, object]] | None = None,
+    tag_assignments: list[dict[str, object]] | None = None,
 ) -> str:
+    tags = tags or []
+    tag_assignments = tag_assignments or []
     lines = [
         "---",
         'title: "标签总览"',
         "layout: default",
         "---",
         "",
-        "标签按实体类型整理，并显示已关联的新闻数量。",
+        "标签按实体类型整理，并显示已关联的新闻数量。人物关系可以在[关系图](graph.html)中按标签筛选。",
         "",
     ]
+    if tags:
+        assignment_counts: dict[int, set[tuple[str, int]]] = {}
+        for assignment in tag_assignments:
+            assignment_counts.setdefault(int(assignment["tag_id"]), set()).add(
+                (str(assignment["entity_type"]), int(assignment["entity_id"]))
+            )
+        lines.extend(("## 主题", "", "| 标签 | 关联实体 |", "| --- | ---: |"))
+        for tag in tags:
+            tag_name = _text(tag.get("name")) or "未命名标签"
+            tag_slug = _text(tag.get("slug"))
+            count = len(assignment_counts.get(int(tag["id"]), set()))
+            lines.append(
+                f'| [标签：{_escape_table(tag_name)}](graph.html?tag={_html_attr(tag_slug)}) | {count} |'
+            )
+        lines.append("")
     if organizations:
         lines.extend(("## 单位", "", "| 标签 | 关联新闻 |", "| --- | ---: |"))
         for organization in organizations:

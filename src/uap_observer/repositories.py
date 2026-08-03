@@ -16,9 +16,12 @@ from uap_observer.models import (
     NewsCategory,
     Organization,
     Person,
+    PersonRelationship,
     Relationship,
     Source,
     SourceType,
+    Tag,
+    TagAssignment,
 )
 
 
@@ -534,6 +537,95 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_tags(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, name, slug, tag_type, description, parent_id
+                FROM tags
+                ORDER BY tag_type, lower(name), id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_tag_assignments(self, *, limit: int = 5000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT a.id, a.tag_id, t.name AS tag_name, t.slug AS tag_slug,
+                       t.tag_type, a.entity_type, a.entity_id,
+                       a.source_news_id, a.confidence, a.method, a.status
+                FROM tag_assignments AS a
+                JOIN tags AS t ON t.id = a.tag_id
+                ORDER BY a.id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_person_relationships(self, *, limit: int = 5000) -> list[dict[str, object]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT pr.id, pr.source_person_id, source.name AS source_name,
+                       pr.target_person_id, target.name AS target_name,
+                       pr.relationship_type, pr.confidence, pr.status, pr.method,
+                       pr.first_seen_at, pr.last_seen_at,
+                       COUNT(DISTINCT pre.news_id) AS evidence_count,
+                       GROUP_CONCAT(DISTINCT pre.news_id) AS evidence_news_ids,
+                       GROUP_CONCAT(pre.evidence_text) AS evidence_quotes
+                FROM person_relationships AS pr
+                JOIN persons AS source ON source.id = pr.source_person_id
+                JOIN persons AS target ON target.id = pr.target_person_id
+                LEFT JOIN person_relationship_evidence AS pre
+                  ON pre.person_relationship_id = pr.id
+                GROUP BY pr.id
+                ORDER BY evidence_count DESC, pr.id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_person_cooccurrences(self, *, limit: int = 5000) -> list[dict[str, object]]:
+        """Return person pairs that share source news, as statistical links."""
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT r1.target_id AS source_person_id, p1.name AS source_name,
+                       r2.target_id AS target_person_id, p2.name AS target_name,
+                       COUNT(DISTINCT r1.source_id) AS evidence_count,
+                       MIN(n.publish_date) AS first_seen_at,
+                       MAX(n.publish_date) AS last_seen_at,
+                       GROUP_CONCAT(DISTINCT r1.source_id) AS evidence_news_ids
+                FROM relationships AS r1
+                JOIN relationships AS r2
+                  ON r1.source_type = 'news' AND r2.source_type = 'news'
+                 AND r1.source_id = r2.source_id
+                 AND r1.target_type = 'person' AND r2.target_type = 'person'
+                 AND r1.target_id < r2.target_id
+                JOIN persons AS p1 ON p1.id = r1.target_id
+                JOIN persons AS p2 ON p2.id = r2.target_id
+                JOIN news AS n ON n.id = r1.source_id
+                GROUP BY r1.target_id, r2.target_id
+                ORDER BY evidence_count DESC, r1.target_id, r2.target_id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_organizations(self, *, limit: int = 1000) -> list[dict[str, object]]:
         if limit < 1:
             raise ValueError("limit must be at least 1")
@@ -618,7 +710,7 @@ class Repository:
         with self.database.connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, analysis_json, analysis_confidence, credibility
+                SELECT id, publish_date, analysis_json, analysis_confidence, credibility
                 FROM news
                 WHERE processing_status = 'completed'
                   AND analysis_json IS NOT NULL
@@ -1019,3 +1111,152 @@ class Repository:
                 ),
             )
             return int(cursor.lastrowid)
+
+    def add_tag(self, item: Tag) -> int:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO tags (name, slug, tag_type, description, parent_id)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(slug) DO UPDATE SET
+                    name = excluded.name,
+                    tag_type = excluded.tag_type,
+                    description = COALESCE(excluded.description, tags.description),
+                    parent_id = COALESCE(excluded.parent_id, tags.parent_id),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                """,
+                (item.name, item.slug, item.tag_type.value, item.description, item.parent_id),
+            )
+            if cursor.lastrowid:
+                return int(cursor.lastrowid)
+            row = connection.execute("SELECT id FROM tags WHERE slug = ?", (item.slug,)).fetchone()
+            if row is None:
+                raise RuntimeError("tag upsert did not return an id")
+            return int(row["id"])
+
+    def get_tag_id(self, *, slug: str) -> int | None:
+        with self.database.connect() as connection:
+            row = connection.execute("SELECT id FROM tags WHERE slug = ? LIMIT 1", (slug,)).fetchone()
+        return int(row["id"]) if row is not None else None
+
+    def add_tag_assignment(self, item: TagAssignment) -> int:
+        with self.database.connect() as connection:
+            existing = connection.execute(
+                """
+                SELECT id FROM tag_assignments
+                WHERE tag_id = ? AND entity_type = ? AND entity_id = ?
+                  AND source_news_id IS ?
+                LIMIT 1
+                """,
+                (item.tag_id, item.entity_type.value, item.entity_id, item.source_news_id),
+            ).fetchone()
+            if existing is not None:
+                connection.execute(
+                    """
+                    UPDATE tag_assignments
+                    SET confidence = CASE
+                            WHEN confidence IS NULL THEN ?
+                            WHEN ? IS NULL THEN confidence
+                            ELSE MAX(confidence, ?)
+                        END,
+                        method = ?, status = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        item.confidence,
+                        item.confidence,
+                        item.confidence,
+                        item.method.value,
+                        item.status.value,
+                        int(existing["id"]),
+                    ),
+                )
+                return 0
+            cursor = connection.execute(
+                """
+                INSERT INTO tag_assignments (
+                    tag_id, entity_type, entity_id, source_news_id,
+                    confidence, method, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item.tag_id,
+                    item.entity_type.value,
+                    item.entity_id,
+                    item.source_news_id,
+                    item.confidence,
+                    item.method.value,
+                    item.status.value,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def add_person_relationship(
+        self,
+        item: PersonRelationship,
+        *,
+        evidence_news_id: int | None = None,
+        evidence_text: str | None = None,
+    ) -> tuple[int, bool]:
+        """Upsert a person relation and optionally attach one news evidence row."""
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO person_relationships (
+                    source_person_id, target_person_id, relationship_type,
+                    confidence, status, method, first_seen_at, last_seen_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(source_person_id, target_person_id, relationship_type)
+                DO UPDATE SET
+                    confidence = CASE
+                        WHEN person_relationships.confidence IS NULL THEN excluded.confidence
+                        WHEN excluded.confidence IS NULL THEN person_relationships.confidence
+                        ELSE MAX(person_relationships.confidence, excluded.confidence)
+                    END,
+                    first_seen_at = CASE
+                        WHEN person_relationships.first_seen_at IS NULL THEN excluded.first_seen_at
+                        WHEN excluded.first_seen_at IS NULL THEN person_relationships.first_seen_at
+                        ELSE MIN(person_relationships.first_seen_at, excluded.first_seen_at)
+                    END,
+                    last_seen_at = CASE
+                        WHEN person_relationships.last_seen_at IS NULL THEN excluded.last_seen_at
+                        WHEN excluded.last_seen_at IS NULL THEN person_relationships.last_seen_at
+                        ELSE MAX(person_relationships.last_seen_at, excluded.last_seen_at)
+                    END
+                """,
+                (
+                    item.source_person_id,
+                    item.target_person_id,
+                    item.relationship_type,
+                    item.confidence,
+                    item.status.value,
+                    item.method.value,
+                    item.first_seen_at,
+                    item.last_seen_at,
+                ),
+            )
+            relation_id = int(cursor.lastrowid or 0)
+            if not relation_id:
+                row = connection.execute(
+                    """
+                    SELECT id FROM person_relationships
+                    WHERE source_person_id = ? AND target_person_id = ?
+                      AND relationship_type = ?
+                    """,
+                    (item.source_person_id, item.target_person_id, item.relationship_type),
+                ).fetchone()
+                if row is None:
+                    raise RuntimeError("person relationship upsert did not return an id")
+                relation_id = int(row["id"])
+            evidence_added = False
+            if evidence_news_id is not None:
+                evidence_cursor = connection.execute(
+                    """
+                    INSERT OR IGNORE INTO person_relationship_evidence (
+                        person_relationship_id, news_id, evidence_text
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (relation_id, evidence_news_id, evidence_text),
+                )
+                evidence_added = evidence_cursor.rowcount > 0
+            return relation_id, evidence_added

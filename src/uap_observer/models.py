@@ -55,6 +55,27 @@ class EntityType(StringEnum):
     ORGANIZATION = "organization"
 
 
+class TagType(StringEnum):
+    TOPIC = "topic"
+    ROLE = "role"
+    GEOGRAPHY = "geography"
+    EVENT = "event"
+    SOURCE = "source"
+
+
+class RelationshipStatus(StringEnum):
+    CANDIDATE = "candidate"
+    CORROBORATED = "corroborated"
+    VERIFIED = "verified"
+    DISPUTED = "disputed"
+
+
+class RelationshipMethod(StringEnum):
+    AI_EXTRACTED = "ai_extracted"
+    HUMAN_REVIEWED = "human_reviewed"
+    CO_OCCURRENCE = "co_occurrence"
+
+
 class SourceType(StringEnum):
     RSS = "rss"
     API = "api"
@@ -198,4 +219,37 @@ class Relationship:
     id: int | None = None
     evidence_news_id: int | None = None
     confidence: float | None = None
+
+
+@dataclass
+class Tag:
+    name: str
+    slug: str
+    tag_type: TagType = TagType.TOPIC
+    id: int | None = None
+    description: str | None = None
+    parent_id: int | None = None
+
+
+@dataclass
+class TagAssignment:
+    tag_id: int
+    entity_type: EntityType
+    entity_id: int
+    source_news_id: int | None = None
+    confidence: float | None = None
+    method: RelationshipMethod = RelationshipMethod.AI_EXTRACTED
+    status: RelationshipStatus = RelationshipStatus.CANDIDATE
+
+
+@dataclass
+class PersonRelationship:
+    source_person_id: int
+    target_person_id: int
+    relationship_type: str
+    confidence: float | None = None
+    status: RelationshipStatus = RelationshipStatus.CANDIDATE
+    method: RelationshipMethod = RelationshipMethod.AI_EXTRACTED
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
     created_time: str | None = None

@@ -390,6 +390,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"organizations_created={run.organizations_created} "
             f"organizations_normalized={run.organizations_normalized} "
             f"relationships_created={run.relationships_created} "
+            f"tags_created={run.tags_created} "
+            f"person_relationships_created={run.person_relationships_created} "
             f"skipped_invalid={run.skipped_invalid}"
         )
         return 0

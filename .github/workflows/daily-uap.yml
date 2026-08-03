@@ -153,7 +153,10 @@ jobs:
           test -f site/generated/search.json
           test -f site/generated/events/index.md
           test -f site/generated/timeline.md
+          test -f site/generated/graph.md
+          test -f site/generated/graph.json
           test -f site/generated/relationships.md
+          python -m json.tool site/generated/graph.json >/dev/null
           python -m json.tool site/generated/search.json >/dev/null
 
       - name: Build HTML site
@@ -168,6 +171,7 @@ jobs:
           test -f site/_site/search.html
           test -f site/_site/search.json
           test -f site/_site/news/index.html
+          test -f site/_site/graph.html
 
       - name: Verify pipeline health
         run: |
