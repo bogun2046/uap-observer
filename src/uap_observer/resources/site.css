@@ -706,6 +706,7 @@ button, input { font: inherit; }
 }
 
 body[data-archive-theme] .content-shell {
+  /* C 方案：优先保证长篇档案的肉眼阅读舒适度。 */
   --content-text: #ffffff;
   --content-muted: #f4f8fa;
   --content-meta: #e5f0f4;
@@ -743,30 +744,30 @@ body[data-archive-theme] .content-shell::before {
 .content-shell h1,
 .content-shell h2,
 .content-shell h3 { color: var(--text-strong); }
-.content-shell h2 { margin: 58px 0 20px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 36px; font-weight: 580; letter-spacing: -0.025em; }
-.content-shell h3 { margin-top: 34px; }
+.content-shell h2 { margin: 62px 0 22px; padding-top: 30px; border-top: 1px solid var(--line); font-size: 40px; font-weight: 580; letter-spacing: -0.025em; }
+.content-shell h3 { margin-top: 38px; font-size: 26px; }
 .content-shell p,
-.content-shell li { color: var(--muted); font-size: 18px; line-height: 1.95; }
+.content-shell li { color: var(--muted); font-size: 20px; line-height: 2; }
 body[data-archive-theme] .content-shell p,
 body[data-archive-theme] .content-shell li { color: var(--content-muted); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
 body[data-archive-theme] .content-shell p { color: var(--content-muted); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
-.content-shell a { color: var(--ice); text-decoration: underline; text-decoration-color: rgba(121, 197, 227, 0.32); text-underline-offset: 3px; }
+.content-shell a { color: var(--ice); font-size: 19px; text-decoration: underline; text-decoration-color: rgba(121, 197, 227, 0.32); text-underline-offset: 3px; }
 body[data-archive-theme] .content-shell h2 a { color: #e4f7ff; text-decoration-color: rgba(228, 247, 255, 0.62); }
 body[data-archive-theme] .content-shell a { color: #d8f4ff; text-decoration-color: rgba(216, 244, 255, 0.6); }
-.content-shell code { padding: 2px 5px; border: 1px solid var(--line); border-radius: 3px; background: var(--navy-850); color: var(--ice-strong); font-family: var(--font-mono); }
-.content-shell table { width: 100%; margin: 24px 0; border-collapse: collapse; font-size: 12px; }
+.content-shell code { padding: 3px 7px; border: 1px solid var(--line); border-radius: 3px; background: var(--navy-850); color: var(--ice-strong); font: 16px var(--font-mono); }
+.content-shell table { width: 100%; margin: 28px 0; border-collapse: collapse; font-size: 15px; }
 .content-shell th,
 .content-shell td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-.content-shell th { color: var(--muted-dark); font: 10px var(--font-mono); }
-.content-shell td { color: var(--muted); font-size: 14px; }
+.content-shell th { color: var(--muted-dark); font: 12px var(--font-mono); }
+.content-shell td { color: var(--muted); font-size: 16px; }
 .entity-tags { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 7px; }
 .content-shell .entity-tag {
-  padding: 5px 8px;
+  padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 3px;
   background: var(--navy-850);
   color: #dff6ff;
-  font-size: 14px;
+  font-size: 16px;
   text-decoration: none;
 }
 #uap-search {
@@ -1153,4 +1154,198 @@ body.home .site-footer > div:last-child { color: #343b3f; font-size: 13px; }
 @media (prefers-reduced-transparency: reduce) {
   body.home .site-header,
   body.home .hero-metrics { backdrop-filter: none; background: #d1d5d7; }
+}
+
+/* V5 homepage: quiet archive landing with an integrated latest-news module. */
+body.home .site-header nav a:first-child { font-weight: 650; }
+body.home .archive-status i { display: none; }
+
+body.home .hero {
+  min-height: calc(100dvh - 70px);
+  padding: clamp(72px, 8vh, 96px) clamp(24px, 5.8vw, 134px) 42px;
+  background-image: url("silver-metal-background-hero.png");
+  background-position: center;
+  background-size: cover;
+}
+
+body.home .hero::before {
+  background: none;
+  opacity: 0;
+}
+
+body.home .hero-copy { max-width: 660px; }
+body.home .eyebrow,
+body.home .hero-actions,
+body.home .daily-update-entry,
+body.home .hero-material-note,
+body.home .hero-visual-note { display: none; }
+
+body.home .hero-uap-motion {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 31% 23% at 73% 51%, rgba(255, 255, 255, 0.34) 0 18%, transparent 68%),
+    radial-gradient(ellipse 24% 12% at 71% 49%, rgba(255, 255, 255, 0.3) 0 14%, transparent 76%),
+    linear-gradient(118deg, transparent 37%, rgba(255, 255, 255, 0.12) 49%, transparent 61%);
+  mix-blend-mode: screen;
+  opacity: 0.56;
+  animation: uap-reflection-drift 9s ease-in-out infinite;
+}
+
+@keyframes uap-reflection-drift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.42;
+  }
+  50% {
+    transform: translate3d(-18px, 8px, 0) scale(1.04);
+    opacity: 0.72;
+  }
+}
+
+body.home .hero h1 {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: clamp(68px, 7vw, 118px);
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: -0.13em;
+  -webkit-text-stroke: 0.45px rgba(238, 241, 242, 0.38);
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7),
+    1px 1px 0 rgba(128, 136, 140, 0.48),
+    1px 2px 1px rgba(28, 34, 37, 0.24);
+}
+
+body.home .hero-description {
+  max-width: 560px;
+  margin-top: 32px;
+  font-size: clamp(17px, 1.35vw, 20px);
+  line-height: 1.72;
+}
+
+body.home .hero-quote {
+  max-width: 560px;
+  margin: 28px 0 0;
+  color: rgba(43, 50, 54, 0.7);
+  font: italic 14px/1.55 "Avenir Next", "Segoe UI", "PingFang SC", sans-serif;
+  letter-spacing: 0.01em;
+}
+
+body.home .hero-latest-news {
+  max-width: 580px;
+  margin-top: 32px;
+}
+
+body.home .hero-latest-head {
+  padding-top: 18px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+}
+
+body.home .hero-latest-head h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 21px;
+  font-weight: 650;
+}
+
+body.home .hero-latest-head a {
+  color: var(--ice-strong);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+body.home .hero-latest-list { margin-top: 9px; }
+
+body.home .hero-latest-list article {
+  min-height: 41px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid rgba(20, 25, 28, 0.16);
+}
+
+body.home .hero-latest-list article a {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.home .hero-latest-list strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+body.home .hero-latest-list span,
+body.home .hero-latest-list time {
+  color: #4b555a;
+  font: 10px/1.4 var(--font-mono);
+  white-space: nowrap;
+}
+
+body.home .hero-archive-link {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--ice-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+body.home .hero-archive-link span { font-size: 20px; line-height: 0.8; }
+body.home .hero-latest-empty { margin: 15px 0; color: #4b555a; font-size: 12px; }
+
+body.home .hero-metrics {
+  right: clamp(24px, 5.8vw, 134px);
+  bottom: 42px;
+  width: min(670px, 42vw);
+}
+
+@media (max-width: 1020px) {
+  body.home .hero { padding-inline: clamp(24px, 5.8vw, 80px); }
+  body.home .hero-metrics { right: clamp(24px, 5.8vw, 80px); width: min(620px, 48vw); }
+}
+
+@media (max-width: 767px) {
+  body.home .hero {
+    min-height: auto;
+    padding: 50px 18px 24px;
+  }
+
+  body.home .hero::after { z-index: 0; }
+
+  body.home .hero h1 {
+    font-size: clamp(56px, 16vw, 76px);
+    line-height: 0.82;
+  }
+
+  body.home .hero-quote { max-width: 330px; font-size: 13px; }
+  body.home .hero-latest-news { max-width: none; margin-top: 32px; }
+
+  body.home .hero-latest-list article {
+    min-height: 50px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 12px;
+    padding: 8px 0;
+  }
+
+  body.home .hero-latest-list article a { grid-column: 1 / -1; }
+  body.home .hero-latest-list article span { grid-column: 1; }
+  body.home .hero-latest-list article time { grid-column: 2; grid-row: 2; }
+  body.home .hero-metrics { width: 100%; margin-top: 82px; }
+  body.home .hero-uap-motion {
+    background:
+      radial-gradient(ellipse 52% 25% at 73% 53%, rgba(255, 255, 255, 0.32) 0 16%, transparent 70%),
+      radial-gradient(ellipse 40% 14% at 71% 51%, rgba(255, 255, 255, 0.28) 0 12%, transparent 76%),
+      linear-gradient(118deg, transparent 34%, rgba(255, 255, 255, 0.1) 50%, transparent 66%);
+  }
 }

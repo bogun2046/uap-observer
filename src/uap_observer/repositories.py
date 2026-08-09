@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 from uap_observer.database import Database
@@ -440,7 +441,7 @@ class Repository:
                        country, category, summary, credibility, fact_status,
                        key_facts, viewpoints, analysis_confidence, risk_flags,
                        ai_model, ai_processed_at, processing_status,
-                       extraction_status, extraction_error
+                       extraction_status, extraction_error, extracted_by
                 FROM news
                 WHERE source_url IS NOT NULL
                 ORDER BY COALESCE(publish_date, '') DESC, id DESC
@@ -450,15 +451,23 @@ class Repository:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def get_untranslated_titles(self, *, limit: int = 100) -> list[dict[str, object]]:
+    def get_untranslated_titles(
+        self,
+        *,
+        limit: int = 100,
+        retry_failed: bool = False,
+    ) -> list[dict[str, object]]:
         """Return English or mixed-language titles that still equal the source title."""
+        statuses = ("not_started", "failed") if retry_failed else ("not_started",)
+        placeholders = ", ".join("?" for _ in statuses)
         with self.database.connect() as connection:
             rows = connection.execute(
-                """
+                f"""
                 SELECT id, title, original_title, source
                 FROM news
                 WHERE title GLOB '*[A-Za-z]*'
                   AND title NOT GLOB '*[一-龥]*'
+                  AND title_translation_status IN ({placeholders})
                 -- Title translation is deliberately newest-first.  Article analysis
                 -- is constrained by extraction throughput, whereas a short title
                 -- must be translated promptly so newly published entries do not
@@ -469,9 +478,85 @@ class Repository:
                     id DESC
                 LIMIT ?
                 """,
-                (limit,),
+                (*statuses, limit),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def claim_title_translation(self, news_id: int, *, model: str, retry_failed: bool) -> bool:
+        statuses = ("not_started", "failed") if retry_failed else ("not_started",)
+        placeholders = ", ".join("?" for _ in statuses)
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                f"""
+                UPDATE news
+                SET title_translation_status = 'processing',
+                    title_translation_attempts = title_translation_attempts + 1,
+                    title_translation_error = NULL,
+                    title_translation_model = ?,
+                    title_translation_response_id = NULL,
+                    title_translation_last_attempt_at = strftime(
+                        '%Y-%m-%dT%H:%M:%fZ', 'now'
+                    ),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                  AND title_translation_status IN ({placeholders})
+                """,
+                (model, news_id, *statuses),
+            )
+        return cursor.rowcount == 1
+
+    def complete_title_translation(
+        self,
+        news_id: int,
+        *,
+        title: str,
+        model: str,
+        response_id: str | None,
+    ) -> None:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE news
+                SET title = ?,
+                    title_translation_status = 'completed',
+                    title_translation_error = NULL,
+                    title_translation_model = ?,
+                    title_translation_response_id = ?,
+                    title_translation_last_attempt_at = strftime(
+                        '%Y-%m-%dT%H:%M:%fZ', 'now'
+                    ),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND title_translation_status = 'processing'
+                """,
+                (title, model, response_id, news_id),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"Title translation task is not claimed: news_id={news_id}")
+
+    def fail_title_translation(
+        self,
+        news_id: int,
+        *,
+        error: str,
+        model: str,
+        response_id: str | None,
+    ) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET title_translation_status = 'failed',
+                    title_translation_error = ?,
+                    title_translation_model = ?,
+                    title_translation_response_id = ?,
+                    title_translation_last_attempt_at = strftime(
+                        '%Y-%m-%dT%H:%M:%fZ', 'now'
+                    ),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND title_translation_status = 'processing'
+                """,
+                (error[:1000], model, response_id, news_id),
+            )
 
     def update_translated_title(self, news_id: int, title: str) -> None:
         with self.database.connect() as connection:
@@ -845,9 +930,9 @@ class Repository:
                 INSERT INTO sources (
                     slug, name, source_type, homepage_url, feed_url, country,
                     language, default_category, default_credibility,
-                    default_fact_status, include_keywords, exclude_keywords, enabled
-                    , refresh_interval_hours
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    default_fact_status, include_keywords, exclude_keywords,
+                    fallback_urls, enabled, refresh_interval_hours
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(slug) DO UPDATE SET
                     name = excluded.name,
                     source_type = excluded.source_type,
@@ -860,6 +945,7 @@ class Repository:
                     default_fact_status = excluded.default_fact_status,
                     include_keywords = excluded.include_keywords,
                     exclude_keywords = excluded.exclude_keywords,
+                    fallback_urls = excluded.fallback_urls,
                     enabled = excluded.enabled,
                     refresh_interval_hours = excluded.refresh_interval_hours,
                     updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -877,6 +963,7 @@ class Repository:
                     source.default_fact_status.value,
                     json.dumps(source.include_keywords, ensure_ascii=False),
                     json.dumps(source.exclude_keywords, ensure_ascii=False),
+                    json.dumps(source.fallback_urls, ensure_ascii=False),
                     int(source.enabled),
                     source.refresh_interval_hours,
                 ),
@@ -917,6 +1004,7 @@ class Repository:
                 name=row["name"],
                 source_type=SourceType(row["source_type"]),
                 homepage_url=row["homepage_url"],
+                fallback_urls=json.loads(dict(row).get("fallback_urls") or "[]"),
                 feed_url=row["feed_url"],
                 country=row["country"],
                 language=row["language"],
@@ -931,7 +1019,9 @@ class Repository:
                 last_fetched_at=row["last_fetched_at"],
                 last_success_at=row["last_success_at"],
                 last_error=row["last_error"],
-                refresh_interval_hours=row["refresh_interval_hours"] if "refresh_interval_hours" in row.keys() else 24,
+                refresh_interval_hours=dict(row).get("refresh_interval_hours", 24),
+                next_retry_at=dict(row).get("next_retry_at"),
+                consecutive_failures=dict(row).get("consecutive_failures", 0),
             )
             for row in rows
         ]
@@ -943,7 +1033,10 @@ class Repository:
         etag: str | None = None,
         last_modified: str | None = None,
         error: str | None = None,
+        cooldown_seconds: int | None = None,
     ) -> None:
+        if cooldown_seconds is not None and cooldown_seconds < 0:
+            raise ValueError("cooldown_seconds must not be negative")
         with self.database.connect() as connection:
             connection.execute(
                 """
@@ -956,11 +1049,115 @@ class Repository:
                         ELSE last_success_at
                     END,
                     last_error = ?,
+                    next_retry_at = CASE
+                        WHEN ? IS NULL THEN NULL
+                        ELSE strftime(
+                            '%Y-%m-%dT%H:%M:%fZ',
+                            'now',
+                            printf('+%d seconds', ?)
+                        )
+                    END,
+                    consecutive_failures = CASE
+                        WHEN ? IS NULL THEN 0
+                        ELSE consecutive_failures + 1
+                    END,
                     updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
                 """,
-                (etag, last_modified, error, error, source_id),
+                (
+                    etag,
+                    last_modified,
+                    error,
+                    error,
+                    cooldown_seconds,
+                    cooldown_seconds,
+                    error,
+                    source_id,
+                ),
             )
+
+    def start_source_run(self, source_id: int) -> int:
+        if source_id < 1:
+            raise ValueError("source_id must be positive")
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO source_runs (source_id, status) VALUES (?, 'running')",
+                (source_id,),
+            )
+            return int(cursor.lastrowid)
+
+    def finish_source_run(
+        self,
+        run_id: int,
+        *,
+        status: str,
+        http_status: int | None = None,
+        fetched_count: int = 0,
+        parsed_count: int = 0,
+        inserted_count: int = 0,
+        duplicate_count: int = 0,
+        filtered_count: int = 0,
+        invalid_count: int = 0,
+        error: str | None = None,
+    ) -> None:
+        if status not in {"success", "not_modified", "empty", "failed"}:
+            raise ValueError(f"Unsupported source run status: {status}")
+        counts = (
+            fetched_count,
+            parsed_count,
+            inserted_count,
+            duplicate_count,
+            filtered_count,
+            invalid_count,
+        )
+        if any(count < 0 for count in counts):
+            raise ValueError("Source run counts must not be negative")
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE source_runs
+                SET status = ?,
+                    http_status = ?,
+                    fetched_count = ?,
+                    parsed_count = ?,
+                    inserted_count = ?,
+                    duplicate_count = ?,
+                    filtered_count = ?,
+                    invalid_count = ?,
+                    error = ?,
+                    finished_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND status = 'running'
+                """,
+                (
+                    status,
+                    http_status,
+                    fetched_count,
+                    parsed_count,
+                    inserted_count,
+                    duplicate_count,
+                    filtered_count,
+                    invalid_count,
+                    error[:1000] if error else None,
+                    run_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"Source run is not active: run_id={run_id}")
+
+    def get_latest_source_runs(self) -> dict[int, dict[str, object]]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT runs.*
+                FROM source_runs AS runs
+                JOIN (
+                    SELECT source_id, MAX(id) AS latest_id
+                    FROM source_runs
+                    GROUP BY source_id
+                ) AS latest ON latest.latest_id = runs.id
+                """
+            ).fetchall()
+        return {int(row["source_id"]): dict(row) for row in rows}
 
     def record_youtube_metric(
         self,
@@ -1026,16 +1223,32 @@ class Repository:
         token_count: int | None = None,
     ) -> None:
         with self.database.connect() as connection:
+            if status == "completed":
+                if not transcript:
+                    raise ValueError("completed YouTube transcript must contain text")
+                content_hash = hashlib.sha256(transcript.encode("utf-8")).hexdigest()
+                connection.execute(
+                    """
+                    UPDATE news
+                    SET transcript_status = ?, transcript_tokens = ?,
+                        extracted_content = ?, extraction_status = 'completed',
+                        content_hash = ?, extracted_by = 'youtube-captions',
+                        content_extracted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                        extraction_error = NULL,
+                        updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                    """,
+                    (status, token_count, transcript, content_hash, news_id),
+                )
+                return
             connection.execute(
                 """
                 UPDATE news
                 SET transcript_status = ?, transcript_tokens = ?,
-                    extracted_content = CASE WHEN ? = 'completed' THEN ? ELSE extracted_content END,
-                    extraction_status = CASE WHEN ? = 'completed' THEN 'completed' ELSE extraction_status END,
                     updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
                 """,
-                (status, token_count, status, transcript, status, news_id),
+                (status, token_count, news_id),
             )
 
     def add_event(self, item: Event) -> int:

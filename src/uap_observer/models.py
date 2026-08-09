@@ -99,6 +99,7 @@ class Source:
     default_category: NewsCategory
     default_credibility: int
     default_fact_status: FactStatus
+    fallback_urls: list[str] = field(default_factory=list)
     id: int | None = None
     feed_url: str | None = None
     country: str | None = None
@@ -112,6 +113,8 @@ class Source:
     last_fetched_at: str | None = None
     last_success_at: str | None = None
     last_error: str | None = None
+    next_retry_at: str | None = None
+    consecutive_failures: int = 0
 
 
 @dataclass

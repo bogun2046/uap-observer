@@ -184,15 +184,17 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(json.loads((output / "search.json").read_text(encoding="utf-8")), [])
 
     def test_publisher_includes_source_filtered_news_before_ai(self) -> None:
+        source_summary = "Source supplied English summary that must not be published as AI output."
         news_id = self.repository.add_news(
             News(
-                title="Queued UAP report",
+                title="待处理UAP来源记录",
                 original_title="Queued UAP report",
                 source="Test source",
                 source_url="https://example.test/queued",
                 category=NewsCategory.OTHER,
                 credibility=3,
                 fact_status=FactStatus.SOURCE_REPORTED,
+                summary=source_summary,
             )
         )
         output = Path(self.temp_directory.name) / "queued"
@@ -200,10 +202,45 @@ class PublishingTests(unittest.TestCase):
         result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
 
         self.assertEqual(result.news_pages, 1)
-        self.assertIn("Queued UAP report", (output / "news" / "index.md").read_text(encoding="utf-8"))
-        self.assertIn("Queued UAP report", (output / "search.json").read_text(encoding="utf-8"))
+        homepage = (output / "index.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
         detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        status_message = "原文正文尚未提取，AI 摘要将在正文提取完成后生成。"
+
+        self.assertIn("待处理UAP来源记录", news_index)
+        self.assertEqual(search_index[0]["title"], "待处理UAP来源记录")
+        self.assertEqual(search_index[0]["summary"], status_message)
+        self.assertIn(status_message, news_index)
         self.assertIn("原文正文尚未提取", detail)
+        self.assertNotIn(source_summary, homepage)
+        self.assertNotIn(source_summary, news_index)
+        self.assertNotIn(source_summary, detail)
+        self.assertNotIn(source_summary, json.dumps(search_index, ensure_ascii=False))
+
+    def test_publisher_labels_youtube_description_fallback(self) -> None:
+        news_id = self.repository.add_news(
+            News(
+                title="YouTube UAP report",
+                original_title="YouTube UAP report",
+                source="YouTube UAP Channel Watchlist",
+                source_url="https://www.youtube.com/watch?v=video-3",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE news SET extraction_status = 'completed', extracted_by = ? WHERE id = ?",
+                ("youtube-description-fallback", news_id),
+            )
+        output = Path(self.temp_directory.name) / "youtube-fallback"
+
+        MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        self.assertIn("视频简介已提取；尚未获得字幕逐字稿", detail)
 
 
 if __name__ == "__main__":
