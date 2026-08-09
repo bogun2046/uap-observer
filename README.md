@@ -136,15 +136,26 @@ The daily-processing default is `gpt-5.6-luna` with low reasoning effort to
 control cost. `OPENAI_MODEL` or `--model` can select another available model.
 To use DeepSeek's OpenAI-compatible JSON API, set `AI_PROVIDER=deepseek`,
 `DEEPSEEK_API_KEY`, and optionally `DEEPSEEK_MODEL=deepseek-v4-flash`.
-The adapter uses non-streaming Structured Outputs through the Responses API and
-sets `store=False`.
+Before a batch, verify the credential, API connection, and configured model with:
+
+```bash
+.venv/bin/uap-observer deepseek-health-check
+```
+
+The health check sends one `/models` request and never prints the key or its
+suffix. The DeepSeek adapter uses non-streaming Chat Completions JSON Output;
+the OpenAI adapter uses non-streaming Structured Outputs through the Responses
+API and sets `store=False`.
 
 Each result must pass a strict Pydantic schema before it is committed. The
 processor writes the Chinese title and summary, category, fact status, key
 facts, viewpoints, named entities, analysis confidence, risk flags, model,
 response ID, prompt/schema version, and canonical JSON. Source credibility is
 not changed by the model. Failed items remain auditable and are retried only
-with `--retry-failed`; stale claims are recovered after one hour.
+with `--retry-failed`; stale claims are recovered after one hour. Independent
+title translation records status, attempts, sanitized errors, model, response
+ID, and last-attempt time. A 401 or 403 stops the remaining batch and returns a
+nonzero exit code.
 
 Generate static pages after analysis:
 
@@ -194,11 +205,16 @@ the collection, analysis, and Pages deployment can finish in the 07:30
 publication window. It can also be started with `workflow_dispatch`. Before
 enabling it:
 
-1. Add either the repository secret `OPENAI_API_KEY` (with `AI_PROVIDER=openai`)
-   or `DEEPSEEK_API_KEY` (with `AI_PROVIDER=deepseek`).
+1. Add either the repository secret `DEEPSEEK_API_KEY` or `OPENAI_API_KEY`.
+   When `AI_PROVIDER` is not explicitly set, the workflow selects DeepSeek if
+   its key is present; set `AI_PROVIDER=openai` or `AI_PROVIDER=deepseek` to
+   override that choice.
 2. Enable GitHub Pages with **GitHub Actions** as the build source.
 3. Optionally set repository variables `AI_PROVIDER`, `OPENAI_MODEL`,
    `DEEPSEEK_MODEL`, and `OPENAI_REASONING_EFFORT`.
+   When DeepSeek is selected, the workflow runs `deepseek-health-check` before
+   title translation or article analysis and stops if authentication, API
+   connectivity, or model availability fails.
 4. To enable YouTube metadata collection, add the `YOUTUBE_API_KEY` secret and
    set `YOUTUBE_CHANNEL_IDS` to a comma-separated list of channel IDs. The
    collector stores titles, descriptions, links, publish times, and daily
@@ -207,8 +223,11 @@ enabling it:
    analysis; it does not download or redistribute videos.
 5. Optional captions require `YOUTUBE_OAUTH_TOKEN`. Only priority videos are
    requested, capped by `YOUTUBE_TRANSCRIPT_LIMIT` (default 5) and
-   `YOUTUBE_TRANSCRIPT_MAX_TOKENS` (default 12000). Unavailable captions are
-   recorded as skipped and do not stop the workflow.
+   `YOUTUBE_TRANSCRIPT_MAX_TOKENS` (default 12000). Article extraction first
+   uses the API-provided public video description as an explicitly labelled
+   fallback; a successfully downloaded caption transcript then replaces that
+   fallback. Unavailable captions are recorded as skipped and do not stop the
+   workflow.
 
 See [`docs/deployment.md`](docs/deployment.md) for the manual trigger and
 Pages acceptance checklist.

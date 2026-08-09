@@ -80,6 +80,14 @@ class ArticleAnalysis(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     risk_flags: list[AnalysisRiskFlag] = Field(default_factory=list, max_length=5)
 
+    @field_validator("chinese_title", "chinese_summary")
+    @classmethod
+    def validate_chinese_prose(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not re.search(r"[\u4e00-\u9fff]", cleaned):
+            raise ValueError("Chinese title and summary must contain Chinese characters")
+        return cleaned
+
     @field_validator(
         "key_facts",
         "viewpoints",
@@ -96,6 +104,13 @@ class ArticleAnalysis(BaseModel):
         if len(cleaned) != len(set(cleaned)):
             raise ValueError("list items must be unique")
         return cleaned
+
+    @field_validator("key_facts", "viewpoints")
+    @classmethod
+    def validate_chinese_analysis_lists(cls, values: list[str]) -> list[str]:
+        if any(not re.search(r"[\u4e00-\u9fff]", value) for value in values):
+            raise ValueError("key facts and viewpoints must contain Chinese characters")
+        return values
 
 
 class PersonRelationshipCandidate(BaseModel):
@@ -151,13 +166,35 @@ class AnalyzerResult:
     response_id: str | None = None
 
 
+@dataclass(frozen=True)
+class TitleTranslationResult:
+    title: str
+    model: str
+    response_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ProviderHealth:
+    provider: str
+    model: str
+    available_models: int
+
+
+class ProviderConfigurationError(RuntimeError):
+    """A safe-to-display provider configuration failure."""
+
+
 class Analyzer(Protocol):
+    model: str
+
     def analyze(self, task: AnalysisTask) -> AnalyzerResult:
         """Return a validated structured analysis."""
 
 
 class OpenAIAnalyzer:
     """Official OpenAI Responses API adapter using non-streaming structured output."""
+
+    provider = "OpenAI"
 
     def __init__(
         self,
@@ -205,7 +242,7 @@ class OpenAIAnalyzer:
             response_id=getattr(response, "id", None),
         )
 
-    def translate_title(self, original_title: str, source: str) -> str:
+    def translate_title(self, original_title: str, source: str) -> TitleTranslationResult:
         if self.client is None:
             from openai import OpenAI
 
@@ -223,11 +260,17 @@ class OpenAIAnalyzer:
         result = response.output_parsed
         if result is None:
             raise RuntimeError("OpenAI title translation returned no content")
-        return result.chinese_title
+        return TitleTranslationResult(
+            title=result.chinese_title,
+            model=getattr(response, "model", None) or self.model,
+            response_id=getattr(response, "id", None),
+        )
 
 
 class DeepSeekAnalyzer:
     """OpenAI-compatible DeepSeek Chat Completions adapter with JSON Output."""
+
+    provider = "DeepSeek"
 
     def __init__(
         self,
@@ -246,13 +289,38 @@ class DeepSeekAnalyzer:
         self.reasoning_effort = reasoning_effort
         self.max_content_characters = max_content_characters
 
-    def analyze(self, task: AnalysisTask) -> AnalyzerResult:
+    def _get_client(self) -> object:
         if self.client is None:
             from openai import OpenAI
 
             if not self.api_key:
-                raise ValueError("DEEPSEEK_API_KEY is required for DeepSeek analysis")
+                raise ProviderConfigurationError(
+                    "DeepSeek 配置错误：DEEPSEEK_API_KEY 未配置。"
+                )
             self.client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+        return self.client
+
+    def health_check(self) -> ProviderHealth:
+        """Validate API authentication, connectivity, and configured model availability."""
+
+        response = self._get_client().models.list()
+        models = {
+            str(getattr(item, "id", ""))
+            for item in getattr(response, "data", [])
+            if getattr(item, "id", None)
+        }
+        if self.model not in models:
+            raise ProviderConfigurationError(
+                f"DeepSeek 模型不可用：{self.model} 未出现在 /models 返回列表中。"
+            )
+        return ProviderHealth(
+            provider=self.provider,
+            model=self.model,
+            available_models=len(models),
+        )
+
+    def analyze(self, task: AnalysisTask) -> AnalyzerResult:
+        client = self._get_client()
         content = task.extracted_content[: self.max_content_characters]
         payload = {
             "original_title": task.original_title,
@@ -267,7 +335,7 @@ class DeepSeekAnalyzer:
             "Return only one valid JSON object matching this schema. Use JSON, not Markdown.\n"
             f"{json.dumps(ArticleAnalysis.model_json_schema(), ensure_ascii=False)}"
         )
-        response = self.client.chat.completions.create(
+        response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": instructions},
@@ -288,14 +356,9 @@ class DeepSeekAnalyzer:
             response_id=getattr(response, "id", None),
         )
 
-    def translate_title(self, original_title: str, source: str) -> str:
-        if self.client is None:
-            from openai import OpenAI
-
-            if not self.api_key:
-                raise ValueError("DEEPSEEK_API_KEY is required for title translation")
-            self.client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
-        response = self.client.chat.completions.create(
+    def translate_title(self, original_title: str, source: str) -> TitleTranslationResult:
+        client = self._get_client()
+        response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {
@@ -311,7 +374,21 @@ class DeepSeekAnalyzer:
         raw_content = getattr(response.choices[0].message, "content", None)
         if not raw_content:
             raise RuntimeError("DeepSeek title translation returned no content")
-        return TitleTranslation.model_validate(json.loads(raw_content)).chinese_title
+        translation = TitleTranslation.model_validate(json.loads(raw_content))
+        return TitleTranslationResult(
+            title=translation.chinese_title,
+            model=getattr(response, "model", None) or self.model,
+            response_id=getattr(response, "id", None),
+        )
+
+
+@dataclass(frozen=True)
+class TitleTranslationRun:
+    queued: int = 0
+    translated: int = 0
+    failed: int = 0
+    provider_access_failed: bool = False
+    fatal_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -322,6 +399,9 @@ class AnalysisRun:
     completed: int = 0
     failed: int = 0
     titles_translated: int = 0
+    titles_failed: int = 0
+    provider_access_failed: bool = False
+    fatal_error: str | None = None
 
 
 class AnalysisService:
@@ -345,14 +425,25 @@ class AnalysisService:
         # Translate short titles before the slower article-analysis queue. This
         # keeps freshly collected YouTube titles publishable in Chinese even
         # when extraction or analysis is slow.
-        titles_translated = self.translate_titles(
-            limit=title_translation_limit if title_translation_limit is not None else limit
+        title_run = self.translate_titles(
+            limit=title_translation_limit if title_translation_limit is not None else limit,
+            retry_failed=retry_failed,
         )
+        if title_run.provider_access_failed:
+            return AnalysisRun(
+                stale_recovered=stale_recovered,
+                titles_translated=title_run.translated,
+                titles_failed=title_run.failed,
+                provider_access_failed=True,
+                fatal_error=title_run.fatal_error,
+            )
         tasks = self.repository.get_analysis_tasks(
             limit=limit,
             retry_failed=retry_failed,
         )
         claimed = completed = failed = 0
+        provider_access_failed = False
+        fatal_error = None
         for task in tasks:
             if not self.repository.claim_analysis_task(
                 task.news_id,
@@ -379,37 +470,142 @@ class AnalysisService:
                     analysis_json=analysis.model_dump_json(),
                 )
                 completed += 1
-            # Each article is an isolated queue job; provider, validation, and
-            # persistence failures must not stop the remaining batch.
+            # Ordinary article failures are isolated queue jobs. Authentication
+            # and authorization failures are fatal because another request with
+            # the same credential would only repeat the failure.
             except Exception as error:  # noqa: BLE001
-                self.repository.fail_analysis(task.news_id, _safe_error(error))
+                error_text = safe_provider_error(error, provider=self._provider_name)
+                self.repository.fail_analysis(task.news_id, error_text)
                 failed += 1
+                if is_provider_access_error(error):
+                    provider_access_failed = True
+                    fatal_error = error_text
+                    break
         return AnalysisRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),
             claimed=claimed,
             completed=completed,
             failed=failed,
-            titles_translated=titles_translated,
+            titles_translated=title_run.translated,
+            titles_failed=title_run.failed,
+            provider_access_failed=provider_access_failed,
+            fatal_error=fatal_error,
         )
 
-    def translate_titles(self, *, limit: int = 100) -> int:
+    @property
+    def _provider_name(self) -> str:
+        return str(getattr(self.analyzer, "provider", "AI provider"))
+
+    @property
+    def _model_name(self) -> str:
+        return str(getattr(self.analyzer, "model", "unknown"))
+
+    def translate_titles(
+        self,
+        *,
+        limit: int = 100,
+        retry_failed: bool = False,
+    ) -> TitleTranslationRun:
         translator = getattr(self.analyzer, "translate_title", None)
-        if translator is None:
-            return 0
-        translated = 0
-        for row in self.repository.get_untranslated_titles(limit=limit):
-            try:
-                title = str(translator(row["original_title"], row["source"]))
-                if title.strip():
-                    self.repository.update_translated_title(int(row["id"]), title.strip())
-                    translated += 1
-            except Exception:  # noqa: BLE001
+        if translator is None or limit == 0:
+            return TitleTranslationRun()
+        rows = self.repository.get_untranslated_titles(
+            limit=limit,
+            retry_failed=retry_failed,
+        )
+        translated = failed = 0
+        for row in rows:
+            news_id = int(row["id"])
+            if not self.repository.claim_title_translation(
+                news_id,
+                model=self._model_name,
+                retry_failed=retry_failed,
+            ):
                 continue
-        return translated
+            try:
+                result = translator(row["original_title"], row["source"])
+                if isinstance(result, TitleTranslationResult):
+                    translation = result
+                else:
+                    translation = TitleTranslationResult(
+                        title=str(result),
+                        model=self._model_name,
+                    )
+                if not translation.title.strip():
+                    raise RuntimeError("Title translation returned a blank title")
+                self.repository.complete_title_translation(
+                    news_id,
+                    title=translation.title.strip(),
+                    model=translation.model,
+                    response_id=translation.response_id,
+                )
+                translated += 1
+            except Exception as error:  # noqa: BLE001
+                error_text = safe_provider_error(error, provider=self._provider_name)
+                self.repository.fail_title_translation(
+                    news_id,
+                    error=error_text,
+                    model=self._model_name,
+                    response_id=provider_response_id(error),
+                )
+                failed += 1
+                if is_provider_access_error(error):
+                    return TitleTranslationRun(
+                        queued=len(rows),
+                        translated=translated,
+                        failed=failed,
+                        provider_access_failed=True,
+                        fatal_error=error_text,
+                    )
+        return TitleTranslationRun(
+            queued=len(rows),
+            translated=translated,
+            failed=failed,
+        )
 
 
-def _safe_error(error: Exception) -> str:
-    """Keep failure diagnostics bounded without persisting article content."""
+def provider_status_code(error: Exception) -> int | None:
+    """Extract an HTTP status without serializing a provider exception."""
 
-    return f"{type(error).__name__}: {error}"[:1000]
+    status = getattr(error, "status_code", None)
+    if status is None:
+        status = getattr(getattr(error, "response", None), "status_code", None)
+    try:
+        return int(status) if status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def is_provider_access_error(error: Exception) -> bool:
+    return provider_status_code(error) in {401, 403}
+
+
+def provider_response_id(error: Exception) -> str | None:
+    """Return a request/response identifier when the SDK exposes one."""
+
+    for attribute in ("response_id", "request_id"):
+        value = getattr(error, attribute, None)
+        if value:
+            return str(value)[:200]
+    headers = getattr(getattr(error, "response", None), "headers", None)
+    if headers:
+        value = headers.get("x-request-id")
+        if value:
+            return str(value)[:200]
+    return None
+
+
+def safe_provider_error(error: Exception, *, provider: str) -> str:
+    """Create bounded diagnostics without provider payloads, keys, or article text."""
+
+    status = provider_status_code(error)
+    if status == 401:
+        return f"{provider} 鉴权失败（HTTP 401）：请检查 API Key。"
+    if status == 403:
+        return f"{provider} 授权失败（HTTP 403）：请检查账户和模型访问权限。"
+    if isinstance(error, ProviderConfigurationError):
+        return str(error)[:1000]
+    if status is not None:
+        return f"{provider} 请求失败（HTTP {status}，{type(error).__name__}）。"
+    return f"{provider} 请求失败（{type(error).__name__}）。"

@@ -99,7 +99,7 @@ class YouTubeCaptionCollector:
                 )
                 completed += 1
                 token_count += tokens
-            except Exception:
+            except Exception:  # noqa: BLE001 - isolate each caption task
                 self.repository.update_youtube_transcript(news_id=news_id, status="failed")
                 failed += 1
         return CaptionCollectionResult(

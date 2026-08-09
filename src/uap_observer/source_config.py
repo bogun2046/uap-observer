@@ -17,7 +17,7 @@ def load_sources(path: Path) -> list[Source]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     items = payload.get("sources")
     if not isinstance(items, list):
-        raise ValueError("Source configuration must contain a 'sources' list")
+        raise TypeError("Source configuration must contain a 'sources' list")
 
     sources: list[Source] = []
     seen_slugs: set[str] = set()
@@ -31,6 +31,11 @@ def load_sources(path: Path) -> list[Source]:
             name=str(raw["name"]).strip(),
             source_type=SourceType(raw["source_type"]),
             homepage_url=str(raw["homepage_url"]).strip(),
+            fallback_urls=[
+                str(value).strip()
+                for value in raw.get("fallback_urls", [])
+                if str(value).strip()
+            ],
             feed_url=raw.get("feed_url"),
             country=raw.get("country"),
             language=raw.get("language"),

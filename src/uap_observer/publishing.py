@@ -193,7 +193,7 @@ class MarkdownPublisher:
       <span>UAP OBSERVER</span>
     </a>
     <nav aria-label="主导航">
-      <a href="{{ '/news/' | relative_url }}">每日更新</a>
+      <a href="{{ '/news/' | relative_url }}">最新消息</a>
       <a href="{{ '/events/' | relative_url }}">事件档案</a>
       <a href="{{ '/timeline.html' | relative_url }}">时间线</a>
       <a href="{{ '/search.html' | relative_url }}">搜索</a>
@@ -242,32 +242,52 @@ def _render_home(
         "",
         '<section class="hero" id="top">',
         '  <div class="hero-copy hero-enter">',
-        '    <p class="eyebrow">SOURCE-FIRST OPEN ARCHIVE</p>',
         "    <h1>让未知，<br>留下证据。</h1>",
         "    <p class=\"hero-description\">持续整理公开 UAP 信息，以可追溯来源、时间与事实状态建立开放档案。</p>",
-        '    <div class="hero-actions"><a class="button button-primary" href="#event-map">进入事件地图 <span aria-hidden="true">↗</span></a><a class="button button-secondary" href="#method">查看方法</a></div>',
-        f'    <a class="daily-update-entry" href="news/index.html" aria-label="打开每日更新，最近同步 {_html(_display_datetime(last_sync))}"><span><strong>每日更新</strong><small>最近同步 {_html(_display_datetime(last_sync))}，共 {len(news)} 条来源记录</small></span><span class="daily-update-arrow" aria-hidden="true">↗</span></a>',
-        '    <div class="hero-material-note"><strong>银色金属主题</strong><span>背景取自航空级拉丝铝材质。压印轮廓为视觉表达，不作为事件证据。</span></div>',
+        '    <p class="hero-quote">“Whether we understand it or not, the phenomenon deserves serious study.”</p>',
+        _render_home_latest_news(news[:3]),
         "  </div>",
-        '  <aside class="hero-visual-note hero-enter delay-one"><strong>VISUAL RECONSTRUCTION</strong><span>BRUSHED ALUMINUM SURFACE</span><span>NON-EVIDENTIARY</span></aside>',
+        '  <span class="hero-uap-motion" aria-hidden="true"></span>',
         '  <dl class="hero-metrics hero-enter delay-one">',
         f"      <div><dt>来源记录</dt><dd>{len(news)}</dd></div>",
         f"      <div><dt>事件档案</dt><dd>{len(events)}</dd></div>",
         f"      <div><dt>最后同步</dt><dd class=\"metric-time\">{_html(_display_datetime(last_sync))}</dd></div>",
         "    </dl>",
         "</section>",
-        '<div class="source-strip" aria-label="数据来源和更新时间">',
-        "  <span>数据来源</span>",
-        f"  <p>{_html(' · '.join(str(getattr(source, 'name', '')) for source in sources[:5]))}</p>",
-        f'  <time datetime="{_html_attr(last_sync)}">最后同步 {_html(_display_datetime(last_sync))}</time>',
-        "</div>",
-        _render_recent_news(news[:5]),
         _render_map_overview(country_counts, missing_location_count, len(events)),
         _render_distribution(category_counts, len(news)),
-        _render_evidence_empty_state(news[:3]),
         _render_method(sources, today),
     ]
     return "\n".join(lines) + "\n"
+
+
+def _render_home_latest_news(rows: list[dict[str, object]]) -> str:
+    lines = [
+        '    <section class="hero-latest-news hero-enter delay-one" aria-labelledby="home-latest-news">',
+        '      <div class="hero-latest-head"><h2 id="home-latest-news">最新消息</h2><a href="news/index.html">查看全部 <span aria-hidden="true">›</span></a></div>',
+        '      <div class="hero-latest-list">',
+    ]
+    if not rows:
+        lines.append('        <p class="hero-latest-empty">暂无已发布的来源记录。</p>')
+    for row in rows:
+        raw_title = _text(row.get("title")) or _text(row.get("original_title")) or "未命名记录"
+        title = _html(raw_title)
+        title_attr = _html_attr(raw_title)
+        source = _html(_text(row.get("source")) or "未知来源")
+        date_value = _html(_date_prefix(row.get("publish_date")) or "日期未知")
+        record_url = f"news/{int(row['id'])}.html"
+        lines.append(
+            f'        <article><a href="{record_url}" aria-label="打开 {title_attr}"><strong>{title}</strong></a>'
+            f'<span>来源：{source}</span><time>{date_value}</time></article>'
+        )
+    lines.extend(
+        [
+            "      </div>",
+            '      <a class="hero-archive-link" href="events/index.html">浏览事件档案 <span aria-hidden="true">→</span></a>',
+            "    </section>",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _render_latest_event(event: dict[str, object] | None) -> str:
@@ -329,7 +349,7 @@ def _render_recent_news(rows: list[dict[str, object]]) -> str:
         source = _html(_text(row.get("source")) or "未知来源")
         category = _html(_category_label(_text(row.get("category")) or "other"))
         fact_status = _html(_fact_status_label(_text(row.get("fact_status"))))
-        summary = _html(_text(row.get("summary")) or _analysis_unavailable_message(row))
+        summary = _html(_ai_summary_or_status_message(row))
         record_url = f"news/{int(row['id'])}.html"
         lines.extend(
             [
@@ -590,7 +610,7 @@ def _render_search_index(
         {
             "id": int(row["id"]),
             "title": _text(row.get("title")) or _text(row.get("original_title")),
-            "summary": _text(row.get("summary")),
+            "summary": _ai_summary_or_status_message(row),
             "source": _text(row.get("source")),
             "publish_date": _date_prefix(row.get("publish_date")),
             "category": _text(row.get("category")) or "other",
@@ -659,7 +679,7 @@ def _render_news_cards(
     for row in rows:
         filename = _news_url(row)
         title = _text(row.get("title")) or _text(row.get("original_title")) or "未命名新闻"
-        summary = _text(row.get("summary")) or "暂无摘要。"
+        summary = _ai_summary_or_status_message(row)
         date_value = _date_prefix(row.get("publish_date")) or "日期未知"
         credibility = _stars(row.get("credibility"))
         lines.extend(
@@ -792,6 +812,11 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
 def _extraction_status_message(row: dict[str, object]) -> str:
     status = _text(row.get("extraction_status")) or "pending"
     if status == "completed":
+        extractor = _text(row.get("extracted_by"))
+        if extractor == "youtube-description-fallback":
+            return "视频简介已提取；尚未获得字幕逐字稿。"
+        if extractor == "youtube-captions":
+            return "YouTube 字幕逐字稿已提取。"
         return "正文已成功提取。"
     if status == "failed":
         error = _text(row.get("extraction_error")) or ""

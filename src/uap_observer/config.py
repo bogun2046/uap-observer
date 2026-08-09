@@ -40,7 +40,10 @@ class Settings:
             raise ValueError(
                 "OPENAI_REASONING_EFFORT must be one of: none, low, medium, high, xhigh"
             )
-        ai_provider = os.getenv("AI_PROVIDER", "openai").lower()
+        configured_provider = os.getenv("AI_PROVIDER", "").strip().lower()
+        ai_provider = configured_provider or (
+            "deepseek" if os.getenv("DEEPSEEK_API_KEY") else "openai"
+        )
         if ai_provider not in {"openai", "deepseek"}:
             raise ValueError("AI_PROVIDER must be one of: openai, deepseek")
         return cls(

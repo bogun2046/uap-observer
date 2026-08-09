@@ -36,7 +36,9 @@ jobs:
       YOUTUBE_OAUTH_TOKEN: ${{ secrets.YOUTUBE_OAUTH_TOKEN }}
       YOUTUBE_TRANSCRIPT_LIMIT: ${{ vars.YOUTUBE_TRANSCRIPT_LIMIT || '5' }}
       YOUTUBE_TRANSCRIPT_MAX_TOKENS: ${{ vars.YOUTUBE_TRANSCRIPT_MAX_TOKENS || '12000' }}
-      AI_PROVIDER: ${{ vars.AI_PROVIDER || 'openai' }}
+      # Prefer DeepSeek automatically when no provider variable is set and its
+      # secret exists; an explicit AI_PROVIDER still takes precedence.
+      AI_PROVIDER: ${{ vars.AI_PROVIDER || (secrets.DEEPSEEK_API_KEY && 'deepseek' || 'openai') }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.6-luna' }}
       DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
       OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || 'low' }}
@@ -122,10 +124,15 @@ jobs:
         # Extraction is intentionally bounded: each URL can take up to 30s.
         run: uap-observer extract-articles --limit 40 --retry-failed
 
+      - name: Check DeepSeek API health
+        if: ${{ env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '' }}
+        # One /models request validates the key, API connection, and configured
+        # model before any title or article batch can issue billable calls.
+        run: uap-observer deepseek-health-check
+
       - name: Analyze articles
         id: analyze
         if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
-        continue-on-error: true
         # AI calls are sequential; keep one scheduled run within the job budget.
         # Translate a wider, newest-first title queue independently of the
         # extraction-bound article-analysis batch.
@@ -133,7 +140,7 @@ jobs:
 
       - name: Report AI analysis failure
         if: ${{ always() && steps.analyze.outcome == 'failure' }}
-        run: echo "AI analysis failed; continuing with source records and pending-analysis labels."
+        run: echo "AI analysis stopped after a fatal provider access failure; publishing is blocked for this run."
 
       - name: Explain skipped AI step
         if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
@@ -222,21 +229,19 @@ jobs:
               raise SystemExit(f"Pipeline health check failed; missing pages: {missing_pages}")
 
           untranslated_titles = [
-              item["title"]
+              item["id"]
               for item in search_index
               if item.get("title")
               and re.search(r"[A-Za-z]", item["title"])
               and not re.search(r"[\u4e00-\u9fff]", item["title"])
           ]
-          # English titles are expected for international sources and official
-          # document filenames. Report them for observability, but do not
-          # block publication solely because a title has no Chinese text.
-          if untranslated_titles:
-              print(
-                  "Pipeline health notice; untranslated titles: "
-                  f"{untranslated_titles[:20]}"
-                  + (" ..." if len(untranslated_titles) > 20 else "")
-              )
+          untranslated_summaries = [
+              item["id"]
+              for item in search_index
+              if item.get("summary")
+              and re.search(r"[A-Za-z]", item["summary"])
+              and not re.search(r"[\u4e00-\u9fff]", item["summary"])
+          ]
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
           if summary_path:
               Path(summary_path).write_text(
@@ -246,9 +251,16 @@ jobs:
                   f"- Extraction failed: **{failed_extraction}**\n"
                   f"- Extraction blocked by source (403): **{blocked_extraction}**\n"
                   f"- AI analysis failed: **{failed_analysis}**\n"
-                  f"- Titles without Chinese text (notice): **{len(untranslated_titles)}**\n"
+                  f"- Titles without Chinese text: **{len(untranslated_titles)}**\n"
+                  f"- Summaries without Chinese text: **{len(untranslated_summaries)}**\n"
                   f"- Published pages: **{len(search_index)}**\n",
                   encoding="utf-8",
+              )
+          if untranslated_titles or untranslated_summaries:
+              raise SystemExit(
+                  "Pipeline health check failed; untranslated public content: "
+                  f"title_ids={untranslated_titles[:20]} "
+                  f"summary_ids={untranslated_summaries[:20]}"
               )
           print(
               "Pipeline health OK; "

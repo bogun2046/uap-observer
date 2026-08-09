@@ -73,13 +73,13 @@ class FakeFetcher:
 
 class FakeHttpResponse:
     status = 200
-    headers: dict[str, str] = {}
 
     def __init__(self, body: bytes | None = None, error: Exception | None = None) -> None:
         self.body = body
         self.error = error
+        self.headers: dict[str, str] = {}
 
-    def __enter__(self) -> "FakeHttpResponse":
+    def __enter__(self):
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -147,6 +147,17 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(row["canonical_url"], "https://example.test/uap?a=1&b=2")
         self.assertEqual(row["feed_entry_id"], "uap-1")
         self.assertEqual(row["processing_status"], "pending")
+        run = self.repository.get_latest_source_runs()[self.source.id]
+        self.assertEqual(run["status"], "success")
+        self.assertEqual(run["fetched_count"], 3)
+        self.assertEqual(run["filtered_count"], 2)
+        self.assertEqual(run["inserted_count"], 0)
+        with self.database.connect() as connection:
+            first_run = connection.execute(
+                "SELECT inserted_count FROM source_runs WHERE source_id = ? ORDER BY id LIMIT 1",
+                (self.source.id,),
+            ).fetchone()
+        self.assertEqual(first_run["inserted_count"], 1)
 
     def test_304_response_records_no_new_items(self) -> None:
         collector = RssCollector(
@@ -158,6 +169,9 @@ class RssCollectorTests(unittest.TestCase):
 
         self.assertTrue(result.not_modified)
         self.assertEqual(self.database.status().row_counts["news"], 0)
+        run = self.repository.get_latest_source_runs()[self.source.id]
+        self.assertEqual(run["status"], "not_modified")
+        self.assertEqual(run["http_status"], 304)
 
     def test_short_keyword_matches_whole_token_only(self) -> None:
         startup = FeedEntry(None, "NASA startup program", "https://example.test", None, None)
@@ -223,6 +237,65 @@ class RssCollectorTests(unittest.TestCase):
         self.assertEqual(by_slug["reddit-ufos"].refresh_interval_hours, 24)
         self.assertEqual(by_slug["youtube-uap"].refresh_interval_hours, 24)
 
+        self.assertEqual(
+            by_slug["aaro-press-products"].homepage_url,
+            "https://www.aaro.mil/Next-AARO-Home-redesign/Next-Parent/AARO-Congressional-Tab-DT/",
+        )
+        self.assertEqual(
+            by_slug["aaro-case-resolutions"].homepage_url,
+            "https://www.aaro.mil/Next-AARO-Home-redesign/Next-Parent/Next-UAP-Case-RR-Data-Table/",
+        )
+        self.assertEqual(
+            by_slug["aaro-official-imagery"].homepage_url,
+            "https://www.aaro.mil/Next-AARO-Home-redesign/Next-Parent/Next-AARO-UAP-Imagery-Acc-Table/",
+        )
+        self.assertEqual(
+            by_slug["aaro-press-products"].fallback_urls,
+            [
+                "https://www.dvidshub.net/search/?filter%5Btype%5D=video&filter%5Bunit%5D=AARO&sort=date&page=2"
+            ],
+        )
+        self.assertEqual(
+            by_slug["aaro-efoia"].fallback_urls,
+            [
+                "https://www.esd.whs.mil/FOIA/Reading-Room/Reading-Room-List_2/UFOsandUAPs/",
+                "https://www.archives.gov/research/topics/uaps",
+            ],
+        )
+        self.assertEqual(
+            by_slug["australia-national-archives-ufo"].homepage_url,
+            "https://www.naa.gov.au/students-and-teachers/student-research-portal/learning-resource-themes/war/defence-equipment-and-weapons/ufo-sightings-weapons-testing-site-woomera",
+        )
+        self.assertEqual(
+            by_slug["mexico-sedena-transparency"].homepage_url,
+            "https://www.sedena.gob.mx/leytrans/petic/2003/nov/peticnov.htm",
+        )
+        self.assertEqual(
+            by_slug["nasa-asrs"].homepage_url,
+            "https://asrs.arc.nasa.gov/search/reportsets.html",
+        )
+        self.assertEqual(
+            by_slug["nasa-asrs"].include_keywords,
+            ["unmanned aircraft systems", "ASRS Database Report Sets"],
+        )
+        self.assertEqual(
+            by_slug["noaa-space-weather"].homepage_url,
+            "https://www.spaceweather.gov/news-archive?page=1",
+        )
+
+        packaged_sources = load_sources(
+            PROJECT_ROOT / "src" / "uap_observer" / "resources" / "sources.json"
+        )
+        self.assertEqual(packaged_sources, sources)
+        self.assertEqual(
+            {source.slug: source.homepage_url for source in packaged_sources},
+            {source.slug: source.homepage_url for source in sources},
+        )
+        self.assertEqual(
+            {source.slug: source.fallback_urls for source in packaged_sources},
+            {source.slug: source.fallback_urls for source in sources},
+        )
+
     def test_parser_supports_atom(self) -> None:
         atom = b"""<feed xmlns="http://www.w3.org/2005/Atom">
           <entry>
@@ -265,14 +338,16 @@ class RssCollectorTests(unittest.TestCase):
                 b"\nUAP_HTTP_STATUS:200\n"
             ),
         )
-        with patch("urllib.request.urlopen", return_value=incomplete):
-            with patch("shutil.which", return_value="/usr/bin/curl"):
-                with patch("subprocess.run", return_value=curl_result) as run:
-                    response = HttpFeedFetcher(max_retries=0).fetch(
-                        "https://example.test/feed.xml",
-                        etag=None,
-                        last_modified=None,
-                    )
+        with (
+            patch("urllib.request.urlopen", return_value=incomplete),
+            patch("shutil.which", return_value="/usr/bin/curl"),
+            patch("subprocess.run", return_value=curl_result) as run,
+        ):
+            response = HttpFeedFetcher(max_retries=0).fetch(
+                "https://example.test/feed.xml",
+                etag=None,
+                last_modified=None,
+            )
 
         self.assertEqual(response.body, RSS_PAYLOAD)
         self.assertEqual(response.etag, '"curl-v1"')
@@ -286,14 +361,16 @@ class RssCollectorTests(unittest.TestCase):
             stdout=RSS_PAYLOAD + b"\nUAP_HTTP_STATUS:200\n",
             stderr=b"HTTP/2 200\r\netag: \"stdout-v1\"\r\n\r\n",
         )
-        with patch("urllib.request.urlopen", return_value=incomplete):
-            with patch("shutil.which", return_value="/usr/bin/curl"):
-                with patch("subprocess.run", return_value=curl_result):
-                    response = HttpFeedFetcher(max_retries=0).fetch(
-                        "https://example.test/feed.xml",
-                        etag=None,
-                        last_modified=None,
-                    )
+        with (
+            patch("urllib.request.urlopen", return_value=incomplete),
+            patch("shutil.which", return_value="/usr/bin/curl"),
+            patch("subprocess.run", return_value=curl_result),
+        ):
+            response = HttpFeedFetcher(max_retries=0).fetch(
+                "https://example.test/feed.xml",
+                etag=None,
+                last_modified=None,
+            )
 
         self.assertEqual(response.status, 200)
         self.assertEqual(response.body, RSS_PAYLOAD)

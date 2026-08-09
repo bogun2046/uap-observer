@@ -47,6 +47,7 @@ _FY24_TITLE = (
     "Fiscal Year 2024 Consolidated Annual Report on Unidentified "
     "Anomalous Phenomena"
 )
+_YOUTUBE_SOURCE_NAME = "YouTube UAP Channel Watchlist"
 
 
 @dataclass(frozen=True)
@@ -361,7 +362,13 @@ class ArticleExtractionService:
                 continue
             claimed += 1
             try:
-                article = self.extractor.extract_url(task.url)
+                article = _youtube_description_fallback(task)
+                if article is None:
+                    if getattr(task, "source", "") == _YOUTUBE_SOURCE_NAME:
+                        raise RuntimeError(
+                            "YouTube video has no usable public description; captions are required"
+                        )
+                    article = self.extractor.extract_url(task.url)
                 content_hash = hashlib.sha256(article.content.encode("utf-8")).hexdigest()
                 duplicate_id = self.repository.find_news_by_content_hash(
                     content_hash,
@@ -387,7 +394,7 @@ class ArticleExtractionService:
                     extracted_by=article.extractor,
                 )
                 completed += 1
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - isolate each extraction task
                 fallback = _official_record_fallback(task)
                 if fallback is not None:
                     content_hash = hashlib.sha256(fallback.content.encode("utf-8")).hexdigest()
@@ -403,7 +410,9 @@ class ArticleExtractionService:
                     )
                     completed += 1
                     continue
-                fallback = _feed_description_fallback(task)
+                fallback = None
+                if getattr(task, "source", "") != _YOUTUBE_SOURCE_NAME:
+                    fallback = _feed_description_fallback(task)
                 if fallback is not None:
                     content_hash = hashlib.sha256(fallback.content.encode("utf-8")).hexdigest()
                     self.repository.complete_article_extraction(
@@ -442,6 +451,30 @@ def _official_record_fallback(task: object) -> ExtractedArticle | None:
     if len(normalized) < 80:
         return None
     return ExtractedArticle(content=normalized, extractor="official-record-fallback")
+
+
+def _youtube_description_fallback(task: object) -> ExtractedArticle | None:
+    """Use the API-provided video description without calling the dynamic video page."""
+
+    if getattr(task, "source", "") != _YOUTUBE_SOURCE_NAME:
+        return None
+    raw_content = getattr(task, "fallback_content", None)
+    if not raw_content:
+        return None
+    try:
+        payload = json.loads(str(raw_content))
+    except json.JSONDecodeError:
+        payload = {"description": raw_content}
+    description = payload.get("description") if isinstance(payload, dict) else None
+    normalized = _normalize_text(description)
+    if len(normalized) < 80:
+        return None
+    return ExtractedArticle(
+        content=normalized,
+        title=getattr(task, "original_title", None),
+        language="en",
+        extractor="youtube-description-fallback",
+    )
 
 
 def _feed_description_fallback(task: object) -> ExtractedArticle | None:
