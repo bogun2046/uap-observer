@@ -438,8 +438,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"titles_translated={run.titles_translated} "
             f"titles_failed={run.titles_failed}"
         )
+        for failure in run.failures:
+            print(
+                f"AI item failed; stage={failure.stage} "
+                f"news_id={failure.news_id} "
+                f"provider_attempts={failure.attempts} "
+                f"error={failure.error} "
+                f"response_id={failure.response_id or 'none'}"
+            )
         if run.provider_access_failed:
             print(f"AI analysis stopped: {run.fatal_error}")
+            return 1
+        if run.titles_failed:
+            print(
+                "AI analysis stopped: title translation failures remain; "
+                "public publishing is blocked."
+            )
             return 1
         return 0
 

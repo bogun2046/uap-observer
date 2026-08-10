@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from uap_observer.models import AnalysisRiskFlag, AnalysisTask, FactStatus, NewsCategory
 from uap_observer.repositories import Repository
@@ -25,6 +33,9 @@ SUPPORTED_PERSON_RELATIONSHIP_TYPES = {
     "participates_with",
     "affiliated_with",
 }
+
+_ResultT = TypeVar("_ResultT")
+_ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 ANALYSIS_INSTRUCTIONS = """
 You organize public-source UAP reporting for a neutral research database.
@@ -184,6 +195,15 @@ class ProviderConfigurationError(RuntimeError):
     """A safe-to-display provider configuration failure."""
 
 
+class ProviderResponseError(RuntimeError):
+    """A structured provider response failed safe local validation."""
+
+    def __init__(self, reason: str, *, response_id: str | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.response_id = response_id
+
+
 class Analyzer(Protocol):
     model: str
 
@@ -267,6 +287,44 @@ class OpenAIAnalyzer:
         )
 
 
+def _parse_deepseek_json_response(
+    response: object,
+    *,
+    schema: type[_ModelT],
+    purpose: str,
+) -> _ModelT:
+    """Validate JSON output without exposing model content in exceptions."""
+
+    response_id = getattr(response, "id", None)
+    try:
+        message = response.choices[0].message
+        raw_content = getattr(message, "content", None)
+    except (AttributeError, IndexError, TypeError) as error:
+        raise ProviderResponseError(
+            f"{purpose}_missing_content",
+            response_id=response_id,
+        ) from error
+    if not isinstance(raw_content, str) or not raw_content.strip():
+        raise ProviderResponseError(
+            f"{purpose}_missing_content",
+            response_id=response_id,
+        )
+    try:
+        payload = json.loads(raw_content)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise ProviderResponseError(
+            f"{purpose}_invalid_json",
+            response_id=response_id,
+        ) from error
+    try:
+        return schema.model_validate(payload)
+    except ValidationError as error:
+        raise ProviderResponseError(
+            f"{purpose}_schema_validation",
+            response_id=response_id,
+        ) from error
+
+
 class DeepSeekAnalyzer:
     """OpenAI-compatible DeepSeek Chat Completions adapter with JSON Output."""
 
@@ -345,11 +403,11 @@ class DeepSeekAnalyzer:
             max_tokens=3000,
             stream=False,
         )
-        message = response.choices[0].message
-        raw_content = getattr(message, "content", None)
-        if not raw_content:
-            raise RuntimeError("DeepSeek response did not contain JSON content")
-        analysis = ArticleAnalysis.model_validate(json.loads(raw_content))
+        analysis = _parse_deepseek_json_response(
+            response,
+            schema=ArticleAnalysis,
+            purpose="article",
+        )
         return AnalyzerResult(
             analysis=analysis,
             model=getattr(response, "model", None) or self.model,
@@ -371,15 +429,25 @@ class DeepSeekAnalyzer:
             max_tokens=300,
             stream=False,
         )
-        raw_content = getattr(response.choices[0].message, "content", None)
-        if not raw_content:
-            raise RuntimeError("DeepSeek title translation returned no content")
-        translation = TitleTranslation.model_validate(json.loads(raw_content))
+        translation = _parse_deepseek_json_response(
+            response,
+            schema=TitleTranslation,
+            purpose="title",
+        )
         return TitleTranslationResult(
             title=translation.chinese_title,
             model=getattr(response, "model", None) or self.model,
             response_id=getattr(response, "id", None),
         )
+
+
+@dataclass(frozen=True)
+class ProviderFailure:
+    stage: str
+    news_id: int
+    attempts: int
+    error: str
+    response_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -389,6 +457,7 @@ class TitleTranslationRun:
     failed: int = 0
     provider_access_failed: bool = False
     fatal_error: str | None = None
+    failures: tuple[ProviderFailure, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -402,12 +471,46 @@ class AnalysisRun:
     titles_failed: int = 0
     provider_access_failed: bool = False
     fatal_error: str | None = None
+    failures: tuple[ProviderFailure, ...] = ()
 
 
 class AnalysisService:
-    def __init__(self, repository: Repository, analyzer: Analyzer) -> None:
+    def __init__(
+        self,
+        repository: Repository,
+        analyzer: Analyzer,
+        *,
+        max_provider_attempts: int = 3,
+        retry_delay_seconds: float = 1.0,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if max_provider_attempts < 1:
+            raise ValueError("max_provider_attempts must be at least 1")
+        if retry_delay_seconds < 0:
+            raise ValueError("retry_delay_seconds must not be negative")
         self.repository = repository
         self.analyzer = analyzer
+        self.max_provider_attempts = max_provider_attempts
+        self.retry_delay_seconds = retry_delay_seconds
+        self.sleep = sleep
+
+    def _call_provider(
+        self,
+        operation: Callable[[], _ResultT],
+    ) -> tuple[_ResultT | None, int, Exception | None]:
+        for attempt in range(1, self.max_provider_attempts + 1):
+            try:
+                return operation(), attempt, None
+            except Exception as error:  # noqa: BLE001
+                if (
+                    attempt >= self.max_provider_attempts
+                    or not is_retryable_provider_error(error)
+                ):
+                    return None, attempt, error
+                delay = self.retry_delay_seconds * (2 ** (attempt - 1))
+                if delay:
+                    self.sleep(delay)
+        raise AssertionError("provider retry loop exhausted without a result")
 
     def run(
         self,
@@ -436,6 +539,7 @@ class AnalysisService:
                 titles_failed=title_run.failed,
                 provider_access_failed=True,
                 fatal_error=title_run.fatal_error,
+                failures=title_run.failures,
             )
         tasks = self.repository.get_analysis_tasks(
             limit=limit,
@@ -444,6 +548,7 @@ class AnalysisService:
         claimed = completed = failed = 0
         provider_access_failed = False
         fatal_error = None
+        failure_details = list(title_run.failures)
         for task in tasks:
             if not self.repository.claim_analysis_task(
                 task.news_id,
@@ -451,8 +556,33 @@ class AnalysisService:
             ):
                 continue
             claimed += 1
+            result, attempts, provider_error = self._call_provider(
+                lambda task=task: self.analyzer.analyze(task)
+            )
+            if provider_error is not None:
+                error_text = safe_provider_error(
+                    provider_error,
+                    provider=self._provider_name,
+                )
+                self.repository.fail_analysis(task.news_id, error_text)
+                failed += 1
+                failure_details.append(
+                    ProviderFailure(
+                        stage="article_analysis",
+                        news_id=task.news_id,
+                        attempts=attempts,
+                        error=error_text,
+                        response_id=provider_response_id(provider_error),
+                    )
+                )
+                if is_provider_access_error(provider_error):
+                    provider_access_failed = True
+                    fatal_error = error_text
+                    break
+                continue
+            if result is None:
+                raise AssertionError("provider call succeeded without a result")
             try:
-                result = self.analyzer.analyze(task)
                 analysis = result.analysis
                 self.repository.complete_analysis(
                     task.news_id,
@@ -470,17 +600,19 @@ class AnalysisService:
                     analysis_json=analysis.model_dump_json(),
                 )
                 completed += 1
-            # Ordinary article failures are isolated queue jobs. Authentication
-            # and authorization failures are fatal because another request with
-            # the same credential would only repeat the failure.
             except Exception as error:  # noqa: BLE001
                 error_text = safe_provider_error(error, provider=self._provider_name)
                 self.repository.fail_analysis(task.news_id, error_text)
                 failed += 1
-                if is_provider_access_error(error):
-                    provider_access_failed = True
-                    fatal_error = error_text
-                    break
+                failure_details.append(
+                    ProviderFailure(
+                        stage="article_persistence",
+                        news_id=task.news_id,
+                        attempts=attempts,
+                        error=error_text,
+                        response_id=provider_response_id(error),
+                    )
+                )
         return AnalysisRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),
@@ -491,6 +623,7 @@ class AnalysisService:
             titles_failed=title_run.failed,
             provider_access_failed=provider_access_failed,
             fatal_error=fatal_error,
+            failures=tuple(failure_details),
         )
 
     @property
@@ -515,6 +648,7 @@ class AnalysisService:
             retry_failed=retry_failed,
         )
         translated = failed = 0
+        failure_details: list[ProviderFailure] = []
         for row in rows:
             news_id = int(row["id"])
             if not self.repository.claim_title_translation(
@@ -523,8 +657,12 @@ class AnalysisService:
                 retry_failed=retry_failed,
             ):
                 continue
-            try:
-                result = translator(row["original_title"], row["source"])
+
+            def translate_once(
+                original_title: str = row["original_title"],
+                source: str = row["source"],
+            ) -> TitleTranslationResult:
+                result = translator(original_title, source)
                 if isinstance(result, TitleTranslationResult):
                     translation = result
                 else:
@@ -534,6 +672,44 @@ class AnalysisService:
                     )
                 if not translation.title.strip():
                     raise RuntimeError("Title translation returned a blank title")
+                return translation
+
+            translation, attempts, provider_error = self._call_provider(translate_once)
+            if provider_error is not None:
+                error_text = safe_provider_error(
+                    provider_error,
+                    provider=self._provider_name,
+                )
+                response_id = provider_response_id(provider_error)
+                self.repository.fail_title_translation(
+                    news_id,
+                    error=error_text,
+                    model=self._model_name,
+                    response_id=response_id,
+                )
+                failed += 1
+                failure_details.append(
+                    ProviderFailure(
+                        stage="title_translation",
+                        news_id=news_id,
+                        attempts=attempts,
+                        error=error_text,
+                        response_id=response_id,
+                    )
+                )
+                if is_provider_access_error(provider_error):
+                    return TitleTranslationRun(
+                        queued=len(rows),
+                        translated=translated,
+                        failed=failed,
+                        provider_access_failed=True,
+                        fatal_error=error_text,
+                        failures=tuple(failure_details),
+                    )
+                continue
+            if translation is None:
+                raise AssertionError("provider call succeeded without a translation")
+            try:
                 self.repository.complete_title_translation(
                     news_id,
                     title=translation.title.strip(),
@@ -550,18 +726,20 @@ class AnalysisService:
                     response_id=provider_response_id(error),
                 )
                 failed += 1
-                if is_provider_access_error(error):
-                    return TitleTranslationRun(
-                        queued=len(rows),
-                        translated=translated,
-                        failed=failed,
-                        provider_access_failed=True,
-                        fatal_error=error_text,
+                failure_details.append(
+                    ProviderFailure(
+                        stage="title_persistence",
+                        news_id=news_id,
+                        attempts=attempts,
+                        error=error_text,
+                        response_id=provider_response_id(error),
                     )
+                )
         return TitleTranslationRun(
             queued=len(rows),
             translated=translated,
             failed=failed,
+            failures=tuple(failure_details),
         )
 
 
@@ -579,6 +757,24 @@ def provider_status_code(error: Exception) -> int | None:
 
 def is_provider_access_error(error: Exception) -> bool:
     return provider_status_code(error) in {401, 403}
+
+
+def is_retryable_provider_error(error: Exception) -> bool:
+    """Retry transient transport/server failures and invalid model output."""
+
+    if is_provider_access_error(error) or isinstance(error, ProviderConfigurationError):
+        return False
+    status = provider_status_code(error)
+    if status is not None:
+        return status in {408, 409, 425, 429} or status >= 500
+    if isinstance(error, (ProviderResponseError, TimeoutError, ConnectionError)):
+        return True
+    return type(error).__name__ in {
+        "APIConnectionError",
+        "APITimeoutError",
+        "InternalServerError",
+        "RateLimitError",
+    }
 
 
 def provider_response_id(error: Exception) -> str | None:
@@ -606,6 +802,8 @@ def safe_provider_error(error: Exception, *, provider: str) -> str:
         return f"{provider} 授权失败（HTTP 403）：请检查账户和模型访问权限。"
     if isinstance(error, ProviderConfigurationError):
         return str(error)[:1000]
+    if isinstance(error, ProviderResponseError):
+        return f"{provider} 响应无效（{error.reason}）。"
     if status is not None:
         return f"{provider} 请求失败（HTTP {status}，{type(error).__name__}）。"
     return f"{provider} 请求失败（{type(error).__name__}）。"

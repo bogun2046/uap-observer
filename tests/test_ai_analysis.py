@@ -15,7 +15,9 @@ from uap_observer.ai_analysis import (
     ArticleAnalysis,
     DeepSeekAnalyzer,
     OpenAIAnalyzer,
+    ProviderFailure,
     ProviderHealth,
+    ProviderResponseError,
     TitleTranslation,
     TitleTranslationResult,
     is_provider_access_error,
@@ -222,6 +224,50 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(row["analysis_attempts"], 2)
         self.assertIsNone(row["analysis_error"])
 
+    def test_article_analysis_retries_transient_server_failure(self) -> None:
+        news_id = self.add_extracted_news("transient-retry")
+        delays: list[float] = []
+
+        class EventuallySuccessfulAnalyzer:
+            provider = "DeepSeek"
+            model = "deepseek-v4-flash"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def analyze(self, task: object) -> AnalyzerResult:
+                self.calls += 1
+                if self.calls < 3:
+                    raise FakeProviderError(
+                        "temporary upstream payload",
+                        status_code=500,
+                    )
+                return AnalyzerResult(
+                    analysis=valid_analysis(),
+                    model=self.model,
+                    response_id="resp_after_retry",
+                )
+
+        analyzer = EventuallySuccessfulAnalyzer()
+        result = AnalysisService(
+            self.repository,
+            analyzer,
+            retry_delay_seconds=0.25,
+            sleep=delays.append,
+        ).run(limit=1, title_translation_limit=0)
+
+        self.assertEqual(result.completed, 1)
+        self.assertEqual(result.failed, 0)
+        self.assertEqual(analyzer.calls, 3)
+        self.assertEqual(delays, [0.25, 0.5])
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT processing_status, analysis_response_id FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["processing_status"], "completed")
+        self.assertEqual(row["analysis_response_id"], "resp_after_retry")
+
     def test_service_recovers_stale_claim(self) -> None:
         news_id = self.add_extracted_news("stale")
         self.assertTrue(self.repository.claim_analysis_task(news_id))
@@ -358,7 +404,11 @@ class AnalysisTests(unittest.TestCase):
             provider = "DeepSeek"
             model = "deepseek-v4-flash"
 
+            def __init__(self) -> None:
+                self.translation_calls = 0
+
             def translate_title(self, original_title: str, source: str) -> str:
+                self.translation_calls += 1
                 raise FakeProviderError(
                     "provider payload included sk-secret-tail and article body",
                     status_code=500,
@@ -368,14 +418,32 @@ class AnalysisTests(unittest.TestCase):
             def analyze(self, task: object) -> AnalyzerResult:
                 raise AssertionError("article analysis should not be queued")
 
-        result = AnalysisService(self.repository, FailingTranslator()).run(
+        analyzer = FailingTranslator()
+        result = AnalysisService(
+            self.repository,
+            analyzer,
+            sleep=lambda _: None,
+        ).run(
             limit=1,
             title_translation_limit=1,
         )
 
+        self.assertEqual(analyzer.translation_calls, 3)
         self.assertEqual(result.titles_translated, 0)
         self.assertEqual(result.titles_failed, 1)
         self.assertFalse(result.provider_access_failed)
+        self.assertEqual(
+            result.failures,
+            (
+                ProviderFailure(
+                    stage="title_translation",
+                    news_id=news_id,
+                    attempts=3,
+                    error="DeepSeek 请求失败（HTTP 500，FakeProviderError）。",
+                    response_id="req_translation_failure",
+                ),
+            ),
+        )
         with self.database.connect() as connection:
             row = connection.execute(
                 """
@@ -398,6 +466,61 @@ class AnalysisTests(unittest.TestCase):
         self.assertIsNotNone(row["title_translation_last_attempt_at"])
         self.assertNotIn("sk-secret-tail", row["title_translation_error"])
         self.assertNotIn("article body", row["title_translation_error"])
+
+    def test_title_translation_retries_then_succeeds(self) -> None:
+        news_id = self.repository.add_news(
+            News(
+                title="English title to retry",
+                original_title="English title to retry",
+                source="YouTube UAP Channel Watchlist",
+                source_url="https://youtube.example/retry-success",
+                canonical_url="https://youtube.example/retry-success",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        delays: list[float] = []
+
+        class EventuallySuccessfulTranslator:
+            provider = "DeepSeek"
+            model = "deepseek-v4-flash"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def translate_title(self, original_title: str, source: str) -> str:
+                self.calls += 1
+                if self.calls < 3:
+                    raise ProviderResponseError(
+                        "title_invalid_json",
+                        response_id=f"resp_invalid_{self.calls}",
+                    )
+                return "重试后成功的中文标题"
+
+            def analyze(self, task: object) -> AnalyzerResult:
+                raise AssertionError("article analysis should not be queued")
+
+        analyzer = EventuallySuccessfulTranslator()
+        result = AnalysisService(
+            self.repository,
+            analyzer,
+            retry_delay_seconds=0.5,
+            sleep=delays.append,
+        ).run(limit=1, title_translation_limit=1)
+
+        self.assertEqual(result.titles_translated, 1)
+        self.assertEqual(result.titles_failed, 0)
+        self.assertEqual(result.failures, ())
+        self.assertEqual(analyzer.calls, 3)
+        self.assertEqual(delays, [0.5, 1.0])
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT title, title_translation_status FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["title"], "重试后成功的中文标题")
+        self.assertEqual(row["title_translation_status"], "completed")
 
     def test_title_authentication_failure_stops_all_later_calls(self) -> None:
         first_id = self.repository.add_news(
@@ -571,6 +694,32 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(calls[0]["response_format"], {"type": "json_object"})
         self.assertEqual(json.loads(calls[0]["messages"][1]["content"])["source"], "Test Agency")
         self.assertEqual(news_id, self.repository.get_analysis_tasks(limit=1)[0].news_id)
+
+    def test_deepseek_invalid_json_is_safe_and_keeps_response_id(self) -> None:
+        response = SimpleNamespace(
+            id="deepseek_invalid_json",
+            model="deepseek-v4-flash",
+            choices=[SimpleNamespace(message=SimpleNamespace(content="not-json"))],
+        )
+
+        class Completions:
+            def create(self, **kwargs: object) -> object:
+                return response
+
+        analyzer = DeepSeekAnalyzer(
+            model="deepseek-v4-flash",
+            api_key="test-key",
+            client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
+        )
+
+        with self.assertRaises(ProviderResponseError) as context:
+            analyzer.translate_title("Sensitive source title", "Sensitive source")
+
+        self.assertEqual(context.exception.reason, "title_invalid_json")
+        self.assertEqual(context.exception.response_id, "deepseek_invalid_json")
+        diagnostic = safe_provider_error(context.exception, provider="DeepSeek")
+        self.assertEqual(diagnostic, "DeepSeek 响应无效（title_invalid_json）。")
+        self.assertNotIn("Sensitive", diagnostic)
 
     def test_deepseek_title_translation_returns_audit_metadata(self) -> None:
         response = SimpleNamespace(
