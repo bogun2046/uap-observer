@@ -3,25 +3,18 @@
 from __future__ import annotations
 
 import html
-import http.client
 import re
-import shutil
-import subprocess
-import time
-import urllib.error
-import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Protocol
 
+from uap_observer.http_fetch import HttpFetcher, cooldown_seconds_for_error
 from uap_observer.models import News, Source
 from uap_observer.repositories import Repository
 from uap_observer.url_utils import normalize_url
 
-
-USER_AGENT = "UAPObserver/0.1 (+https://github.com/; public-source research)"
 TAG_RE = re.compile(r"<[^>]+>")
 
 
@@ -71,9 +64,11 @@ class HttpFeedFetcher:
         max_retries: int = 2,
         allow_curl_fallback: bool = True,
     ) -> None:
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.allow_curl_fallback = allow_curl_fallback
+        self._fetcher = HttpFetcher(
+            timeout=timeout,
+            max_retries=max_retries,
+            allow_curl_fallback=allow_curl_fallback,
+        )
 
     def fetch(
         self,
@@ -82,125 +77,19 @@ class HttpFeedFetcher:
         etag: str | None,
         last_modified: str | None,
     ) -> FeedResponse:
-        headers = {
-            "User-Agent": USER_AGENT,
-            "Accept": "application/rss+xml, application/atom+xml",
-            "Accept-Encoding": "identity",
-            "Connection": "close",
-        }
-        if etag:
-            headers["If-None-Match"] = etag
-        if last_modified:
-            headers["If-Modified-Since"] = last_modified
-        last_error: Exception | None = None
-        for attempt in range(self.max_retries + 1):
-            request = urllib.request.Request(url, headers=headers)
-            try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                    return FeedResponse(
-                        status=response.status,
-                        body=response.read(),
-                        etag=response.headers.get("ETag"),
-                        last_modified=response.headers.get("Last-Modified"),
-                    )
-            except urllib.error.HTTPError as error:
-                if error.code == 304:
-                    return FeedResponse(
-                        status=304,
-                        body=b"",
-                        etag=error.headers.get("ETag"),
-                        last_modified=error.headers.get("Last-Modified"),
-                    )
-                if error.code not in {429, 500, 502, 503, 504} or attempt == self.max_retries:
-                    raise
-            except (
-                http.client.IncompleteRead,
-                http.client.RemoteDisconnected,
-                TimeoutError,
-                urllib.error.URLError,
-            ) as error:
-                last_error = error
-                if attempt == self.max_retries:
-                    break
-            time.sleep(0.5 * (2**attempt))
-        if self.allow_curl_fallback and shutil.which("curl"):
-            return self._fetch_with_curl(
-                url,
-                etag=etag,
-                last_modified=last_modified,
-            )
-        if last_error:
-            raise last_error
-        raise RuntimeError("Feed retry loop exited unexpectedly")
-
-    def _fetch_with_curl(
-        self,
-        url: str,
-        *,
-        etag: str | None,
-        last_modified: str | None,
-    ) -> FeedResponse:
-        command = [
-            "curl",
-            "--silent",
-            "--show-error",
-            "--location",
-            "--max-time",
-            str(max(1, int(self.timeout))),
-            "--header",
-            f"User-Agent: {USER_AGENT}",
-            "--header",
-            "Accept: application/rss+xml, application/atom+xml",
-            "--header",
-            "Accept-Encoding: identity",
-            "--dump-header",
-            "/dev/stderr",
-            "--write-out",
-            "\nUAP_HTTP_STATUS:%{http_code}\n",
-        ]
-        if etag:
-            command.extend(("--header", f"If-None-Match: {etag}"))
-        if last_modified:
-            command.extend(("--header", f"If-Modified-Since: {last_modified}"))
-        command.append(url)
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            check=False,
-            timeout=self.timeout + 5,
+        response = self._fetcher.fetch(
+            url,
+            accept="application/rss+xml, application/atom+xml",
+            etag=etag,
+            last_modified=last_modified,
+            accept_partial=False,
         )
-        stderr = completed.stderr.decode("utf-8", errors="replace")
-        stdout = completed.stdout
-        stdout_text = stdout.decode("utf-8", errors="replace")
-        status_source = f"{stderr}\n{stdout_text}"
-        status_matches = re.findall(r"UAP_HTTP_STATUS:(\d{3})", status_source)
-        if completed.returncode != 0 or not status_matches:
-            detail = stderr.strip() or f"curl exited with {completed.returncode}"
-            raise RuntimeError(f"curl feed fallback failed: {detail}")
-        status = int(status_matches[-1])
-        if status == 304:
-            return FeedResponse(status=304, body=b"", etag=etag, last_modified=last_modified)
-        if status >= 400:
-            raise RuntimeError(f"curl feed fallback returned HTTP {status}")
-
-        def last_header(name: str) -> str | None:
-            matches = re.findall(rf"(?im)^{re.escape(name)}:\s*(.+?)\r?$", stderr)
-            return matches[-1].strip() if matches else None
-
         return FeedResponse(
-            status=status,
-            body=_remove_curl_status_marker(stdout),
-            etag=last_header("etag"),
-            last_modified=last_header("last-modified"),
+            status=response.status,
+            body=response.body,
+            etag=response.etag,
+            last_modified=response.last_modified,
         )
-
-
-def _remove_curl_status_marker(body: bytes) -> bytes:
-    marker = b"\nUAP_HTTP_STATUS:"
-    marker_start = body.rfind(marker)
-    if marker_start == -1:
-        return body
-    return body[:marker_start]
 
 
 def _local_name(tag: str) -> str:
@@ -298,6 +187,7 @@ class RssCollector:
     def collect(self, source: Source, *, limit: int | None = None) -> CollectionResult:
         if source.id is None or not source.feed_url:
             raise ValueError("Persisted RSS source with feed_url is required")
+        run_id = self.repository.start_source_run(source.id)
         try:
             response = self.fetcher.fetch(
                 source.feed_url,
@@ -309,6 +199,11 @@ class RssCollector:
                     source.id,
                     etag=response.etag,
                     last_modified=response.last_modified,
+                )
+                self.repository.finish_source_run(
+                    run_id,
+                    status="not_modified",
+                    http_status=304,
                 )
                 return CollectionResult(source_slug=source.slug, not_modified=True)
 
@@ -357,6 +252,17 @@ class RssCollector:
                 etag=response.etag,
                 last_modified=response.last_modified,
             )
+            self.repository.finish_source_run(
+                run_id,
+                status="success" if entries else "empty",
+                http_status=response.status,
+                fetched_count=len(entries),
+                parsed_count=len(entries),
+                inserted_count=inserted,
+                duplicate_count=duplicates,
+                filtered_count=filtered,
+                invalid_count=invalid,
+            )
             return CollectionResult(
                 source_slug=source.slug,
                 fetched=len(entries),
@@ -366,5 +272,16 @@ class RssCollector:
                 invalid=invalid,
             )
         except Exception as error:
-            self.repository.record_source_fetch(source.id, error=str(error)[:1000])
+            message = str(error)[:1000]
+            self.repository.record_source_fetch(
+                source.id,
+                error=message,
+                cooldown_seconds=cooldown_seconds_for_error(error),
+            )
+            self.repository.finish_source_run(
+                run_id,
+                status="failed",
+                http_status=getattr(error, "status", None),
+                error=message,
+            )
             raise

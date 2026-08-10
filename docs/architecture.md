@@ -127,6 +127,11 @@ response ID, model, confidence, risk flags, and canonical JSON audit fields.
 Claims are compare-and-update claimed, failed items require explicit retry, and
 stale processing claims are recovered after one hour.
 
+Short-title translation has a separate audit state with status, attempt count,
+sanitized error, model, response ID, and last-attempt time. Provider errors are
+never persisted verbatim. Authentication or authorization failure stops the
+remaining title and article calls and causes the CLI to return a nonzero status.
+
 `ArticleAnalysis` is a strict Pydantic schema. Unknown fields, unsupported
 controlled values, out-of-range confidence, empty list entries, and duplicate
 list entries are rejected before persistence. The model produces:
@@ -148,6 +153,10 @@ helper, disables response storage, and reads credentials only from
 reasoning effort, while environment and CLI overrides support controlled model
 migrations.
 
+For DeepSeek, a single `/models` health request validates the API key,
+connectivity, and configured model before the scheduled batch begins. A failed
+health check blocks the analysis step before any title or article call.
+
 ### Markdown publishing
 
 `MarkdownPublisher` reads source-filtered news, including queued records that
@@ -161,9 +170,10 @@ directory as the GitHub Pages artifact.
 
 ### Scheduled execution
 
-`.github/workflows/daily-uap.yml` runs at 09:15 Asia/Shanghai and supports a
+`.github/workflows/daily-uap.yml` starts at 06:30 Asia/Shanghai and supports a
 manual dispatch. It initializes or migrates SQLite, syncs sources, collects RSS,
-extracts articles, conditionally runs AI analysis when `OPENAI_API_KEY` exists,
+extracts articles, and conditionally runs AI analysis when the selected
+provider's API key exists,
 publishes Markdown, checkpoints the WAL, commits the database, and deploys the
 generated directory to GitHub Pages. The committed SQLite file is a deliberate
 Phase 1 persistence bridge; Supabase PostgreSQL should replace it before the

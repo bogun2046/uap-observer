@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -162,6 +163,63 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertEqual(row["extraction_status"], "completed")
         self.assertEqual(row["extracted_by"], "rss-description-fallback")
         self.assertIn("unidentified aerial observation", row["extracted_content"])
+
+    def test_youtube_description_is_used_without_fetching_dynamic_video_page(self) -> None:
+        description = "A public video description provides source context. " * 8
+        news_id = self.repository.add_news(
+            News(
+                title="YouTube UAP report",
+                original_title="YouTube UAP report",
+                source="YouTube UAP Channel Watchlist",
+                source_url="https://www.youtube.com/watch?v=video-1",
+                canonical_url="https://www.youtube.com/watch?v=video-1",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content=json.dumps({"description": description}),
+            )
+        )
+
+        result = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({}),
+        ).run(limit=10)
+
+        self.assertEqual(result.completed, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, extracted_by, extracted_content FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "completed")
+        self.assertEqual(row["extracted_by"], "youtube-description-fallback")
+        self.assertEqual(row["extracted_content"], " ".join(description.split()))
+
+    def test_youtube_without_description_reports_caption_requirement(self) -> None:
+        news_id = self.repository.add_news(
+            News(
+                title="YouTube video without description",
+                original_title="YouTube video without description",
+                source="YouTube UAP Channel Watchlist",
+                source_url="https://www.youtube.com/watch?v=video-2",
+                canonical_url="https://www.youtube.com/watch?v=video-2",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content=json.dumps({"description": ""}),
+            )
+        )
+
+        result = ArticleExtractionService(self.repository, MappingExtractor({})).run(limit=10)
+
+        self.assertEqual(result.failed, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, extraction_error FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "failed")
+        self.assertIn("captions are required", row["extraction_error"])
 
     def test_claim_prevents_two_workers_from_processing_same_article(self) -> None:
         news_id = self.add_news("claim")

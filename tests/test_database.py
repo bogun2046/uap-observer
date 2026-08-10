@@ -46,6 +46,10 @@ class DatabaseTests(unittest.TestCase):
                 "008_youtube_priority.sql",
                 "009_youtube_transcripts.sql",
                 "010_graph.sql",
+                "011_source_runs.sql",
+                "012_source_retry_cooldown.sql",
+                "013_source_fallback_urls.sql",
+                "014_ai_translation_tracking.sql",
             ],
         )
         self.assertEqual(self.database.initialize(), [])
@@ -61,7 +65,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
         self.assertEqual(
             self.database.status().schema_version,
-            "010_graph.sql",
+            "014_ai_translation_tracking.sql",
         )
         self.assertEqual(
             self.database.status().row_counts,
@@ -168,6 +172,40 @@ class DatabaseTests(unittest.TestCase):
             )
         )
         self.assertEqual(repository.get_pipeline_counts(), {"pending": 1})
+
+    def test_title_translation_tracking_defaults_are_migrated(self) -> None:
+        self.database.initialize()
+        repository = Repository(self.database)
+        news_id = repository.add_news(
+            News(
+                title="English title",
+                original_title="English title",
+                source="Test",
+                source_url="https://example.test/title-tracking",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT title_translation_status, title_translation_attempts,
+                       title_translation_error, title_translation_model,
+                       title_translation_response_id,
+                       title_translation_last_attempt_at
+                FROM news WHERE id = ?
+                """,
+                (news_id,),
+            ).fetchone()
+
+        self.assertEqual(row["title_translation_status"], "not_started")
+        self.assertEqual(row["title_translation_attempts"], 0)
+        self.assertIsNone(row["title_translation_error"])
+        self.assertIsNone(row["title_translation_model"])
+        self.assertIsNone(row["title_translation_response_id"])
+        self.assertIsNone(row["title_translation_last_attempt_at"])
 
 
 if __name__ == "__main__":

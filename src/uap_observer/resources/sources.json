@@ -12,8 +12,8 @@
       "default_fact_status": "source_reported",
       "include_keywords": ["uap", "ufo", "unidentified aerial phenomena", "pilot", "radar"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "x-uap",
@@ -27,8 +27,8 @@
       "default_fact_status": "source_reported",
       "include_keywords": ["uap", "ufo", "unidentified anomalous phenomena"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "nasa-recent",
@@ -51,8 +51,8 @@
         "universal adversarial perturbation",
         "adversarial attack"
       ],
-      "enabled": true
-      ,"refresh_interval_hours": 48
+      "enabled": true,
+      "refresh_interval_hours": 48
     },
     {
       "slug": "nara-uap",
@@ -72,8 +72,8 @@
         "ufo records"
       ],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 72
+      "enabled": true,
+      "refresh_interval_hours": 72
     },
     {
       "slug": "geipan-official",
@@ -88,8 +88,8 @@
       "default_fact_status": "official_record",
       "include_keywords": [],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 72
+      "enabled": true,
+      "refresh_interval_hours": 72
     },
     {
       "slug": "the-debrief",
@@ -113,8 +113,8 @@
         "universal adversarial perturbation",
         "adversarial attack"
       ],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "metabunk-ufo",
@@ -129,8 +129,8 @@
       "default_fact_status": "disputed",
       "include_keywords": [],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 48
+      "enabled": true,
+      "refresh_interval_hours": 48
     },
     {
       "slug": "reddit-ufos",
@@ -154,8 +154,8 @@
         "universal adversarial perturbation",
         "adversarial attack"
       ],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "reddit-aliens",
@@ -183,8 +183,8 @@
         "universal adversarial perturbation",
         "adversarial attack"
       ],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "reddit-high-strangeness",
@@ -210,14 +210,17 @@
         "universal adversarial perturbation",
         "adversarial attack"
       ],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "aaro-press-products",
       "name": "AARO Congressional and Press Products",
       "source_type": "web_page",
-      "homepage_url": "https://www.aaro.mil/Congressional-Press-Products/",
+      "homepage_url": "https://www.aaro.mil/Next-AARO-Home-redesign/Next-Parent/AARO-Congressional-Tab-DT/",
+      "fallback_urls": [
+        "https://www.dvidshub.net/search/?filter%5Btype%5D=video&filter%5Bunit%5D=AARO&sort=date&page=2"
+      ],
       "country": "USA",
       "language": "en",
       "default_category": "official_report",
@@ -229,14 +232,17 @@
         "aaro"
       ],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "aaro-case-resolutions",
       "name": "AARO UAP Case Resolution Reports",
       "source_type": "web_page",
-      "homepage_url": "https://www.aaro.mil/UAP-Cases/UAP-Case-Resolution-Reports/",
+      "homepage_url": "https://www.aaro.mil/Next-AARO-Home-redesign/Next-Parent/Next-UAP-Case-RR-Data-Table/",
+      "fallback_urls": [
+        "https://www.dvidshub.net/search/?filter%5Btype%5D=video&filter%5Bunit%5D=AARO&sort=date&page=1"
+      ],
       "country": "USA",
       "language": "en",
       "default_category": "historical_event",
@@ -248,14 +254,17 @@
         "unidentified"
       ],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "aaro-official-imagery",
       "name": "AARO Official UAP Imagery",
       "source_type": "web_page",
-      "homepage_url": "https://www.aaro.mil/UAP-Cases/Official-UAP-Imagery/",
+      "homepage_url": "https://www.aaro.mil/Next-AARO-Home-redesign/Next-Parent/Next-AARO-UAP-Imagery-Acc-Table/",
+      "fallback_urls": [
+        "https://www.dvidshub.net/search/?filter%5Btype%5D=video&filter%5Bunit%5D=AARO&sort=date&page=3"
+      ],
       "country": "USA",
       "language": "en",
       "default_category": "government_document",
@@ -268,14 +277,18 @@
         "unresolved"
       ],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "aaro-efoia",
       "name": "AARO EFOIA Reading Room",
       "source_type": "web_page",
       "homepage_url": "https://www.aaro.mil/EFOIA-Reading-Room/",
+      "fallback_urls": [
+        "https://www.esd.whs.mil/FOIA/Reading-Room/Reading-Room-List_2/UFOsandUAPs/",
+        "https://www.archives.gov/research/topics/uaps"
+      ],
       "country": "USA",
       "language": "en",
       "default_category": "government_document",
@@ -287,8 +300,8 @@
         "aaro"
       ],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "brazil-national-archive-ovni",
@@ -302,8 +315,8 @@
       "default_fact_status": "official_record",
       "include_keywords": ["ovni", "ufo", "sioani", "comando da aeronáutica"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 72
+      "enabled": true,
+      "refresh_interval_hours": 72
     },
     {
       "slug": "chile-sefaa",
@@ -315,16 +328,16 @@
       "default_category": "official_report",
       "default_credibility": 5,
       "default_fact_status": "official_record",
-      "include_keywords": ["fenómenos aéreos anómalos", "ovni", "uap", "cefaa"],
+      "include_keywords": ["fenómenos aéreos anómalos", "ovni", "uap", "cefaa", "casos"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 72
+      "enabled": true,
+      "refresh_interval_hours": 72
     },
     {
       "slug": "australia-national-archives-ufo",
       "name": "Australia National Archives UFO Records",
       "source_type": "web_page",
-      "homepage_url": "https://www.naa.gov.au/",
+      "homepage_url": "https://www.naa.gov.au/students-and-teachers/student-research-portal/learning-resource-themes/war/defence-equipment-and-weapons/ufo-sightings-weapons-testing-site-woomera",
       "country": "Australia",
       "language": "en",
       "default_category": "government_document",
@@ -332,44 +345,44 @@
       "default_fact_status": "official_record",
       "include_keywords": ["ufo", "unidentified flying object", "flying saucer"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 168
+      "enabled": true,
+      "refresh_interval_hours": 168
     },
     {
       "slug": "mexico-sedena-transparency",
       "name": "Mexico SEDENA Transparency Records",
       "source_type": "web_page",
-      "homepage_url": "https://www.sedena.gob.mx/leytrans/petic/2006/enero/peticene.htm",
+      "homepage_url": "https://www.sedena.gob.mx/leytrans/petic/2003/nov/peticnov.htm",
       "country": "Mexico",
       "language": "es",
       "default_category": "government_document",
       "default_credibility": 4,
       "default_fact_status": "official_record",
-      "include_keywords": ["ovni", "ufo", "sedena", "fuerza aérea", "transparencia"],
+      "include_keywords": ["ovni", "ufo"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 168
+      "enabled": true,
+      "refresh_interval_hours": 168
     },
     {
       "slug": "nasa-asrs",
       "name": "NASA Aviation Safety Reporting System",
       "source_type": "web_page",
-      "homepage_url": "https://asrs.arc.nasa.gov/",
+      "homepage_url": "https://asrs.arc.nasa.gov/search/reportsets.html",
       "country": "USA",
       "language": "en",
       "default_category": "scientific_research",
       "default_credibility": 5,
       "default_fact_status": "official_record",
-      "include_keywords": ["unidentified", "object", "drone", "light", "pilot"],
+      "include_keywords": ["unmanned aircraft systems", "ASRS Database Report Sets"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 72
+      "enabled": true,
+      "refresh_interval_hours": 72
     },
     {
       "slug": "noaa-space-weather",
       "name": "NOAA Space Weather Products",
       "source_type": "web_page",
-      "homepage_url": "https://www.swpc.noaa.gov/news",
+      "homepage_url": "https://www.spaceweather.gov/news-archive?page=1",
       "country": "USA",
       "language": "en",
       "default_category": "scientific_research",
@@ -377,8 +390,8 @@
       "default_fact_status": "official_record",
       "include_keywords": ["solar", "aurora", "geomagnetic", "space weather"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     },
     {
       "slug": "imo-fireball-events",
@@ -392,8 +405,8 @@
       "default_fact_status": "corroborated",
       "include_keywords": ["fireball", "meteor", "bolide"],
       "exclude_keywords": [],
-      "enabled": true
-      ,"refresh_interval_hours": 24
+      "enabled": true,
+      "refresh_interval_hours": 24
     }
   ]
 }

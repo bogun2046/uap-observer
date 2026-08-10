@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 import os
-from datetime import datetime, timedelta, timezone
 from collections.abc import Sequence
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from uap_observer.ai_analysis import AnalysisService, DeepSeekAnalyzer, OpenAIAnalyzer
+from uap_observer.ai_analysis import (
+    AnalysisService,
+    DeepSeekAnalyzer,
+    OpenAIAnalyzer,
+    safe_provider_error,
+)
 from uap_observer.article_extraction import ArticleExtractionService
 from uap_observer.collectors.rss import RssCollector
 from uap_observer.collectors.web_pages import AaroCaseCollector, AaroCollector
@@ -39,6 +44,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("db-status", help="Show migration and row-count status.")
     subparsers.add_parser("source-status", help="Show source enablement and fetch health.")
     subparsers.add_parser("analysis-status", help="Show AI queue and API key status.")
+    deepseek_health_parser = subparsers.add_parser(
+        "deepseek-health-check",
+        help="Validate the DeepSeek API key, connection, and configured model.",
+    )
+    deepseek_health_parser.add_argument(
+        "--model",
+        help="DeepSeek model override (defaults to DEEPSEEK_MODEL).",
+    )
 
     sync_parser = subparsers.add_parser(
         "sync-sources",
@@ -160,10 +173,38 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Database is current: {database.path}")
         return 0
 
+    if args.command == "deepseek-health-check":
+        model = args.model or settings.deepseek_model
+        analyzer = DeepSeekAnalyzer(
+            model=model,
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            reasoning_effort=settings.reasoning_effort,
+        )
+        try:
+            health = analyzer.health_check()
+        except Exception as error:  # noqa: BLE001 - CLI boundary with sanitized output
+            print(
+                "DeepSeek health check failed: "
+                f"{safe_provider_error(error, provider='DeepSeek')}"
+            )
+            return 1
+        print(
+            "DeepSeek health check OK; "
+            f"model={health.model} available_models={health.available_models}"
+        )
+        return 0
+
     database.initialize()
     repository = Repository(database)
 
     def source_due(source) -> bool:
+        if source.next_retry_at:
+            try:
+                retry_at = datetime.fromisoformat(source.next_retry_at.replace("Z", "+00:00"))
+            except ValueError:
+                retry_at = None
+            if retry_at and datetime.now(timezone.utc) < retry_at:
+                return False
         if not source.last_success_at:
             return True
         try:
@@ -177,16 +218,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not sources:
             print("No sources configured.")
             return 0
+        latest_runs = repository.get_latest_source_runs()
         for source in sources:
             state = "enabled" if source.enabled else "disabled"
             last_fetch = source.last_fetched_at or "never"
             last_success = source.last_success_at or "never"
             error = source.last_error or "none"
-            print(
+            line = (
                 f"{source.slug}: {state} type={source.source_type.value} "
                 f"last_fetch={last_fetch} last_success={last_success} error={error}"
                 f" refresh_interval={source.refresh_interval_hours}h"
+                f" next_retry={source.next_retry_at or 'none'}"
+                f" consecutive_failures={source.consecutive_failures}"
             )
+            run = latest_runs.get(int(source.id)) if source.id is not None else None
+            if run:
+                line += (
+                    f" last_run={run['status']}"
+                    f" fetched={run['fetched_count']}"
+                    f" parsed={run['parsed_count']}"
+                    f" inserted={run['inserted_count']}"
+                    f" duplicates={run['duplicate_count']}"
+                    f" filtered={run['filtered_count']}"
+                    f" invalid={run['invalid_count']}"
+                )
+                if run.get("error"):
+                    line += f" run_error={run['error']}"
+            else:
+                line += " last_run=never"
+            print(line)
         return 0
 
     if args.command == "analysis-status":
@@ -222,7 +282,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         failed_sources = 0
         for source in sources:
             if not args.force and not source_due(source):
-                print(f"{source.slug}: skipped (next refresh in {source.refresh_interval_hours}h interval)")
+                if source.next_retry_at:
+                    print(f"{source.slug}: skipped (cooldown until {source.next_retry_at})")
+                else:
+                    print(f"{source.slug}: skipped (next refresh in {source.refresh_interval_hours}h interval)")
                 continue
             try:
                 result = collector.collect(source, limit=args.limit)
@@ -257,14 +320,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not sources:
             raise SystemExit(f"Enabled web-page source not found: {args.source}")
         if not args.force and not source_due(sources[0]):
-            print(f"{args.source}: skipped (next refresh in {sources[0].refresh_interval_hours}h interval)")
+            if sources[0].next_retry_at:
+                print(f"{args.source}: skipped (cooldown until {sources[0].next_retry_at})")
+            else:
+                print(f"{args.source}: skipped (next refresh in {sources[0].refresh_interval_hours}h interval)")
             return 0
         collector = (
             AaroCaseCollector(repository)
             if args.source == "aaro-case-resolutions"
             else AaroCollector(repository)
         )
-        result = collector.collect(sources[0], limit=args.limit)
+        try:
+            result = collector.collect(sources[0], limit=args.limit)
+        except Exception as error:  # noqa: BLE001 - CLI boundary for persisted collector failures
+            # The collector has already persisted the failed source run. Keep
+            # scheduled/manual collection output concise and actionable.
+            print(f"{args.source}: collection failed: {type(error).__name__}: {error}")
+            return 1
         if result.not_modified:
             print(f"{args.source}: not modified")
         else:
@@ -338,6 +410,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "analyze-articles":
         if args.limit < 1:
             raise SystemExit("--limit must be at least 1")
+        if args.title_translation_limit < 0:
+            raise SystemExit("--title-translation-limit must be zero or greater")
         model = args.model or (
             settings.deepseek_model
             if settings.ai_provider == "deepseek"
@@ -361,8 +435,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"AI analysis complete; stale_recovered={run.stale_recovered} "
             f"queued={run.queued} claimed={run.claimed} "
             f"completed={run.completed} failed={run.failed} "
-            f"titles_translated={run.titles_translated}"
+            f"titles_translated={run.titles_translated} "
+            f"titles_failed={run.titles_failed}"
         )
+        if run.provider_access_failed:
+            print(f"AI analysis stopped: {run.fatal_error}")
+            return 1
         return 0
 
     if args.command == "publish-markdown":
