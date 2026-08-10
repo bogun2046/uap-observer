@@ -140,6 +140,46 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertEqual(row["extraction_status"], "completed")
         self.assertEqual(row["extraction_attempts"], 2)
 
+    def test_pending_tasks_are_prioritized_ahead_of_failed_retries(self) -> None:
+        failed_id = self.add_news("older-failed")
+        ArticleExtractionService(
+            self.repository,
+            MappingExtractor(
+                {"https://example.test/older-failed": RuntimeError("temporary failure")}
+            ),
+        ).run(limit=1)
+        pending_id = self.add_news("newer-pending")
+        service = ArticleExtractionService(
+            self.repository,
+            MappingExtractor(
+                {
+                    "https://example.test/older-failed": ExtractedArticle(
+                        content="Recovered older article. " * 20,
+                        extractor="fake/retry",
+                    ),
+                    "https://example.test/newer-pending": ExtractedArticle(
+                        content="New pending article content. " * 20,
+                        extractor="fake/pending",
+                    ),
+                }
+            ),
+        )
+
+        result = service.run(limit=1, retry_failed=True)
+
+        self.assertEqual(result.queued, 1)
+        self.assertEqual(result.completed, 1)
+        with self.database.connect() as connection:
+            rows = {
+                row["id"]: row["extraction_status"]
+                for row in connection.execute(
+                    "SELECT id, extraction_status FROM news WHERE id IN (?, ?)",
+                    (failed_id, pending_id),
+                )
+            }
+        self.assertEqual(rows[failed_id], "failed")
+        self.assertEqual(rows[pending_id], "completed")
+
     def test_failed_extraction_uses_rss_description_fallback(self) -> None:
         news_id = self.add_news(
             "rss-fallback",
