@@ -125,7 +125,12 @@ class Repository:
                     OR raw_content IS NOT NULL
                   )
                   AND COALESCE(canonical_url, source_url) IS NOT NULL
-                ORDER BY publish_date ASC, id ASC
+                ORDER BY CASE extraction_status
+                             WHEN 'pending' THEN 0
+                             ELSE 1
+                         END ASC,
+                         publish_date ASC,
+                         id ASC
                 LIMIT ?
                 """,
                 (*statuses, int(retry_blocked), limit),
