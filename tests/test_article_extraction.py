@@ -140,6 +140,50 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertEqual(row["extraction_status"], "completed")
         self.assertEqual(row["extraction_attempts"], 2)
 
+    def test_failed_tasks_stop_at_default_attempt_budget_unless_forced(self) -> None:
+        news_id = self.add_news("exhausted-retry")
+        failing = ArticleExtractionService(
+            self.repository,
+            MappingExtractor(
+                {"https://example.test/exhausted-retry": RuntimeError("still blocked")}
+            ),
+        )
+
+        failing.run(limit=10)
+        failing.run(limit=10, retry_failed=True)
+        failing.run(limit=10, retry_failed=True)
+        exhausted = failing.run(limit=10, retry_failed=True)
+
+        self.assertEqual(exhausted.queued, 0)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, extraction_attempts FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "failed")
+        self.assertEqual(row["extraction_attempts"], 3)
+
+        forced = ArticleExtractionService(
+            self.repository,
+            MappingExtractor(
+                {
+                    "https://example.test/exhausted-retry": ExtractedArticle(
+                        content="Recovered after an explicit operator retry. " * 20,
+                        extractor="fake/forced-retry",
+                    )
+                }
+            ),
+        ).run(limit=10, retry_failed=True, max_failed_attempts=None)
+
+        self.assertEqual(forced.completed, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, extraction_attempts FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "completed")
+        self.assertEqual(row["extraction_attempts"], 4)
+
     def test_pending_tasks_are_prioritized_ahead_of_failed_retries(self) -> None:
         failed_id = self.add_news("older-failed")
         ArticleExtractionService(

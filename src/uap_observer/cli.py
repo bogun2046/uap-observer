@@ -91,6 +91,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also retry extraction tasks previously blocked with HTTP 403.",
     )
+    extraction_parser.add_argument(
+        "--max-failed-attempts",
+        type=int,
+        default=3,
+        help="Maximum total attempts for automatically retried failed tasks (default: 3).",
+    )
+    extraction_parser.add_argument(
+        "--force-retry-exhausted",
+        action="store_true",
+        help="Ignore the failed-task attempt limit for this explicit recovery run.",
+    )
 
     analysis_parser = subparsers.add_parser(
         "analyze-articles",
@@ -394,10 +405,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "extract-articles":
         if args.limit < 1:
             raise SystemExit("--limit must be at least 1")
+        if args.max_failed_attempts < 1:
+            raise SystemExit("--max-failed-attempts must be at least 1")
+        if args.force_retry_exhausted and not args.retry_failed:
+            raise SystemExit("--force-retry-exhausted requires --retry-failed")
         run = ArticleExtractionService(repository).run(
             limit=args.limit,
             retry_failed=args.retry_failed,
             retry_blocked=args.retry_blocked,
+            max_failed_attempts=(
+                None if args.force_retry_exhausted else args.max_failed_attempts
+            ),
         )
         print(
             f"Article extraction complete; stale_recovered={run.stale_recovered} "

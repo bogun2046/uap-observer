@@ -122,7 +122,9 @@ jobs:
       - name: Extract article text
         continue-on-error: true
         # Extraction is intentionally bounded: each URL can take up to 30s.
-        run: uap-observer extract-articles --limit 40 --retry-failed
+        run: >-
+          uap-observer extract-articles --limit 40 --retry-failed
+          --max-failed-attempts 3
 
       - name: Check DeepSeek API health
         if: ${{ env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '' }}

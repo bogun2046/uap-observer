@@ -107,6 +107,7 @@ class Repository:
         limit: int,
         retry_failed: bool = False,
         retry_blocked: bool = False,
+        max_failed_attempts: int | None = 3,
     ) -> list[ArticleTask]:
         statuses = ("pending", "failed") if retry_failed else ("pending",)
         placeholders = ", ".join("?" for _ in statuses)
@@ -124,6 +125,11 @@ class Repository:
                     OR extraction_error NOT LIKE '%403%'
                     OR raw_content IS NOT NULL
                   )
+                  AND (
+                    extraction_status <> 'failed'
+                    OR ? IS NULL
+                    OR extraction_attempts < ?
+                  )
                   AND COALESCE(canonical_url, source_url) IS NOT NULL
                 ORDER BY CASE extraction_status
                              WHEN 'pending' THEN 0
@@ -133,7 +139,13 @@ class Repository:
                          id ASC
                 LIMIT ?
                 """,
-                (*statuses, int(retry_blocked), limit),
+                (
+                    *statuses,
+                    int(retry_blocked),
+                    max_failed_attempts,
+                    max_failed_attempts,
+                    limit,
+                ),
             ).fetchall()
         return [
             ArticleTask(
@@ -168,7 +180,13 @@ class Repository:
             )
         return cursor.rowcount
 
-    def claim_article_task(self, news_id: int, *, retry_failed: bool = False) -> bool:
+    def claim_article_task(
+        self,
+        news_id: int,
+        *,
+        retry_failed: bool = False,
+        max_failed_attempts: int | None = 3,
+    ) -> bool:
         statuses = ("pending", "failed") if retry_failed else ("pending",)
         placeholders = ", ".join("?" for _ in statuses)
         with self.database.connect() as connection:
@@ -181,8 +199,18 @@ class Repository:
                     extraction_error = NULL,
                     updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ? AND extraction_status IN ({placeholders})
+                  AND (
+                    extraction_status <> 'failed'
+                    OR ? IS NULL
+                    OR extraction_attempts < ?
+                  )
                 """,
-                (news_id, *statuses),
+                (
+                    news_id,
+                    *statuses,
+                    max_failed_attempts,
+                    max_failed_attempts,
+                ),
             )
         return cursor.rowcount == 1
 

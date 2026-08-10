@@ -50,10 +50,65 @@ class CliTests(unittest.TestCase):
             limit=2,
             retry_failed=False,
             retry_blocked=False,
+            max_failed_attempts=3,
         )
         self.assertIn("queued=2 claimed=2", output.getvalue())
         self.assertIn("completed=1 failed=0", output.getvalue())
         self.assertIn("skipped_duplicates=1", output.getvalue())
+
+    def test_extract_cli_can_force_retry_exhausted_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "test.db"
+            service = Mock()
+            service.run.return_value = ExtractionRun()
+
+            with patch(
+                "uap_observer.cli.ArticleExtractionService",
+                return_value=service,
+            ):
+                exit_code = main(
+                    [
+                        "--database",
+                        str(database_path),
+                        "extract-articles",
+                        "--retry-failed",
+                        "--force-retry-exhausted",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        service.run.assert_called_once_with(
+            limit=20,
+            retry_failed=True,
+            retry_blocked=False,
+            max_failed_attempts=None,
+        )
+
+    def test_extract_cli_rejects_force_without_retry_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "test.db"
+            with self.assertRaisesRegex(
+                SystemExit,
+                "--force-retry-exhausted requires --retry-failed",
+            ):
+                main(
+                    [
+                        "--database",
+                        str(database_path),
+                        "extract-articles",
+                        "--force-retry-exhausted",
+                    ]
+                )
+
+    def test_daily_workflow_caps_failed_extraction_retries(self) -> None:
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github"
+            / "workflows"
+            / "daily-uap.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("--max-failed-attempts 3", workflow)
 
     def test_deepseek_health_check_auth_failure_is_safe_and_nonzero(self) -> None:
         analyzer = Mock()
