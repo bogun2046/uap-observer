@@ -347,18 +347,23 @@ class ArticleExtractionService:
         limit: int,
         retry_failed: bool = False,
         retry_blocked: bool = False,
+        max_failed_attempts: int | None = 3,
     ) -> ExtractionRun:
+        if max_failed_attempts is not None and max_failed_attempts < 1:
+            raise ValueError("max_failed_attempts must be at least 1")
         stale_recovered = self.repository.reset_stale_article_tasks()
         tasks = self.repository.get_article_tasks(
             limit=limit,
             retry_failed=retry_failed,
             retry_blocked=retry_blocked,
+            max_failed_attempts=max_failed_attempts,
         )
         claimed = completed = failed = skipped = 0
         for task in tasks:
             if not self.repository.claim_article_task(
                 task.news_id,
                 retry_failed=retry_failed,
+                max_failed_attempts=max_failed_attempts,
             ):
                 continue
             claimed += 1

@@ -113,6 +113,7 @@ Article extraction requires the installed project environment:
 ```bash
 .venv/bin/uap-observer extract-articles --limit 20
 .venv/bin/uap-observer extract-articles --limit 20 --retry-failed
+.venv/bin/uap-observer extract-articles --limit 20 --retry-failed --force-retry-exhausted
 ```
 
 Accepted RSS items begin with `extraction_status=pending`. The extractor claims
@@ -120,6 +121,13 @@ one item at a time, stores cleaned text and metadata, calculates a SHA-256
 content hash, skips exact-content duplicates, and records bounded failure
 messages. Processing tasks left incomplete for more than one hour are recovered
 automatically.
+
+Failed extraction tasks are retried only with `--retry-failed` and stop being
+selected after three total attempts by default. Use `--max-failed-attempts` to
+set a different bounded budget. `--force-retry-exhausted` deliberately ignores
+that budget for one manual recovery run and requires `--retry-failed`; HTTP 403
+records remain excluded unless `--retry-blocked` is also supplied or stored
+fallback content is available.
 
 AI analysis requires a provider API key only when the queue contains extracted
 articles. Export it in the shell or a secret manager; do not put a real key in
