@@ -22,6 +22,15 @@ from uap_observer.repositories import Repository
 
 ANALYSIS_VERSION = "uap-analysis-v2"
 DEFAULT_MAX_CONTENT_CHARACTERS = 40_000
+DEEPSEEK_ARTICLE_MAX_TOKENS = 6_000
+DEEPSEEK_TITLE_MAX_TOKENS = 600
+DEEPSEEK_SAFE_FINISH_REASONS = {
+    "stop",
+    "length",
+    "content_filter",
+    "tool_calls",
+    "insufficient_system_resource",
+}
 SUPPORTED_PERSON_RELATIONSHIP_TYPES = {
     "supports",
     "questions",
@@ -170,6 +179,23 @@ class TitleTranslation(BaseModel):
         return value.strip()
 
 
+DEEPSEEK_ANALYSIS_JSON_EXAMPLE = {
+    "chinese_title": "来源文章的简体中文标题",
+    "chinese_summary": "该来源文章讨论一项公开记录，并区分来源陈述、已知事实与尚未证实的判断。",
+    "category": "official_report",
+    "fact_status": "source_reported",
+    "key_facts": ["来源文章明确陈述的一项事实。"],
+    "viewpoints": ["来源文章中有明确归属的一项观点。"],
+    "named_persons": [],
+    "named_organizations": [],
+    "related_events": [],
+    "topic_tags": ["公开记录"],
+    "person_relationships": [],
+    "confidence": 0.8,
+    "risk_flags": ["single_source_claim"],
+}
+
+
 @dataclass(frozen=True)
 class AnalyzerResult:
     analysis: ArticleAnalysis
@@ -296,24 +322,34 @@ def _parse_deepseek_json_response(
     """Validate JSON output without exposing model content in exceptions."""
 
     response_id = getattr(response, "id", None)
+    finish_reason: str | None = None
     try:
-        message = response.choices[0].message
+        choice = response.choices[0]
+        message = choice.message
         raw_content = getattr(message, "content", None)
+        raw_finish_reason = getattr(choice, "finish_reason", None)
+        if raw_finish_reason in DEEPSEEK_SAFE_FINISH_REASONS:
+            finish_reason = str(raw_finish_reason)
+        elif raw_finish_reason is not None:
+            finish_reason = "other"
     except (AttributeError, IndexError, TypeError) as error:
         raise ProviderResponseError(
             f"{purpose}_missing_content",
             response_id=response_id,
         ) from error
+    finish_suffix = (
+        f"_finish_{finish_reason}" if finish_reason is not None and finish_reason != "stop" else ""
+    )
     if not isinstance(raw_content, str) or not raw_content.strip():
         raise ProviderResponseError(
-            f"{purpose}_missing_content",
+            f"{purpose}_missing_content{finish_suffix}",
             response_id=response_id,
         )
     try:
         payload = json.loads(raw_content)
     except (json.JSONDecodeError, TypeError) as error:
         raise ProviderResponseError(
-            f"{purpose}_invalid_json",
+            f"{purpose}_invalid_json{finish_suffix}",
             response_id=response_id,
         ) from error
     try:
@@ -352,9 +388,7 @@ class DeepSeekAnalyzer:
             from openai import OpenAI
 
             if not self.api_key:
-                raise ProviderConfigurationError(
-                    "DeepSeek 配置错误：DEEPSEEK_API_KEY 未配置。"
-                )
+                raise ProviderConfigurationError("DeepSeek 配置错误：DEEPSEEK_API_KEY 未配置。")
             self.client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
         return self.client
 
@@ -391,7 +425,9 @@ class DeepSeekAnalyzer:
         instructions = (
             f"{ANALYSIS_INSTRUCTIONS}\n\n"
             "Return only one valid JSON object matching this schema. Use JSON, not Markdown.\n"
-            f"{json.dumps(ArticleAnalysis.model_json_schema(), ensure_ascii=False)}"
+            f"JSON SCHEMA:\n{json.dumps(ArticleAnalysis.model_json_schema(), ensure_ascii=False)}\n"
+            "EXAMPLE JSON OUTPUT (shape only; never copy its facts):\n"
+            f"{json.dumps(DEEPSEEK_ANALYSIS_JSON_EXAMPLE, ensure_ascii=False)}"
         )
         response = client.chat.completions.create(
             model=self.model,
@@ -400,7 +436,8 @@ class DeepSeekAnalyzer:
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
             response_format={"type": "json_object"},
-            max_tokens=3000,
+            max_tokens=DEEPSEEK_ARTICLE_MAX_TOKENS,
+            extra_body={"thinking": {"type": "disabled"}},
             stream=False,
         )
         analysis = _parse_deepseek_json_response(
@@ -421,12 +458,22 @@ class DeepSeekAnalyzer:
             messages=[
                 {
                     "role": "system",
-                    "content": "将新闻标题翻译成简体中文。只翻译，不补充事实；保留专有名词、缩写和不确定语气。返回 JSON：{\"chinese_title\": \"...\"}。",
+                    "content": (
+                        "将新闻标题翻译成简体中文。只翻译，不补充事实；保留专有名词、"
+                        "缩写和不确定语气。只返回一个 JSON 对象，不要 Markdown 或解释。"
+                        'EXAMPLE JSON OUTPUT: {"chinese_title": "来源标题的简体中文翻译"}'
+                    ),
                 },
-                {"role": "user", "content": json.dumps({"title": original_title, "source": source}, ensure_ascii=False)},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"title": original_title, "source": source}, ensure_ascii=False
+                    ),
+                },
             ],
             response_format={"type": "json_object"},
-            max_tokens=300,
+            max_tokens=DEEPSEEK_TITLE_MAX_TOKENS,
+            extra_body={"thinking": {"type": "disabled"}},
             stream=False,
         )
         translation = _parse_deepseek_json_response(
@@ -502,10 +549,7 @@ class AnalysisService:
             try:
                 return operation(), attempt, None
             except Exception as error:  # noqa: BLE001
-                if (
-                    attempt >= self.max_provider_attempts
-                    or not is_retryable_provider_error(error)
-                ):
+                if attempt >= self.max_provider_attempts or not is_retryable_provider_error(error):
                     return None, attempt, error
                 delay = self.retry_delay_seconds * (2 ** (attempt - 1))
                 if delay:

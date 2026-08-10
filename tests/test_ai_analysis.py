@@ -381,8 +381,12 @@ class AnalysisTests(unittest.TestCase):
 
         self.assertEqual(result.titles_translated, 1)
         with self.database.connect() as connection:
-            youtube = connection.execute("SELECT title FROM news WHERE id = ?", (youtube_id,)).fetchone()
-            other = connection.execute("SELECT title FROM news WHERE id = ?", (other_id,)).fetchone()
+            youtube = connection.execute(
+                "SELECT title FROM news WHERE id = ?", (youtube_id,)
+            ).fetchone()
+            other = connection.execute(
+                "SELECT title FROM news WHERE id = ?", (other_id,)
+            ).fetchone()
         self.assertEqual(youtube["title"], "中文：English YouTube title")
         self.assertEqual(other["title"], "Newer English article")
 
@@ -666,7 +670,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(payload["source"], "Test Agency")
         self.assertFalse(payload["content_truncated"])
 
-    def test_deepseek_adapter_uses_json_output(self) -> None:
+    def test_deepseek_adapter_uses_non_thinking_json_output(self) -> None:
         analysis = valid_analysis().model_dump(mode="json")
         response = SimpleNamespace(
             id="deepseek_resp",
@@ -692,6 +696,9 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(result.response_id, "deepseek_resp")
         self.assertEqual(result.model, "deepseek-v4-flash")
         self.assertEqual(calls[0]["response_format"], {"type": "json_object"})
+        self.assertEqual(calls[0]["extra_body"], {"thinking": {"type": "disabled"}})
+        self.assertEqual(calls[0]["max_tokens"], 6000)
+        self.assertIn("EXAMPLE JSON OUTPUT", calls[0]["messages"][0]["content"])
         self.assertEqual(json.loads(calls[0]["messages"][1]["content"])["source"], "Test Agency")
         self.assertEqual(news_id, self.repository.get_analysis_tasks(limit=1)[0].news_id)
 
@@ -721,15 +728,14 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(diagnostic, "DeepSeek 响应无效（title_invalid_json）。")
         self.assertNotIn("Sensitive", diagnostic)
 
-    def test_deepseek_title_translation_returns_audit_metadata(self) -> None:
+    def test_deepseek_reports_safe_finish_reason_for_truncated_output(self) -> None:
         response = SimpleNamespace(
-            id="deepseek_title_resp",
+            id="deepseek_truncated",
             model="deepseek-v4-flash",
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=json.dumps({"chinese_title": "量子计算机最可怕的事情"})
-                    )
+                    finish_reason="length",
+                    message=SimpleNamespace(content=""),
                 )
             ],
         )
@@ -744,11 +750,59 @@ class AnalysisTests(unittest.TestCase):
             client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
         )
 
+        with self.assertRaises(ProviderResponseError) as context:
+            analyzer.translate_title("Sensitive source title", "Sensitive source")
+
+        self.assertEqual(
+            context.exception.reason,
+            "title_missing_content_finish_length",
+        )
+        self.assertEqual(context.exception.response_id, "deepseek_truncated")
+        diagnostic = safe_provider_error(context.exception, provider="DeepSeek")
+        self.assertNotIn("Sensitive", diagnostic)
+
+    def test_deepseek_title_translation_returns_audit_metadata(self) -> None:
+        response = SimpleNamespace(
+            id="deepseek_title_resp",
+            model="deepseek-v4-flash",
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=json.dumps({"chinese_title": "量子计算机最可怕的事情"})
+                    )
+                )
+            ],
+        )
+
+        class Completions:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def create(self, **kwargs: object) -> object:
+                self.calls.append(kwargs)
+                return response
+
+        completions = Completions()
+        analyzer = DeepSeekAnalyzer(
+            model="deepseek-v4-flash",
+            api_key="test-key",
+            client=SimpleNamespace(chat=SimpleNamespace(completions=completions)),
+        )
+
         result = analyzer.translate_title("The scariest thing about quantum computers", "YouTube")
 
         self.assertEqual(result.title, "量子计算机最可怕的事情")
         self.assertEqual(result.model, "deepseek-v4-flash")
         self.assertEqual(result.response_id, "deepseek_title_resp")
+        self.assertEqual(
+            completions.calls[0]["extra_body"],
+            {"thinking": {"type": "disabled"}},
+        )
+        self.assertEqual(completions.calls[0]["max_tokens"], 600)
+        self.assertIn(
+            "EXAMPLE JSON OUTPUT",
+            completions.calls[0]["messages"][0]["content"],
+        )
 
     def test_deepseek_health_check_lists_models_once(self) -> None:
         class Models:
