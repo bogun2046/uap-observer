@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 import urllib3
 
+from uap_observer.models import ArticleTask
 from uap_observer.repositories import Repository
 
 _OFFICIAL_PDF_FALLBACKS = {
@@ -362,76 +363,30 @@ class ArticleExtractionService:
                 continue
             claimed += 1
             try:
-                article = _youtube_description_fallback(task)
-                if article is None:
-                    if getattr(task, "source", "") == _YOUTUBE_SOURCE_NAME:
-                        raise RuntimeError(
-                            "YouTube video has no usable public description; captions are required"
-                        )
-                    article = self.extractor.extract_url(task.url)
-                content_hash = hashlib.sha256(article.content.encode("utf-8")).hexdigest()
-                duplicate_id = self.repository.find_news_by_content_hash(
-                    content_hash,
-                    exclude_news_id=task.news_id,
-                )
-                if duplicate_id is not None:
-                    self.repository.skip_duplicate_article(
-                        task.news_id,
-                        duplicate_of_news_id=duplicate_id,
-                        content_hash=content_hash,
-                        extracted_by=article.extractor,
-                    )
-                    skipped += 1
-                    continue
-                self.repository.complete_article_extraction(
-                    task.news_id,
-                    content=article.content,
-                    content_hash=content_hash,
-                    title=article.title,
-                    author=article.author,
-                    publish_date=article.publish_date,
-                    language=article.language,
-                    extracted_by=article.extractor,
-                )
-                completed += 1
+                article = self._extract_task(task)
             except Exception as error:  # noqa: BLE001 - isolate each extraction task
-                fallback = _official_record_fallback(task)
-                if fallback is not None:
-                    content_hash = hashlib.sha256(fallback.content.encode("utf-8")).hexdigest()
-                    self.repository.complete_article_extraction(
-                        task.news_id,
-                        content=fallback.content,
-                        content_hash=content_hash,
-                        title=fallback.title,
-                        author=None,
-                        publish_date=None,
-                        language="en",
-                        extracted_by=fallback.extractor,
-                    )
-                    completed += 1
-                    continue
-                fallback = None
-                if getattr(task, "source", "") != _YOUTUBE_SOURCE_NAME:
-                    fallback = _feed_description_fallback(task)
-                if fallback is not None:
-                    content_hash = hashlib.sha256(fallback.content.encode("utf-8")).hexdigest()
-                    self.repository.complete_article_extraction(
-                        task.news_id,
-                        content=fallback.content,
-                        content_hash=content_hash,
-                        title=fallback.title,
-                        author=None,
-                        publish_date=None,
-                        language=None,
-                        extracted_by=fallback.extractor,
-                    )
-                    completed += 1
-                    continue
                 self.repository.fail_article_extraction(
                     task.news_id,
                     f"{type(error).__name__}: {error}",
                 )
                 failed += 1
+                continue
+
+            content_hash = hashlib.sha256(article.content.encode("utf-8")).hexdigest()
+            duplicate_id = self.repository.complete_article_extraction(
+                task.news_id,
+                content=article.content,
+                content_hash=content_hash,
+                title=article.title,
+                author=article.author,
+                publish_date=article.publish_date,
+                language=article.language,
+                extracted_by=article.extractor,
+            )
+            if duplicate_id is None:
+                completed += 1
+            else:
+                skipped += 1
         return ExtractionRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),
@@ -440,6 +395,24 @@ class ArticleExtractionService:
             failed=failed,
             skipped_duplicates=skipped,
         )
+
+    def _extract_task(self, task: ArticleTask) -> ExtractedArticle:
+        article = _youtube_description_fallback(task)
+        if article is not None:
+            return article
+        if task.source == _YOUTUBE_SOURCE_NAME:
+            raise RuntimeError(
+                "YouTube video has no usable public description; captions are required"
+            )
+        try:
+            return self.extractor.extract_url(task.url)
+        except Exception:
+            fallback = _official_record_fallback(task)
+            if fallback is None:
+                fallback = _feed_description_fallback(task)
+            if fallback is None:
+                raise
+            return fallback
 
 
 def _official_record_fallback(task: object) -> ExtractedArticle | None:
@@ -450,7 +423,11 @@ def _official_record_fallback(task: object) -> ExtractedArticle | None:
     normalized = "\n\n".join(line.strip() for line in str(content).splitlines() if line.strip())
     if len(normalized) < 80:
         return None
-    return ExtractedArticle(content=normalized, extractor="official-record-fallback")
+    return ExtractedArticle(
+        content=normalized,
+        language="en",
+        extractor="official-record-fallback",
+    )
 
 
 def _youtube_description_fallback(task: object) -> ExtractedArticle | None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -163,6 +164,64 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertEqual(row["extraction_status"], "completed")
         self.assertEqual(row["extracted_by"], "rss-description-fallback")
         self.assertIn("unidentified aerial observation", row["extracted_content"])
+
+    def test_duplicate_rss_fallback_is_skipped_and_batch_continues(self) -> None:
+        existing_id = self.add_news("existing")
+        shared_content = (
+            "A syndicated Reddit description repeats previously extracted public "
+            "source material while preserving enough text for the RSS fallback."
+        )
+        shared_hash = hashlib.sha256(shared_content.encode("utf-8")).hexdigest()
+        self.assertTrue(self.repository.claim_article_task(existing_id))
+        self.repository.complete_article_extraction(
+            existing_id,
+            content=shared_content,
+            content_hash=shared_hash,
+            title="Existing article",
+            author=None,
+            publish_date=None,
+            language="en",
+            extracted_by="fake/seed",
+        )
+        duplicate_id = self.add_news("duplicate-rss", raw_content=shared_content)
+        later_id = self.add_news("later")
+        service = ArticleExtractionService(
+            self.repository,
+            MappingExtractor(
+                {
+                    "https://example.test/duplicate-rss": RuntimeError("HTTP 403"),
+                    "https://example.test/later": ExtractedArticle(
+                        content="A later unique article completes after the duplicate. " * 8,
+                        extractor="fake/later",
+                    ),
+                }
+            ),
+        )
+
+        result = service.run(limit=10)
+
+        self.assertEqual(result.queued, 2)
+        self.assertEqual(result.claimed, 2)
+        self.assertEqual(result.completed, 1)
+        self.assertEqual(result.skipped_duplicates, 1)
+        self.assertEqual(result.failed, 0)
+        with self.database.connect() as connection:
+            rows = {
+                row["id"]: row
+                for row in connection.execute(
+                    """
+                    SELECT id, extraction_status, extracted_by, extraction_error
+                    FROM news
+                    WHERE id IN (?, ?)
+                    """,
+                    (duplicate_id, later_id),
+                )
+            }
+        self.assertEqual(rows[duplicate_id]["extraction_status"], "skipped")
+        self.assertEqual(rows[duplicate_id]["extracted_by"], "rss-description-fallback")
+        self.assertIn(f"news_id={existing_id}", rows[duplicate_id]["extraction_error"])
+        self.assertEqual(rows[later_id]["extraction_status"], "completed")
+        self.assertEqual(rows[later_id]["extracted_by"], "fake/later")
 
     def test_youtube_description_is_used_without_fetching_dynamic_video_page(self) -> None:
         description = "A public video description provides source context. " * 8

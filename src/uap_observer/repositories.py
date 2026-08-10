@@ -209,11 +209,17 @@ class Repository:
         publish_date: str | None,
         language: str | None,
         extracted_by: str,
-    ) -> None:
+    ) -> int | None:
+        """Complete an extraction, or atomically skip an existing content hash.
+
+        Returns the existing news ID when the claimed task is skipped as a
+        duplicate. A ``None`` return value means the task completed normally.
+        """
+
         with self.database.connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
-                UPDATE news
+                UPDATE OR IGNORE news
                 SET extraction_status = 'completed',
                     extracted_content = ?,
                     content_hash = ?,
@@ -238,6 +244,44 @@ class Repository:
                     news_id,
                 ),
             )
+            if cursor.rowcount == 1:
+                return None
+
+            duplicate = connection.execute(
+                """
+                SELECT id FROM news
+                WHERE content_hash = ? AND id <> ?
+                LIMIT 1
+                """,
+                (content_hash, news_id),
+            ).fetchone()
+            if duplicate is None:
+                raise RuntimeError(
+                    f"Article extraction task news_id={news_id} is no longer processing"
+                )
+
+            duplicate_id = int(duplicate["id"])
+            skipped = connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'skipped',
+                    extracted_by = ?,
+                    extraction_error = ?,
+                    content_extracted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND extraction_status = 'processing'
+                """,
+                (
+                    extracted_by,
+                    f"duplicate content of news_id={duplicate_id}; hash={content_hash}",
+                    news_id,
+                ),
+            )
+            if skipped.rowcount != 1:
+                raise RuntimeError(
+                    f"Article extraction task news_id={news_id} is no longer processing"
+                )
+            return duplicate_id
 
     def fail_article_extraction(self, news_id: int, error: str) -> None:
         with self.database.connect() as connection:

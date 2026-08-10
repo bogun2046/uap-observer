@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from uap_observer.ai_analysis import AnalysisRun, ProviderFailure, ProviderHealth
+from uap_observer.article_extraction import ExtractionRun
 from uap_observer.cli import main
 
 
@@ -17,6 +18,43 @@ class FakeAuthenticationError(RuntimeError):
 
 
 class CliTests(unittest.TestCase):
+    def test_extract_cli_reports_duplicate_skip_without_failing_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "test.db"
+            service = Mock()
+            service.run.return_value = ExtractionRun(
+                queued=2,
+                claimed=2,
+                completed=1,
+                failed=0,
+                skipped_duplicates=1,
+            )
+            output = io.StringIO()
+
+            with (
+                patch("uap_observer.cli.ArticleExtractionService", return_value=service),
+                redirect_stdout(output),
+            ):
+                exit_code = main(
+                    [
+                        "--database",
+                        str(database_path),
+                        "extract-articles",
+                        "--limit",
+                        "2",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        service.run.assert_called_once_with(
+            limit=2,
+            retry_failed=False,
+            retry_blocked=False,
+        )
+        self.assertIn("queued=2 claimed=2", output.getvalue())
+        self.assertIn("completed=1 failed=0", output.getvalue())
+        self.assertIn("skipped_duplicates=1", output.getvalue())
+
     def test_deepseek_health_check_auth_failure_is_safe_and_nonzero(self) -> None:
         analyzer = Mock()
         analyzer.health_check.side_effect = FakeAuthenticationError(
