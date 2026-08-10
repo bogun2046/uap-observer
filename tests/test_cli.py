@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from uap_observer.ai_analysis import AnalysisRun, ProviderHealth
+from uap_observer.ai_analysis import AnalysisRun, ProviderFailure, ProviderHealth
 from uap_observer.cli import main
 
 
@@ -110,6 +110,54 @@ class CliTests(unittest.TestCase):
         self.assertIn("titles_translated=0 titles_failed=1", output.getvalue())
         self.assertIn("AI analysis stopped: DeepSeek 鉴权失败", output.getvalue())
         self.assertNotIn("test-secret-key", output.getvalue())
+
+    def test_analyze_cli_reports_safe_item_failure_and_blocks_publishing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "test.db"
+            service = Mock()
+            service.run.return_value = AnalysisRun(
+                titles_failed=1,
+                failures=(
+                    ProviderFailure(
+                        stage="title_translation",
+                        news_id=391,
+                        attempts=3,
+                        error="DeepSeek 响应无效（title_invalid_json）。",
+                        response_id="resp_safe_391",
+                    ),
+                ),
+            )
+            output = io.StringIO()
+
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "AI_PROVIDER": "deepseek",
+                        "DEEPSEEK_API_KEY": "test-secret-key",
+                    },
+                    clear=False,
+                ),
+                patch("uap_observer.cli.AnalysisService", return_value=service),
+                redirect_stdout(output),
+            ):
+                exit_code = main(
+                    [
+                        "--database",
+                        str(database_path),
+                        "analyze-articles",
+                        "--limit",
+                        "1",
+                    ]
+                )
+
+        diagnostic = output.getvalue()
+        self.assertEqual(exit_code, 1)
+        self.assertIn("stage=title_translation news_id=391", diagnostic)
+        self.assertIn("provider_attempts=3", diagnostic)
+        self.assertIn("response_id=resp_safe_391", diagnostic)
+        self.assertIn("public publishing is blocked", diagnostic)
+        self.assertNotIn("test-secret-key", diagnostic)
 
 
 if __name__ == "__main__":

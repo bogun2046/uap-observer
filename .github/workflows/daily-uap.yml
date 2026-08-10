@@ -140,7 +140,7 @@ jobs:
 
       - name: Report AI analysis failure
         if: ${{ always() && steps.analyze.outcome == 'failure' }}
-        run: echo "AI analysis stopped after a fatal provider access failure; publishing is blocked for this run."
+        run: echo "AI analysis stopped after provider or title-translation failures; publishing is blocked for this run."
 
       - name: Explain skipped AI step
         if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
