@@ -111,6 +111,8 @@ class CliTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("--max-failed-attempts 3", workflow)
+        self.assertIn("Extraction metadata-only", workflow)
+        self.assertIn("reddit-metadata-only", workflow)
 
     def test_deepseek_health_check_auth_failure_is_safe_and_nonzero(self) -> None:
         analyzer = Mock()

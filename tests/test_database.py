@@ -51,6 +51,7 @@ class DatabaseTests(unittest.TestCase):
                 "013_source_fallback_urls.sql",
                 "014_ai_translation_tracking.sql",
                 "015_aaro_403_resolution.sql",
+                "016_reddit_403_resolution.sql",
             ],
         )
         self.assertEqual(self.database.initialize(), [])
@@ -66,7 +67,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
         self.assertEqual(
             self.database.status().schema_version,
-            "015_aaro_403_resolution.sql",
+            "016_reddit_403_resolution.sql",
         )
         self.assertEqual(
             self.database.status().row_counts,
@@ -149,6 +150,88 @@ class DatabaseTests(unittest.TestCase):
             / "uap_observer"
             / "migrations"
             / "015_aaro_403_resolution.sql"
+        )
+        self.assertEqual(
+            repository_migration.read_text(encoding="utf-8"),
+            packaged_migration.read_text(encoding="utf-8"),
+        )
+
+    def test_reddit_403_migration_requeues_only_pending_reddit_records(self) -> None:
+        self.database.initialize()
+        repository = Repository(self.database)
+
+        def add_record(suffix: str, source: str) -> int:
+            return repository.add_news(
+                News(
+                    title=f"Record {suffix}",
+                    original_title=f"Record {suffix}",
+                    source=source,
+                    source_url=f"https://example.test/{suffix}",
+                    canonical_url=f"https://example.test/{suffix}",
+                    category=NewsCategory.OTHER,
+                    credibility=1,
+                    fact_status=FactStatus.SOURCE_REPORTED,
+                )
+            )
+
+        reddit_403_id = add_record("reddit-403", "Reddit r/UFOs")
+        reddit_timeout_id = add_record("reddit-timeout", "Reddit r/aliens")
+        aaro_403_id = add_record(
+            "aaro-403", "AARO Congressional and Press Products"
+        )
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'failed', extraction_attempts = 9,
+                    extraction_error = 'RuntimeError: HTTP 403',
+                    processing_status = 'pending'
+                WHERE id IN (?, ?)
+                """,
+                (reddit_403_id, aaro_403_id),
+            )
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'failed', extraction_attempts = 4,
+                    extraction_error = 'RuntimeError: temporary timeout',
+                    processing_status = 'pending'
+                WHERE id = ?
+                """,
+                (reddit_timeout_id,),
+            )
+            connection.execute(
+                "DELETE FROM schema_migrations WHERE name = ?",
+                ("016_reddit_403_resolution.sql",),
+            )
+
+        self.assertEqual(self.database.initialize(), ["016_reddit_403_resolution.sql"])
+
+        with self.database.connect() as connection:
+            rows = {
+                row["id"]: row
+                for row in connection.execute(
+                    """
+                    SELECT id, extraction_status, extraction_attempts, extraction_error
+                    FROM news WHERE id IN (?, ?, ?)
+                    """,
+                    (reddit_403_id, reddit_timeout_id, aaro_403_id),
+                )
+            }
+        self.assertEqual(rows[reddit_403_id]["extraction_status"], "pending")
+        self.assertEqual(rows[reddit_403_id]["extraction_attempts"], 9)
+        self.assertIn("migration 016", rows[reddit_403_id]["extraction_error"])
+        self.assertEqual(rows[reddit_timeout_id]["extraction_status"], "failed")
+        self.assertEqual(rows[aaro_403_id]["extraction_status"], "failed")
+
+    def test_packaged_reddit_migration_matches_repository_copy(self) -> None:
+        repository_migration = PROJECT_ROOT / "migrations" / "016_reddit_403_resolution.sql"
+        packaged_migration = (
+            PROJECT_ROOT
+            / "src"
+            / "uap_observer"
+            / "migrations"
+            / "016_reddit_403_resolution.sql"
         )
         self.assertEqual(
             repository_migration.read_text(encoding="utf-8"),

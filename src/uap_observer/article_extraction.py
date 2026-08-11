@@ -55,15 +55,31 @@ _AARO_PRESS_SOURCE_NAME = "AARO Congressional and Press Products"
 _AARO_HTTP_403_SOURCES = frozenset(
     {_AARO_IMAGERY_SOURCE_NAME, _AARO_PRESS_SOURCE_NAME}
 )
+_REDDIT_SOURCE_NAMES = frozenset(
+    {
+        "Reddit r/UFOs",
+        "Reddit r/aliens",
+        "Reddit r/HighStrangeness",
+    }
+)
 _OFFICIAL_METADATA_ONLY_EXTRACTOR = "official-metadata-only"
+_REDDIT_METADATA_ONLY_EXTRACTOR = "reddit-metadata-only"
 _AARO_METADATA_ONLY_REASON = (
     "AARO official source blocked automated access with HTTP 403; "
     "no verified public text fallback is available"
 )
+_REDDIT_METADATA_ONLY_REASON = (
+    "Reddit blocked automated access with HTTP 403 and its RSS entry "
+    "contains no usable public post text"
+)
 
 
 class _MetadataOnlyArticleError(RuntimeError):
-    """Signal that an official record must remain publishable as metadata only."""
+    """Signal that a record must remain publishable as metadata only."""
+
+    def __init__(self, message: str, *, extracted_by: str) -> None:
+        super().__init__(message)
+        self.extracted_by = extracted_by
 
 
 @dataclass(frozen=True)
@@ -389,7 +405,7 @@ class ArticleExtractionService:
                 self.repository.skip_unavailable_article(
                     task.news_id,
                     error=str(error),
-                    extracted_by=_OFFICIAL_METADATA_ONLY_EXTRACTOR,
+                    extracted_by=error.extracted_by,
                 )
                 skipped_unavailable += 1
                 continue
@@ -443,7 +459,15 @@ class ArticleExtractionService:
             if fallback is not None:
                 return fallback
             if task.source in _AARO_HTTP_403_SOURCES and _is_http_403(error):
-                raise _MetadataOnlyArticleError(_AARO_METADATA_ONLY_REASON) from error
+                raise _MetadataOnlyArticleError(
+                    _AARO_METADATA_ONLY_REASON,
+                    extracted_by=_OFFICIAL_METADATA_ONLY_EXTRACTOR,
+                ) from error
+            if task.source in _REDDIT_SOURCE_NAMES and _is_http_403(error):
+                raise _MetadataOnlyArticleError(
+                    _REDDIT_METADATA_ONLY_REASON,
+                    extracted_by=_REDDIT_METADATA_ONLY_EXTRACTOR,
+                ) from error
             raise
 
 

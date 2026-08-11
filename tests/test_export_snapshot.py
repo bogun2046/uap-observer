@@ -35,7 +35,7 @@ class ExportSnapshotTests(unittest.TestCase):
             payload = json.loads(output.read_text(encoding="utf-8"))
 
         self.assertEqual(rows, 1)
-        self.assertEqual(payload["schema_version"], "015_aaro_403_resolution.sql")
+        self.assertEqual(payload["schema_version"], "016_reddit_403_resolution.sql")
         self.assertEqual(payload["tables"]["news"][0]["title"], "Snapshot")
         self.assertEqual(payload["tables"]["relationships"], [])
 

@@ -278,6 +278,45 @@ class PublishingTests(unittest.TestCase):
         self.assertNotIn(source_summary, detail)
         self.assertNotIn(source_summary, news_index)
 
+    def test_publisher_labels_reddit_metadata_only_record_as_finished(self) -> None:
+        source_summary = "submitted by /u/example [link] [comments]"
+        news_id = self.repository.add_news(
+            News(
+                title="Reddit来源记录",
+                original_title="Reddit source record",
+                source="Reddit r/UFOs",
+                source_url="https://www.reddit.com/r/UFOs/comments/example/record/",
+                category=NewsCategory.OTHER,
+                credibility=1,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content=source_summary,
+            )
+        )
+        self.assertTrue(self.repository.claim_article_task(news_id))
+        self.repository.skip_unavailable_article(
+            news_id,
+            error=(
+                "Reddit blocked automated access with HTTP 403 and its RSS entry "
+                "contains no usable public post text"
+            ),
+            extracted_by="reddit-metadata-only",
+        )
+        output = Path(self.temp_directory.name) / "reddit-metadata-only"
+
+        MarkdownPublisher(self.repository, output).publish(today="2026-08-11")
+
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        summary = "来源无可验证的公开正文；本条仅展示来源元数据，不生成无依据的 AI 摘要。"
+        self.assertIn("内容分析：已跳过", detail)
+        self.assertIn("正文提取：仅保留元数据", detail)
+        self.assertIn("Reddit 拒绝自动抓取（HTTP 403）", detail)
+        self.assertEqual(search_index[0]["summary"], summary)
+        self.assertIn(summary, news_index)
+        self.assertNotIn(source_summary, detail)
+        self.assertNotIn(source_summary, news_index)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -208,6 +208,13 @@ jobs:
                 AND extraction_error LIKE '%403%'
               """
           ).fetchone()[0]
+          metadata_only_extraction = database.execute(
+              """
+              SELECT COUNT(*) FROM news
+              WHERE extraction_status = 'skipped'
+                AND extracted_by IN ('official-metadata-only', 'reddit-metadata-only')
+              """
+          ).fetchone()[0]
           failed_analysis = database.execute(
               "SELECT COUNT(*) FROM news WHERE processing_status = 'failed'"
           ).fetchone()[0]
@@ -252,6 +259,7 @@ jobs:
                   f"- AI analysis completed: **{completed_analysis}**\n"
                   f"- Extraction failed: **{failed_extraction}**\n"
                   f"- Extraction blocked by source (403): **{blocked_extraction}**\n"
+                  f"- Extraction metadata-only: **{metadata_only_extraction}**\n"
                   f"- AI analysis failed: **{failed_analysis}**\n"
                   f"- Titles without Chinese text: **{len(untranslated_titles)}**\n"
                   f"- Summaries without Chinese text: **{len(untranslated_summaries)}**\n"
@@ -270,6 +278,7 @@ jobs:
               f"analysis_completed={completed_analysis} "
               f"extraction_failed={failed_extraction} "
               f"extraction_blocked_403={blocked_extraction} "
+              f"extraction_metadata_only={metadata_only_extraction} "
               f"analysis_failed={failed_analysis} "
               f"published_pages={len(search_index)}"
           )

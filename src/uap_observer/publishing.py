@@ -15,6 +15,10 @@ from pathlib import Path
 from uap_observer.graph import build_person_graph
 from uap_observer.repositories import Repository
 
+_METADATA_ONLY_EXTRACTORS = frozenset(
+    {"official-metadata-only", "reddit-metadata-only"}
+)
+
 
 @dataclass(frozen=True)
 class PublishResult:
@@ -722,7 +726,7 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     }.get(extraction_status, "待提取")
     if (
         extraction_status == "skipped"
-        and _text(row.get("extracted_by")) == "official-metadata-only"
+        and _text(row.get("extracted_by")) in _METADATA_ONLY_EXTRACTORS
     ):
         extraction_label = "仅保留元数据"
     lines = [
@@ -835,9 +839,15 @@ def _extraction_status_message(row: dict[str, object]) -> str:
             return "来源服务器拒绝自动抓取（HTTP 403）；请通过下方原始来源链接查看内容。"
         return "正文提取失败；请通过下方原始来源链接查看内容。"
     if status == "skipped":
-        if _text(row.get("extracted_by")) == "official-metadata-only":
+        extractor = _text(row.get("extracted_by"))
+        if extractor == "official-metadata-only":
             return (
                 "来源服务器拒绝自动抓取（HTTP 403），且当前没有可验证的公开正文；"
+                "本条仅保留元数据，请通过下方原始来源链接查看内容。"
+            )
+        if extractor == "reddit-metadata-only":
+            return (
+                "Reddit 拒绝自动抓取（HTTP 403），且 RSS 未提供可验证的帖子正文；"
                 "本条仅保留元数据，请通过下方原始来源链接查看内容。"
             )
         return "正文提取已跳过；请通过下方原始来源链接查看内容。"
@@ -850,7 +860,7 @@ def _analysis_unavailable_message(row: dict[str, object]) -> str:
         return "原文正文提取失败，暂无法生成有依据的 AI 摘要；请访问来源链接查看原文。"
     if (
         extraction_status == "skipped"
-        and _text(row.get("extracted_by")) == "official-metadata-only"
+        and _text(row.get("extracted_by")) in _METADATA_ONLY_EXTRACTORS
     ):
         return "来源无可验证的公开正文；本条仅展示来源元数据，不生成无依据的 AI 摘要。"
     if extraction_status != "completed":
