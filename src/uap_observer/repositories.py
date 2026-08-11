@@ -329,6 +329,33 @@ class Repository:
                 (error[:1000], news_id),
             )
 
+    def skip_unavailable_article(
+        self,
+        news_id: int,
+        *,
+        error: str,
+        extracted_by: str,
+    ) -> None:
+        """Stop extraction and analysis when an official record has metadata only."""
+
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'skipped',
+                    processing_status = 'skipped',
+                    extracted_by = ?,
+                    extraction_error = ?,
+                    updated_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ? AND extraction_status = 'processing'
+                """,
+                (extracted_by, error[:1000], news_id),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError(
+                    f"Article extraction task news_id={news_id} is no longer processing"
+                )
+
     def skip_duplicate_article(
         self,
         news_id: int,

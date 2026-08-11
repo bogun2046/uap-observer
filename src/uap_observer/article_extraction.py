@@ -49,6 +49,21 @@ _FY24_TITLE = (
     "Anomalous Phenomena"
 )
 _YOUTUBE_SOURCE_NAME = "YouTube UAP Channel Watchlist"
+_AARO_CASE_RESOLUTION_SOURCE_NAME = "AARO UAP Case Resolution Reports"
+_AARO_IMAGERY_SOURCE_NAME = "AARO Official UAP Imagery"
+_AARO_PRESS_SOURCE_NAME = "AARO Congressional and Press Products"
+_AARO_HTTP_403_SOURCES = frozenset(
+    {_AARO_IMAGERY_SOURCE_NAME, _AARO_PRESS_SOURCE_NAME}
+)
+_OFFICIAL_METADATA_ONLY_EXTRACTOR = "official-metadata-only"
+_AARO_METADATA_ONLY_REASON = (
+    "AARO official source blocked automated access with HTTP 403; "
+    "no verified public text fallback is available"
+)
+
+
+class _MetadataOnlyArticleError(RuntimeError):
+    """Signal that an official record must remain publishable as metadata only."""
 
 
 @dataclass(frozen=True)
@@ -69,6 +84,7 @@ class ExtractionRun:
     completed: int = 0
     failed: int = 0
     skipped_duplicates: int = 0
+    skipped_unavailable: int = 0
 
 
 class ArticleExtractor(Protocol):
@@ -358,7 +374,7 @@ class ArticleExtractionService:
             retry_blocked=retry_blocked,
             max_failed_attempts=max_failed_attempts,
         )
-        claimed = completed = failed = skipped = 0
+        claimed = completed = failed = skipped_duplicates = skipped_unavailable = 0
         for task in tasks:
             if not self.repository.claim_article_task(
                 task.news_id,
@@ -369,6 +385,14 @@ class ArticleExtractionService:
             claimed += 1
             try:
                 article = self._extract_task(task)
+            except _MetadataOnlyArticleError as error:
+                self.repository.skip_unavailable_article(
+                    task.news_id,
+                    error=str(error),
+                    extracted_by=_OFFICIAL_METADATA_ONLY_EXTRACTOR,
+                )
+                skipped_unavailable += 1
+                continue
             except Exception as error:  # noqa: BLE001 - isolate each extraction task
                 self.repository.fail_article_extraction(
                     task.news_id,
@@ -391,14 +415,15 @@ class ArticleExtractionService:
             if duplicate_id is None:
                 completed += 1
             else:
-                skipped += 1
+                skipped_duplicates += 1
         return ExtractionRun(
             stale_recovered=stale_recovered,
             queued=len(tasks),
             claimed=claimed,
             completed=completed,
             failed=failed,
-            skipped_duplicates=skipped,
+            skipped_duplicates=skipped_duplicates,
+            skipped_unavailable=skipped_unavailable,
         )
 
     def _extract_task(self, task: ArticleTask) -> ExtractedArticle:
@@ -411,27 +436,49 @@ class ArticleExtractionService:
             )
         try:
             return self.extractor.extract_url(task.url)
-        except Exception:
+        except Exception as error:
             fallback = _official_record_fallback(task)
             if fallback is None:
                 fallback = _feed_description_fallback(task)
-            if fallback is None:
-                raise
-            return fallback
+            if fallback is not None:
+                return fallback
+            if task.source in _AARO_HTTP_403_SOURCES and _is_http_403(error):
+                raise _MetadataOnlyArticleError(_AARO_METADATA_ONLY_REASON) from error
+            raise
 
 
 def _official_record_fallback(task: object) -> ExtractedArticle | None:
     source = getattr(task, "source", "")
-    content = getattr(task, "fallback_content", None)
-    if source != "AARO UAP Case Resolution Reports" or not content:
+    if source == _AARO_CASE_RESOLUTION_SOURCE_NAME:
+        content = getattr(task, "fallback_content", None)
+        extractor = "official-record-fallback"
+    elif source == _AARO_IMAGERY_SOURCE_NAME:
+        content = getattr(task, "original_title", None)
+        extractor = "official-page-description-fallback"
+    else:
         return None
-    normalized = "\n\n".join(line.strip() for line in str(content).splitlines() if line.strip())
+    normalized = _normalize_text(content)
     if len(normalized) < 80:
         return None
     return ExtractedArticle(
         content=normalized,
         language="en",
-        extractor="official-record-fallback",
+        extractor=extractor,
+    )
+
+
+def _is_http_403(error: Exception) -> bool:
+    for attribute in ("status", "status_code"):
+        value = getattr(error, attribute, None)
+        try:
+            if value is not None and int(value) == 403:
+                return True
+        except (TypeError, ValueError):
+            pass
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in ("http 403", "(403)", "status 403", "status=403", "status: 403")
     )
 
 
