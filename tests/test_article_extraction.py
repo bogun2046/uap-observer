@@ -249,6 +249,77 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertEqual(row["extracted_by"], "rss-description-fallback")
         self.assertIn("unidentified aerial observation", row["extracted_content"])
 
+    def test_reddit_http_403_without_feed_text_becomes_metadata_only_skip(self) -> None:
+        url = "https://www.reddit.com/r/UFOs/comments/example/source_record/"
+        news_id = self.repository.add_news(
+            News(
+                title="Reddit source record",
+                original_title="Reddit source record",
+                source="Reddit r/UFOs",
+                source_url=url,
+                canonical_url=url,
+                category=NewsCategory.OTHER,
+                credibility=1,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content="submitted by /u/example [link] [comments]",
+            )
+        )
+
+        result = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({url: RuntimeError("Unable to download article (403)")}),
+        ).run(limit=10)
+
+        self.assertEqual(result.completed, 0)
+        self.assertEqual(result.failed, 0)
+        self.assertEqual(result.skipped_unavailable, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT extraction_status, processing_status, extracted_by,
+                       extracted_content, extraction_error
+                FROM news WHERE id = ?
+                """,
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "skipped")
+        self.assertEqual(row["processing_status"], "skipped")
+        self.assertEqual(row["extracted_by"], "reddit-metadata-only")
+        self.assertIsNone(row["extracted_content"])
+        self.assertIn("HTTP 403", row["extraction_error"])
+        self.assertNotIn(url, row["extraction_error"])
+
+    def test_reddit_non_403_failure_remains_retryable(self) -> None:
+        url = "https://www.reddit.com/r/aliens/comments/example/source_record/"
+        news_id = self.repository.add_news(
+            News(
+                title="Reddit source record",
+                original_title="Reddit source record",
+                source="Reddit r/aliens",
+                source_url=url,
+                canonical_url=url,
+                category=NewsCategory.OTHER,
+                credibility=1,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content="submitted by /u/example [link] [comments]",
+            )
+        )
+
+        result = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({url: RuntimeError("temporary network timeout")}),
+        ).run(limit=10)
+
+        self.assertEqual(result.failed, 1)
+        self.assertEqual(result.skipped_unavailable, 0)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, processing_status FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "failed")
+        self.assertEqual(row["processing_status"], "pending")
+
     def test_aaro_imagery_uses_official_description_when_pdf_is_blocked(self) -> None:
         description = (
             "In October 2017, an infrared sensor onboard a force protection aerostat "
