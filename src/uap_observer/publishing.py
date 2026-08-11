@@ -708,12 +708,23 @@ def _render_news_detail(row: dict[str, object], entities: list[dict[str, object]
     fact_status = _fact_status_label(fact_status_value)
     processing_status = _text(row.get("processing_status")) or "pending"
     extraction_status = _text(row.get("extraction_status")) or "pending"
-    processing_label = {"completed": "已完成", "processing": "处理中", "failed": "失败"}.get(
-        processing_status, "待处理"
-    )
-    extraction_label = {"completed": "已提取", "processing": "提取中", "failed": "提取失败"}.get(
-        extraction_status, "待提取"
-    )
+    processing_label = {
+        "completed": "已完成",
+        "processing": "处理中",
+        "failed": "失败",
+        "skipped": "已跳过",
+    }.get(processing_status, "待处理")
+    extraction_label = {
+        "completed": "已提取",
+        "processing": "提取中",
+        "failed": "提取失败",
+        "skipped": "已跳过",
+    }.get(extraction_status, "待提取")
+    if (
+        extraction_status == "skipped"
+        and _text(row.get("extracted_by")) == "official-metadata-only"
+    ):
+        extraction_label = "仅保留元数据"
     lines = [
         "---",
         f'title: "{_yaml_text(title)}"',
@@ -823,6 +834,13 @@ def _extraction_status_message(row: dict[str, object]) -> str:
         if "403" in error:
             return "来源服务器拒绝自动抓取（HTTP 403）；请通过下方原始来源链接查看内容。"
         return "正文提取失败；请通过下方原始来源链接查看内容。"
+    if status == "skipped":
+        if _text(row.get("extracted_by")) == "official-metadata-only":
+            return (
+                "来源服务器拒绝自动抓取（HTTP 403），且当前没有可验证的公开正文；"
+                "本条仅保留元数据，请通过下方原始来源链接查看内容。"
+            )
+        return "正文提取已跳过；请通过下方原始来源链接查看内容。"
     return "正文尚未提取完成。"
 
 
@@ -830,6 +848,11 @@ def _analysis_unavailable_message(row: dict[str, object]) -> str:
     extraction_status = _text(row.get("extraction_status")) or "pending"
     if extraction_status == "failed":
         return "原文正文提取失败，暂无法生成有依据的 AI 摘要；请访问来源链接查看原文。"
+    if (
+        extraction_status == "skipped"
+        and _text(row.get("extracted_by")) == "official-metadata-only"
+    ):
+        return "来源无可验证的公开正文；本条仅展示来源元数据，不生成无依据的 AI 摘要。"
     if extraction_status != "completed":
         return "原文正文尚未提取，AI 摘要将在正文提取完成后生成。"
     return "该新闻已通过来源筛选，AI 摘要尚未生成。"

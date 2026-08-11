@@ -28,6 +28,7 @@ class CliTests(unittest.TestCase):
                 completed=1,
                 failed=0,
                 skipped_duplicates=1,
+                skipped_unavailable=1,
             )
             output = io.StringIO()
 
@@ -55,6 +56,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("queued=2 claimed=2", output.getvalue())
         self.assertIn("completed=1 failed=0", output.getvalue())
         self.assertIn("skipped_duplicates=1", output.getvalue())
+        self.assertIn("skipped_unavailable=1", output.getvalue())
 
     def test_extract_cli_can_force_retry_exhausted_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

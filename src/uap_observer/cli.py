@@ -421,7 +421,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Article extraction complete; stale_recovered={run.stale_recovered} "
             f"queued={run.queued} claimed={run.claimed} "
             f"completed={run.completed} failed={run.failed} "
-            f"skipped_duplicates={run.skipped_duplicates}"
+            f"skipped_duplicates={run.skipped_duplicates} "
+            f"skipped_unavailable={run.skipped_unavailable}"
         )
         return 0
 
