@@ -50,6 +50,7 @@ class DatabaseTests(unittest.TestCase):
                 "012_source_retry_cooldown.sql",
                 "013_source_fallback_urls.sql",
                 "014_ai_translation_tracking.sql",
+                "015_aaro_403_resolution.sql",
             ],
         )
         self.assertEqual(self.database.initialize(), [])
@@ -65,11 +66,93 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(set(CORE_TABLES).issubset(table_names))
         self.assertEqual(
             self.database.status().schema_version,
-            "014_ai_translation_tracking.sql",
+            "015_aaro_403_resolution.sql",
         )
         self.assertEqual(
             self.database.status().row_counts,
             {table: 0 for table in CORE_TABLES},
+        )
+
+    def test_aaro_403_migration_requeues_only_pending_official_records(self) -> None:
+        self.database.initialize()
+        repository = Repository(self.database)
+
+        def add_record(suffix: str, source: str) -> int:
+            return repository.add_news(
+                News(
+                    title=f"Record {suffix}",
+                    original_title=f"Record {suffix}",
+                    source=source,
+                    source_url=f"https://example.test/{suffix}",
+                    canonical_url=f"https://example.test/{suffix}",
+                    category=NewsCategory.OFFICIAL_REPORT,
+                    credibility=5,
+                    fact_status=FactStatus.OFFICIAL_RECORD,
+                )
+            )
+
+        press_id = add_record("press-403", "AARO Congressional and Press Products")
+        imagery_id = add_record("imagery-403", "AARO Official UAP Imagery")
+        reddit_id = add_record("reddit-403", "Reddit r/UFOs")
+        non_403_id = add_record("press-timeout", "AARO Congressional and Press Products")
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'failed', extraction_attempts = 12,
+                    extraction_error = 'RuntimeError: HTTP 403',
+                    processing_status = 'pending'
+                WHERE id IN (?, ?, ?)
+                """,
+                (press_id, imagery_id, reddit_id),
+            )
+            connection.execute(
+                """
+                UPDATE news
+                SET extraction_status = 'failed', extraction_attempts = 4,
+                    extraction_error = 'RuntimeError: temporary timeout',
+                    processing_status = 'pending'
+                WHERE id = ?
+                """,
+                (non_403_id,),
+            )
+            connection.execute(
+                "DELETE FROM schema_migrations WHERE name = ?",
+                ("015_aaro_403_resolution.sql",),
+            )
+
+        self.assertEqual(self.database.initialize(), ["015_aaro_403_resolution.sql"])
+
+        with self.database.connect() as connection:
+            rows = {
+                row["id"]: row
+                for row in connection.execute(
+                    """
+                    SELECT id, extraction_status, extraction_attempts, extraction_error
+                    FROM news WHERE id IN (?, ?, ?, ?)
+                    """,
+                    (press_id, imagery_id, reddit_id, non_403_id),
+                )
+            }
+        for news_id in (press_id, imagery_id):
+            self.assertEqual(rows[news_id]["extraction_status"], "pending")
+            self.assertEqual(rows[news_id]["extraction_attempts"], 12)
+            self.assertIn("migration 015", rows[news_id]["extraction_error"])
+        self.assertEqual(rows[reddit_id]["extraction_status"], "failed")
+        self.assertEqual(rows[non_403_id]["extraction_status"], "failed")
+
+    def test_packaged_aaro_migration_matches_repository_copy(self) -> None:
+        repository_migration = PROJECT_ROOT / "migrations" / "015_aaro_403_resolution.sql"
+        packaged_migration = (
+            PROJECT_ROOT
+            / "src"
+            / "uap_observer"
+            / "migrations"
+            / "015_aaro_403_resolution.sql"
+        )
+        self.assertEqual(
+            repository_migration.read_text(encoding="utf-8"),
+            packaged_migration.read_text(encoding="utf-8"),
         )
 
     def test_repository_saves_models_and_relationship_evidence(self) -> None:

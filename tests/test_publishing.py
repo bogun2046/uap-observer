@@ -239,6 +239,45 @@ class PublishingTests(unittest.TestCase):
         detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
         self.assertIn("视频简介已提取；尚未获得字幕逐字稿", detail)
 
+    def test_publisher_labels_official_metadata_only_record_as_finished(self) -> None:
+        source_summary = "2025 | FY25 UAP Annual Report"
+        news_id = self.repository.add_news(
+            News(
+                title="2025财年UAP年度报告",
+                original_title="Fiscal Year 2025 Consolidated Annual Report on UAP",
+                source="AARO Congressional and Press Products",
+                source_url="https://www.aaro.mil/example/fy25-report.pdf",
+                category=NewsCategory.OFFICIAL_REPORT,
+                credibility=5,
+                fact_status=FactStatus.OFFICIAL_RECORD,
+                summary=source_summary,
+            )
+        )
+        self.assertTrue(self.repository.claim_article_task(news_id))
+        self.repository.skip_unavailable_article(
+            news_id,
+            error=(
+                "AARO official source blocked automated access with HTTP 403; "
+                "no verified public text fallback is available"
+            ),
+            extracted_by="official-metadata-only",
+        )
+        output = Path(self.temp_directory.name) / "metadata-only"
+
+        MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        summary = "来源无可验证的公开正文；本条仅展示来源元数据，不生成无依据的 AI 摘要。"
+        self.assertIn("内容分析：已跳过", detail)
+        self.assertIn("正文提取：仅保留元数据", detail)
+        self.assertIn("本条仅保留元数据", detail)
+        self.assertEqual(search_index[0]["summary"], summary)
+        self.assertIn(summary, news_index)
+        self.assertNotIn(source_summary, detail)
+        self.assertNotIn(source_summary, news_index)
+
 
 if __name__ == "__main__":
     unittest.main()

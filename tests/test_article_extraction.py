@@ -249,6 +249,120 @@ class ArticleExtractionTests(unittest.TestCase):
         self.assertEqual(row["extracted_by"], "rss-description-fallback")
         self.assertIn("unidentified aerial observation", row["extracted_content"])
 
+    def test_aaro_imagery_uses_official_description_when_pdf_is_blocked(self) -> None:
+        description = (
+            "In October 2017, an infrared sensor onboard a force protection aerostat "
+            "near Al Taqaddum Air Base captured video of an unidentified object. "
+            "AARO analyzed the available official imagery and published its assessment."
+        )
+        url = "https://www.aaro.mil/example/imagery-report.pdf"
+        news_id = self.repository.add_news(
+            News(
+                title="Al Taqaddum Object",
+                original_title=description,
+                source="AARO Official UAP Imagery",
+                source_url=url,
+                canonical_url=url,
+                category=NewsCategory.OFFICIAL_REPORT,
+                credibility=5,
+                fact_status=FactStatus.OFFICIAL_RECORD,
+                summary="+ Expand row details | Al Taqaddum Object",
+            )
+        )
+
+        result = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({url: RuntimeError("Unable to download PDF (403)")}),
+        ).run(limit=10)
+
+        self.assertEqual(result.completed, 1)
+        self.assertEqual(result.failed, 0)
+        self.assertEqual(result.skipped_unavailable, 0)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT extraction_status, processing_status, extracted_by,
+                       extracted_content
+                FROM news WHERE id = ?
+                """,
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "completed")
+        self.assertEqual(row["processing_status"], "pending")
+        self.assertEqual(row["extracted_by"], "official-page-description-fallback")
+        self.assertEqual(row["extracted_content"], description)
+
+    def test_aaro_press_http_403_becomes_explicit_metadata_only_skip(self) -> None:
+        url = "https://www.aaro.mil/example/annual-report.pdf"
+        news_id = self.repository.add_news(
+            News(
+                title="FY25 UAP Annual Report",
+                original_title="Fiscal Year 2025 Consolidated Annual Report on UAP",
+                source="AARO Congressional and Press Products",
+                source_url=url,
+                canonical_url=url,
+                category=NewsCategory.OFFICIAL_REPORT,
+                credibility=5,
+                fact_status=FactStatus.OFFICIAL_RECORD,
+                summary="2025 | FY25 UAP Annual Report",
+            )
+        )
+
+        result = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({url: RuntimeError("Unable to download PDF (403): blocked")}),
+        ).run(limit=10)
+
+        self.assertEqual(result.completed, 0)
+        self.assertEqual(result.failed, 0)
+        self.assertEqual(result.skipped_unavailable, 1)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT extraction_status, processing_status, extracted_by,
+                       extracted_content, extraction_error
+                FROM news WHERE id = ?
+                """,
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "skipped")
+        self.assertEqual(row["processing_status"], "skipped")
+        self.assertEqual(row["extracted_by"], "official-metadata-only")
+        self.assertIsNone(row["extracted_content"])
+        self.assertIn("HTTP 403", row["extraction_error"])
+        self.assertNotIn(url, row["extraction_error"])
+
+    def test_aaro_press_non_403_failure_remains_retryable(self) -> None:
+        url = "https://www.aaro.mil/example/temporarily-unavailable.pdf"
+        news_id = self.repository.add_news(
+            News(
+                title="AARO briefing",
+                original_title="AARO briefing",
+                source="AARO Congressional and Press Products",
+                source_url=url,
+                canonical_url=url,
+                category=NewsCategory.OFFICIAL_REPORT,
+                credibility=5,
+                fact_status=FactStatus.OFFICIAL_RECORD,
+                summary="2026 | Briefing",
+            )
+        )
+
+        result = ArticleExtractionService(
+            self.repository,
+            MappingExtractor({url: RuntimeError("temporary network timeout")}),
+        ).run(limit=10)
+
+        self.assertEqual(result.failed, 1)
+        self.assertEqual(result.skipped_unavailable, 0)
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT extraction_status, processing_status FROM news WHERE id = ?",
+                (news_id,),
+            ).fetchone()
+        self.assertEqual(row["extraction_status"], "failed")
+        self.assertEqual(row["processing_status"], "pending")
+
     def test_duplicate_rss_fallback_is_skipped_and_batch_continues(self) -> None:
         existing_id = self.add_news("existing")
         shared_content = (
