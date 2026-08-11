@@ -1,0 +1,46 @@
+name: YouTube public caption smoke test
+
+on:
+  push:
+    branches:
+      - codex/youtube-caption-actions-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-public-caption:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install public transcript client
+        run: python -m pip install youtube-transcript-api==1.2.4
+      - name: Fetch target transcript from GitHub-hosted runner
+        run: |
+          python - <<'PY'
+          from youtube_transcript_api import YouTubeTranscriptApi
+
+          video_id = "VJTc2OlaSlE"
+          snippets = YouTubeTranscriptApi().fetch(
+              video_id,
+              languages=["en", "zh-Hans", "zh-Hant"],
+          )
+          text = " ".join(
+              " ".join(getattr(item, "text", "").split())
+              for item in snippets
+              if getattr(item, "text", "").strip()
+          )
+          characters = len(text)
+          approx_tokens = (characters + 3) // 4
+          print(f"video_id={video_id}")
+          print(f"snippet_count={len(snippets)}")
+          print(f"characters={characters}")
+          print(f"approx_tokens={approx_tokens}")
+          print(f"preview={text[:160]}")
+          if characters < 80:
+              raise SystemExit("Transcript is missing or too short")
+          PY
