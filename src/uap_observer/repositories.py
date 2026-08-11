@@ -336,7 +336,7 @@ class Repository:
         error: str,
         extracted_by: str,
     ) -> None:
-        """Stop extraction and analysis when an official record has metadata only."""
+        """Stop extraction and analysis when a record has metadata only."""
 
         with self.database.connect() as connection:
             cursor = connection.execute(
