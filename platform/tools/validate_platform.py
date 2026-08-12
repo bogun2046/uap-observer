@@ -347,7 +347,10 @@ def evaluate(root: Path) -> list[Check]:
 
     tracked_secret_patterns = (
         re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-        re.compile(r"(?i)(?:password|secret|token|api_key)\s*=\s*['\"][^'\"]{12,}['\"]"),
+        re.compile(
+            r"(?i)(?:password|secret|token|api_key)\s*=\s*['\"]"
+            r"(?!\$\{)[^'\"]{12,}['\"]"
+        ),
     )
     candidates = [
         path

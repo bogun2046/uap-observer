@@ -6,6 +6,7 @@ on:
       - "platform/**"
       - "docs/wp1/**"
       - "docs/wp2/**"
+      - "docs/wp3/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   push:
@@ -14,6 +15,7 @@ on:
       - "platform/**"
       - "docs/wp1/**"
       - "docs/wp2/**"
+      - "docs/wp3/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   workflow_dispatch:
@@ -59,7 +61,7 @@ jobs:
           --workdir /repo/platform
           --env RUFF_CACHE_DIR=/tmp/ruff-cache
           "$UAP_APP_IMAGE"
-          ruff check src tests tools
+          ruff check src tests tools alembic
       - name: Type check
         run: >-
           docker run --rm
@@ -82,6 +84,13 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/validate_platform.py
+      - name: WP3 migration contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp3.py
 
   security:
     runs-on: ubuntu-latest
@@ -136,11 +145,17 @@ jobs:
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml up --build --detach --wait
       - name: Run migration smoke test
         working-directory: platform
-        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm app alembic upgrade head
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init alembic -x role=migrator upgrade head
+      - name: Verify every migration revision in sequence
+        working-directory: platform
+        run: scripts/verify-migration-chain.sh
+      - name: Run WP3 database and object-storage probes
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp3_runtime_probe.py
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json
-          python3 -c 'import json; data=json.load(open("/tmp/health.json")); assert data["status"] == "ready"; assert set(data["checks"]["object_storage"]["buckets"]) == {"raw", "derived", "model-io", "public-assets"}'
+          python3 -c 'import json; data=json.load(open("/tmp/health.json")); assert data["status"] == "ready"; assert set(data["checks"]["object_storage"]["buckets"]) == {"raw", "derived", "model-io", "public-assets", "backups"}'
       - name: Prove bucket initialization is idempotent
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init

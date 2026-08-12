@@ -33,7 +33,7 @@ services:
         chown seaweed:seaweed /tmp/uap-s3.json;
         chmod 600 /tmp/uap-s3.json;
         unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY;
-        exec /entrypoint.sh mini -dir=/data -s3.config=/tmp/uap-s3.json -bucket=raw,derived,model-io,public-assets
+        exec /entrypoint.sh mini -dir=/data -s3.config=/tmp/uap-s3.json -bucket=raw,derived,model-io,public-assets,backups
     environment:
       AWS_ACCESS_KEY_ID: ${UAP_S3_ACCESS_KEY:?run make dev}
       AWS_SECRET_ACCESS_KEY: ${UAP_S3_SECRET_KEY:?run make dev}
@@ -59,16 +59,33 @@ services:
         PYTHON_IMAGE: ${UAP_PYTHON_IMAGE:?load platform/.env.versions}
         UV_VERSION: ${UAP_UV_VERSION:?load platform/.env.versions}
     depends_on:
+      postgres:
+        condition: service_healthy
       object-store:
         condition: service_healthy
     environment:
       UAP_DATABASE_URL: postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_MIGRATOR_PASSWORD: ${UAP_MIGRATOR_PASSWORD}
+      UAP_API_PASSWORD: ${UAP_API_PASSWORD}
+      UAP_WORKER_PASSWORD: ${UAP_WORKER_PASSWORD}
+      UAP_SCHEDULER_PASSWORD: ${UAP_SCHEDULER_PASSWORD}
+      UAP_PUBLISHER_PASSWORD: ${UAP_PUBLISHER_PASSWORD}
+      UAP_PUBLIC_READER_PASSWORD: ${UAP_PUBLIC_READER_PASSWORD}
+      UAP_AUDIT_READER_PASSWORD: ${UAP_AUDIT_READER_PASSWORD}
+      UAP_BACKUP_PASSWORD: ${UAP_BACKUP_PASSWORD}
       UAP_S3_ENDPOINT: object-store:8333
       UAP_S3_ACCESS_KEY: ${UAP_S3_ACCESS_KEY}
       UAP_S3_SECRET_KEY: ${UAP_S3_SECRET_KEY}
       UAP_S3_SECURE: "false"
-      UAP_S3_BUCKETS: raw,derived,model-io,public-assets
-    command: ["uap-platform-object-store-init"]
+      UAP_S3_BUCKETS: raw,derived,model-io,public-assets,backups
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        alembic upgrade 0001_roles_and_schemas &&
+        python tools/configure_roles.py &&
+        alembic -x role=migrator upgrade head &&
+        exec uap-platform-object-store-init
     restart: "no"
     networks: [backend]
 
@@ -84,14 +101,14 @@ services:
     environment:
       UAP_APP_ENV: ${UAP_APP_ENV:-development}
       UAP_LOG_LEVEL: ${UAP_LOG_LEVEL:-INFO}
-      UAP_DATABASE_URL: postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_DATABASE_URL: postgresql+psycopg://uap_api:${UAP_API_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
       UAP_S3_ENDPOINT: object-store:8333
       UAP_S3_ACCESS_KEY: ${UAP_S3_ACCESS_KEY}
       UAP_S3_SECRET_KEY: ${UAP_S3_SECRET_KEY}
       UAP_S3_SECURE: "false"
-      UAP_S3_BUCKETS: raw,derived,model-io,public-assets
+      UAP_S3_BUCKETS: raw,derived,model-io,public-assets,backups
       UAP_HEALTH_PORT: "8080"
-    command: ["/bin/sh", "-ec", "alembic upgrade head && exec uap-platform-dev"]
+    command: ["uap-platform-dev"]
     depends_on:
       postgres:
         condition: service_healthy

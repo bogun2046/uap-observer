@@ -32,6 +32,7 @@ CMD ["uap-platform-dev"]
 FROM base AS runtime
 RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
+COPY tools/configure_roles.py tools/object_backup.py tools/wp3_runtime_probe.py ./tools/
 COPY alembic.ini ./
 COPY alembic ./alembic
 RUN uv sync --frozen --no-dev \
