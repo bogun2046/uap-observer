@@ -210,7 +210,7 @@ def evaluate(root: Path) -> list[Check]:
                     name in compose_text
                     for name in ("raw", "derived", "model-io", "public-assets")
                 )
-                and "alembic upgrade head" in compose_text,
+                and "alembic -x role=migrator upgrade head" in compose_text,
                 True,
             ),
             check(
@@ -257,7 +257,7 @@ def evaluate(root: Path) -> list[Check]:
         "ruff check",
         "mypy",
         "pytest",
-        "alembic upgrade head",
+        "alembic -x role=migrator upgrade head",
         "pip-audit",
         "bandit",
         "gitleaks",
