@@ -1,0 +1,162 @@
+name: Platform CI
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - "docs/wp1/**"
+      - "docs/wp2/**"
+      - ".github/workflows/platform-ci.yml"
+      - "Makefile"
+  push:
+    branches: [main]
+    paths:
+      - "platform/**"
+      - "docs/wp1/**"
+      - "docs/wp2/**"
+      - ".github/workflows/platform-ci.yml"
+      - "Makefile"
+  workflow_dispatch:
+    inputs:
+      failure_injection:
+        description: "Deliberately fail security to prove the aggregate gate closes"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UAP_APP_IMAGE: uap-platform-quality:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create ephemeral CI credentials
+        run: platform/scripts/bootstrap-env.sh
+      - name: Build the pinned development image
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml build app
+      - name: Verify lock file
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env UV_CACHE_DIR=/tmp/uv-cache
+          "$UAP_APP_IMAGE"
+          uv lock --check
+      - name: Lint
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env RUFF_CACHE_DIR=/tmp/ruff-cache
+          "$UAP_APP_IMAGE"
+          ruff check src tests tools
+      - name: Type check
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          mypy --cache-dir=/tmp/mypy-cache src tests tools
+      - name: Unit tests
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env COVERAGE_FILE=/tmp/.coverage
+          "$UAP_APP_IMAGE"
+          pytest -p no:cacheprovider --cov --cov-report=term-missing
+      - name: WP2 contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_platform.py
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UAP_APP_IMAGE: uap-platform-ci:${{ github.sha }}
+      UAP_POSTGRES_RUNTIME_IMAGE: uap-postgres-ci:${{ github.sha }}
+      UAP_SECURITY_TOOLS_IMAGE: uap-platform-security-tools:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Create ephemeral CI credentials
+        run: platform/scripts/bootstrap-env.sh
+      - name: Build deployable application and hardened PostgreSQL images
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml -f compose.staging.yaml build app postgres
+      - name: Build isolated security tools image
+        working-directory: platform
+        run: |
+          python_image=$(sed -n 's/^UAP_PYTHON_IMAGE=//p' .env.versions)
+          uv_version=$(sed -n 's/^UAP_UV_VERSION=//p' .env.versions)
+          docker build --target development --build-arg "PYTHON_IMAGE=$python_image" --build-arg "UV_VERSION=$uv_version" --tag "$UAP_SECURITY_TOOLS_IMAGE" .
+      - name: Scan every deployable image and fail on High or Critical
+        working-directory: platform
+        run: scripts/scan-images.sh "$UAP_APP_IMAGE" "$UAP_POSTGRES_RUNTIME_IMAGE" "$RUNNER_TEMP/image-scan-reports"
+      - name: Audit runtime dependencies
+        working-directory: platform
+        run: |
+          docker run --rm --env XDG_CACHE_HOME=/tmp/.cache "$UAP_SECURITY_TOOLS_IMAGE" \
+            /bin/sh -ec 'uv export --frozen --all-groups --no-emit-project --output-file /tmp/locked.txt && pip-audit --cache-dir /tmp/pip-audit --disable-pip --requirement /tmp/locked.txt'
+      - name: Scan Python code
+        working-directory: platform
+        run: docker run --rm "$UAP_SECURITY_TOOLS_IMAGE" bandit -q -r src
+      - name: Run gitleaks against committed history
+        run: |
+          image=$(sed -n 's/^UAP_GITLEAKS_IMAGE=//p' platform/.env.versions)
+          docker run --rm -v "$PWD:/repo" "$image" detect --source=/repo --redact --no-banner
+      - name: Deliberate security failure injection
+        if: ${{ inputs.failure_injection }}
+        run: exit 86
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create ephemeral CI credentials
+        run: platform/scripts/bootstrap-env.sh
+      - name: Start the empty platform
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml up --build --detach --wait
+      - name: Run migration smoke test
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm app alembic upgrade head
+      - name: Verify database, buckets, and health endpoint
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json
+          python3 -c 'import json; data=json.load(open("/tmp/health.json")); assert data["status"] == "ready"; assert set(data["checks"]["object_storage"]["buckets"]) == {"raw", "derived", "model-io", "public-assets"}'
+      - name: Prove bucket initialization is idempotent
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init
+      - name: Stop integration services
+        if: always()
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml down --volumes
+
+  gate:
+    if: always()
+    needs: [quality, security, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every platform gate
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        run: test "$QUALITY_RESULT" = success && test "$SECURITY_RESULT" = success && test "$INTEGRATION_RESULT" = success
