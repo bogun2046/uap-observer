@@ -17,7 +17,7 @@ quality job 仍使用固定开发镜像提供 Python 3.12.13、uv 和锁定工�
 - Ruff：通过。
 - mypy strict：12 个源文件，无问题。
 - pytest：12/12 通过，总覆盖率 92.75%，门槛 80%。
-- WP2 策略检查：22/22 通过，43 个待验文件（在加入本报告前的复跑结果）。
+- WP2 策略检查：23/23 通过，44 个待验文件。
 
 ## G2-R2-D02：pip-audit 缓存权限
 
@@ -47,3 +47,7 @@ security job 为非 root `uap` 用户设置 `XDG_CACHE_HOME=/tmp/.cache`，并�
 4. 移除注入并确认同一 PR 的 quality、security、integration、gate 全部通过。
 
 完成上述证据后仍须申请独立复验；开发侧无权把 G2 改为通过。
+
+## Actions 运行时补充整改
+
+首次真实 CI 全绿后，GitHub runner 对 `actions/checkout@v4` 给出 Node.js 20 弃用告警。最终 workflow 已升级到官方 `v7.0.1` 对应的不可变提交 `3d3c42e5aac5ba805825da76410c181273ba90b1`，避免可变版本标签和已弃用 Action 运行时进入待验基线。

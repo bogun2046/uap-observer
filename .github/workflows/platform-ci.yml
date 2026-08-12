@@ -38,7 +38,7 @@ jobs:
     env:
       UAP_APP_IMAGE: uap-platform-quality:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Create ephemeral CI credentials
         run: platform/scripts/bootstrap-env.sh
       - name: Build the pinned development image
@@ -91,7 +91,7 @@ jobs:
       UAP_POSTGRES_RUNTIME_IMAGE: uap-postgres-ci:${{ github.sha }}
       UAP_SECURITY_TOOLS_IMAGE: uap-platform-security-tools:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Create ephemeral CI credentials
@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Create ephemeral CI credentials
         run: platform/scripts/bootstrap-env.sh
       - name: Start the empty platform

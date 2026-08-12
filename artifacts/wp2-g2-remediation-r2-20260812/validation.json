@@ -141,6 +141,12 @@
     {
       "actual": true,
       "expected": true,
+      "name": "ci_actions_pinned",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
       "name": "container_image_fail_closed",
       "passed": true
     },
@@ -166,8 +172,8 @@
   "manifest": [
     {
       "path": ".github/workflows/platform-ci.yml",
-      "sha256": "3825488d51ef2d031927d79fa7424d428450f8cf5928a8e5e86795e03afbd58e",
-      "size": 6405
+      "sha256": "85f5a809c4a9ca42ded838d55c51685682a4b09fc2f5262b1f16c5840ce452d6",
+      "size": 6546
     },
     {
       "path": ".gitignore",
@@ -221,8 +227,8 @@
     },
     {
       "path": "docs/wp2/remediation-round2-report.md",
-      "sha256": "f9f36f0b610ae1cb065ae1afe360e475adac273f14edf790a3e6a495ac75e958",
-      "size": 2745
+      "sha256": "2922f1a7c69c18acddd98cbdb4c8f15adfc8ae5d1ae4feaf37fb2c58877e5057",
+      "size": 3028
     },
     {
       "path": "docs/wp2/security-remediation.md",
@@ -376,8 +382,8 @@
     },
     {
       "path": "platform/tools/validate_platform.py",
-      "sha256": "1fbc0f48b66fcc6ff3ae8db23d41e860657375c96fec385e0071262f3bf231b4",
-      "size": 14858
+      "sha256": "f98314ee093f3c4fd604db8475f622a73ef9bcba67672b7df4f80af72595bd87",
+      "size": 15113
     },
     {
       "path": "platform/uv.lock",
