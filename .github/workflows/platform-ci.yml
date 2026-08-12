@@ -121,7 +121,7 @@ jobs:
           image=$(sed -n 's/^UAP_GITLEAKS_IMAGE=//p' platform/.env.versions)
           docker run --rm -v "$PWD:/repo" "$image" detect --source=/repo --redact --no-banner
       - name: Deliberate security failure injection
-        if: ${{ inputs.failure_injection }}
+        if: ${{ true }} # TEMPORARY G2 FAILURE INJECTION
         run: exit 86
 
   integration:
