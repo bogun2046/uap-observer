@@ -23,6 +23,7 @@ REPOSITORY_REQUIRED = (
     "docs/wp2/development-self-review.md",
     "docs/wp2/g2-rejection-record.md",
     "docs/wp2/g2-second-rejection-record.md",
+    "docs/wp2/g2-acceptance-record.md",
     "docs/wp2/implementation-ticket.md",
     "docs/wp2/remediation-round2-report.md",
     "docs/wp2/acceptance-amendment-01.md",

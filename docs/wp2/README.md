@@ -1,6 +1,6 @@
 # WP2 工程环境与持续集成
 
-状态：G2 第二轮独立复验不通过，补充整改中；WP3 门禁关闭  
+状态：G2 独立复验通过；WP3 门禁开启
 启动日期：2026-08-12（Asia/Shanghai）  
 前置门禁：G1 已通过（`G1-ACCEPT-20260812-01`）
 
@@ -30,3 +30,4 @@
 - G2 安全整改标准补充：`acceptance-amendment-01.md`
 - G2 安全整改说明：`security-remediation.md`
 - G2 第二轮补充整改报告：`remediation-round2-report.md`
+- G2 正式验收记录：`g2-acceptance-record.md`

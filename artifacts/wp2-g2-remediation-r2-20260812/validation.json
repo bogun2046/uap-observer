@@ -187,8 +187,8 @@
     },
     {
       "path": "docs/wp2/README.md",
-      "sha256": "d306224aac77e9c453964486c0b3c3e3095ba963becb6fe78be9e45d54f67d55",
-      "size": 1577
+      "sha256": "b78bf3c78c3cc7ee97c93af90c71ba5e36366ebcca979fa80eb1a87c13ae27a7",
+      "size": 1597
     },
     {
       "path": "docs/wp2/acceptance-amendment-01.md",
@@ -202,13 +202,18 @@
     },
     {
       "path": "docs/wp2/acceptance-ticket.md",
-      "sha256": "4e8da33166da841d4c498ff5cf700a697ff38177253954415b3a5393ac3eb5d5",
-      "size": 927
+      "sha256": "927193d706b25e757cb332ef5d24e209a73a8d2efe77795dc9662befb5754101",
+      "size": 908
     },
     {
       "path": "docs/wp2/development-self-review.md",
       "sha256": "d1ddadca806a63343ddd4d65153f994a52469b44f4e921b08e4acebea72d6e88",
       "size": 2392
+    },
+    {
+      "path": "docs/wp2/g2-acceptance-record.md",
+      "sha256": "0a9b0a862f6ac674a53aad014c89aae1375c5d67d4742a49023c50a61178e304",
+      "size": 2394
     },
     {
       "path": "docs/wp2/g2-rejection-record.md",
@@ -382,8 +387,8 @@
     },
     {
       "path": "platform/tools/validate_platform.py",
-      "sha256": "f98314ee093f3c4fd604db8475f622a73ef9bcba67672b7df4f80af72595bd87",
-      "size": 15113
+      "sha256": "55bf5121f275066bf1942ea676eec98050cf66304c9dc1845e33dacf3291054e",
+      "size": 15153
     },
     {
       "path": "platform/uv.lock",

@@ -3,11 +3,11 @@
 - 整改编号：`WP2-REMEDIATION-20260812-02`
 - 对应驳回：`G2-REJECT-20260812-02`
 - 当前结论：实现侧整改完成，G2 仍不通过，WP3 门禁关闭
-- 验证结果：23/23 策略检查通过，44/44 文件 SHA-256 复核通过
+- 验证结果：23/23 策略检查通过，45/45 文件 SHA-256 复核通过
 - 验证报告：`validation.json`
-- 验证报告 SHA-256：`1fe566aee6087f1c52302655ecf48ad16e5629ea8a57647ac27f7650f35af2bc`
+- 验证报告 SHA-256：`8c14b4fb591c981a0e55ad30e76820cd5d731d05e454d381de70e2dc9a441dfb`
 - 源文件清单：`MANIFEST.sha256`
-- 源文件清单 SHA-256：`4b803947818923788e425bb8c3f4a423528f080cacf18ab5ba09155d4d9858cd`
+- 源文件清单 SHA-256：`a40e6c6c4206d78a7b917895d004c5441baf8faacd5556548286330f0b8760d3`
 - 容器 quality：lock、Ruff、mypy、12/12 pytest、策略检查全部通过；覆盖率 92.75%
 - 依赖审计：修正后的 workflow 原命令通过，未发现已知漏洞
 - 镜像扫描：最终 app、PostgreSQL、SeaweedFS 均为 0 High/Critical
