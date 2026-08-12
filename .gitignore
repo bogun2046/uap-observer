@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.env.*.local
 .venv/
 __pycache__/
 *.py[cod]
@@ -17,3 +18,13 @@ data/*.db-wal
 
 # Generated site content will be committed deliberately in a later phase.
 site/generated/
+
+# WP2 platform runtime secrets and local state.
+platform/.env
+platform/.secrets/
+platform/.venv/
+platform/.mypy_cache/
+platform/.ruff_cache/
+platform/.pytest_cache/
+platform/.coverage
+platform/htmlcov/

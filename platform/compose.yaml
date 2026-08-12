@@ -1,0 +1,122 @@
+name: ${UAP_COMPOSE_PROJECT_NAME:-uap-platform-dev}
+
+services:
+  postgres:
+    image: ${UAP_POSTGRES_RUNTIME_IMAGE:?load platform/.env.versions}
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile
+      args:
+        POSTGRES_IMAGE: ${UAP_POSTGRES_IMAGE:?load platform/.env.versions}
+    environment:
+      POSTGRES_DB: ${UAP_POSTGRES_DB:?run make dev}
+      POSTGRES_USER: ${UAP_POSTGRES_USER:?run make dev}
+      POSTGRES_PASSWORD: ${UAP_POSTGRES_PASSWORD:?run make dev}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [backend]
+
+  object-store:
+    image: ${UAP_OBJECT_STORE_IMAGE:?load platform/.env.versions}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        umask 077;
+        printf '{"identities":[{"name":"uap-platform","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin"]}]}'
+        "$$AWS_ACCESS_KEY_ID" "$$AWS_SECRET_ACCESS_KEY" > /tmp/uap-s3.json;
+        chown seaweed:seaweed /tmp/uap-s3.json;
+        chmod 600 /tmp/uap-s3.json;
+        unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY;
+        exec /entrypoint.sh mini -dir=/data -s3.config=/tmp/uap-s3.json -bucket=raw,derived,model-io,public-assets
+    environment:
+      AWS_ACCESS_KEY_ID: ${UAP_S3_ACCESS_KEY:?run make dev}
+      AWS_SECRET_ACCESS_KEY: ${UAP_S3_SECRET_KEY:?run make dev}
+    ports:
+      - "127.0.0.1:${UAP_S3_API_PORT:-8333}:8333"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9333/cluster/status"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - object-store-data:/data
+    networks: [backend, edge]
+
+  object-store-init:
+    image: ${UAP_APP_IMAGE:-uap-platform:development}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      args:
+        PYTHON_IMAGE: ${UAP_PYTHON_IMAGE:?load platform/.env.versions}
+        UV_VERSION: ${UAP_UV_VERSION:?load platform/.env.versions}
+    depends_on:
+      object-store:
+        condition: service_healthy
+    environment:
+      UAP_DATABASE_URL: postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_S3_ENDPOINT: object-store:8333
+      UAP_S3_ACCESS_KEY: ${UAP_S3_ACCESS_KEY}
+      UAP_S3_SECRET_KEY: ${UAP_S3_SECRET_KEY}
+      UAP_S3_SECURE: "false"
+      UAP_S3_BUCKETS: raw,derived,model-io,public-assets
+    command: ["uap-platform-object-store-init"]
+    restart: "no"
+    networks: [backend]
+
+  app:
+    image: ${UAP_APP_IMAGE:-uap-platform:development}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      args:
+        PYTHON_IMAGE: ${UAP_PYTHON_IMAGE:?load platform/.env.versions}
+        UV_VERSION: ${UAP_UV_VERSION:?load platform/.env.versions}
+    environment:
+      UAP_APP_ENV: ${UAP_APP_ENV:-development}
+      UAP_LOG_LEVEL: ${UAP_LOG_LEVEL:-INFO}
+      UAP_DATABASE_URL: postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_S3_ENDPOINT: object-store:8333
+      UAP_S3_ACCESS_KEY: ${UAP_S3_ACCESS_KEY}
+      UAP_S3_SECRET_KEY: ${UAP_S3_SECRET_KEY}
+      UAP_S3_SECURE: "false"
+      UAP_S3_BUCKETS: raw,derived,model-io,public-assets
+      UAP_HEALTH_PORT: "8080"
+    command: ["/bin/sh", "-ec", "alembic upgrade head && exec uap-platform-dev"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      object-store-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${UAP_HEALTH_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).read()"
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 10s
+    init: true
+    networks: [backend, edge]
+
+volumes:
+  postgres-data:
+  object-store-data:
+
+networks:
+  backend:
+    internal: true
+  edge:

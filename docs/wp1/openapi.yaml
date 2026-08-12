@@ -1,0 +1,578 @@
+openapi: 3.1.0
+info:
+  title: UAP Platform API
+  version: 0.1.0-draft
+  description: >-
+    WP1 contract draft. Public operations read only the public PostgreSQL schema.
+    Administrative operations require OIDC and RBAC and never return raw source
+    bodies, model provider responses, secrets, or unsanitized internal errors.
+servers:
+  - url: https://api.example.invalid
+    description: Placeholder; WP2 supplies staging and production URLs.
+tags:
+  - name: Public documents
+  - name: Public knowledge
+  - name: Public search
+  - name: Admin review
+  - name: Admin operations
+paths:
+  /v1/documents:
+    get:
+      tags: [Public documents]
+      operationId: listDocuments
+      summary: List published documents
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: category
+          in: query
+          schema: {type: string}
+        - name: fact_status
+          in: query
+          schema: {type: string}
+        - name: published_after
+          in: query
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Published documents only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/documents/{document_id}:
+    get:
+      tags: [Public documents]
+      operationId: getDocument
+      summary: Get one published document and its reviewed claims
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Published document detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/claims/{claim_id}:
+    get:
+      tags: [Public knowledge]
+      operationId: getClaim
+      summary: Get a reviewed claim with public evidence
+      parameters:
+        - name: claim_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Claim and at least one evidence item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/entities:
+    get:
+      tags: [Public knowledge]
+      operationId: listEntities
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/EntityType'
+      responses:
+        '200':
+          description: Published entities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityPage'
+  /v1/entities/{entity_id}:
+    get:
+      tags: [Public knowledge]
+      operationId: getEntity
+      parameters:
+        - name: entity_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Published entity and reviewed relations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/relations:
+    get:
+      tags: [Public knowledge]
+      operationId: listRelations
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: entity_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: predicate
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Reviewed relations with public evidence links.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationPage'
+  /v1/search:
+    get:
+      tags: [Public search]
+      operationId: searchPublicContent
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 2, maxLength: 200}
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: category
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Results from the public read model only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPage'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /admin/v1/review-cases:
+    get:
+      tags: [Admin review]
+      operationId: listReviewCases
+      security: [{oidc: [review]}]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: {type: string, enum: [candidate, in_review, approved, rejected, disputed, withdrawn, closed]}
+        - name: subject_type
+          in: query
+          schema: {type: string, enum: [document_version, claim, entity, relation]}
+      responses:
+        '200':
+          description: Review queue visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewCasePage'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/v1/review-cases/{review_case_id}:
+    get:
+      tags: [Admin review]
+      operationId: getReviewCase
+      security: [{oidc: [review]}]
+      parameters:
+        - $ref: '#/components/parameters/ReviewCaseId'
+      responses:
+        '200':
+          description: Candidate, source provenance, evidence, and decision history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewCaseDetail'
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/v1/review-cases/{review_case_id}/decisions:
+    post:
+      tags: [Admin review]
+      operationId: createReviewDecision
+      summary: Append an approve, reject, dispute, withdraw, or revise decision
+      security: [{oidc: [review]}]
+      parameters:
+        - $ref: '#/components/parameters/ReviewCaseId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewDecision'
+      responses:
+        '201':
+          description: Decision committed with audit and outbox event.
+          headers:
+            Location:
+              schema: {type: string}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDecision'
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/v1/sources:
+    get:
+      tags: [Admin operations]
+      operationId: listInternalSources
+      security: [{oidc: [sources.read]}]
+      responses:
+        '200':
+          description: Source configuration and sanitized health summary.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/InternalSource'}
+  /admin/v1/jobs/{job_id}/retry:
+    post:
+      tags: [Admin operations]
+      operationId: retryJob
+      security: [{oidc: [jobs.retry]}]
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 10, maxLength: 1000}
+      responses:
+        '202':
+          description: A new retry job was queued; the previous attempts remain unchanged.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobReference'}
+        '409': {$ref: '#/components/responses/Conflict'}
+components:
+  securitySchemes:
+    oidc:
+      type: openIdConnect
+      openIdConnectUrl: https://identity.example.invalid/.well-known/openid-configuration
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string, maxLength: 512}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ReviewCaseId:
+      name: review_case_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 128}
+  responses:
+    Error:
+      description: Sanitized error response.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    NotFound:
+      description: Resource is absent or is not published/visible to the caller.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Unauthorized:
+      description: Authentication is required.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Forbidden:
+      description: Caller lacks the required role.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Conflict:
+      description: State or idempotency conflict.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ValidationError:
+      description: Request failed validation.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    DocumentSummary:
+      type: object
+      additionalProperties: false
+      required: [id, slug, title, category, fact_status, source, published_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        slug: {type: string}
+        title: {type: string}
+        summary: {type: [string, 'null']}
+        category: {type: string}
+        fact_status: {type: string}
+        source: {$ref: '#/components/schemas/PublicSource'}
+        source_published_at: {type: [string, 'null'], format: date-time}
+        published_at: {type: string, format: date-time}
+        revised_at: {type: [string, 'null'], format: date-time}
+        revision: {type: integer, minimum: 1}
+    DocumentDetail:
+      type: object
+      additionalProperties: false
+      required: [id, slug, title, category, fact_status, source, published_at, revision, claims, related_entities]
+      properties:
+        id: {type: string, format: uuid}
+        slug: {type: string}
+        title: {type: string}
+        summary: {type: [string, 'null']}
+        category: {type: string}
+        fact_status: {type: string}
+        source: {$ref: '#/components/schemas/PublicSource'}
+        source_published_at: {type: [string, 'null'], format: date-time}
+        published_at: {type: string, format: date-time}
+        revised_at: {type: [string, 'null'], format: date-time}
+        revision: {type: integer, minimum: 1}
+        claims:
+          type: array
+          items: {$ref: '#/components/schemas/ClaimDetail'}
+        related_entities:
+          type: array
+          items: {$ref: '#/components/schemas/EntitySummary'}
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/DocumentSummary'}
+        next_cursor: {type: [string, 'null']}
+    PublicSource:
+      type: object
+      additionalProperties: false
+      required: [name, url]
+      properties:
+        name: {type: string}
+        url: {type: string, format: uri}
+    ClaimDetail:
+      type: object
+      additionalProperties: false
+      required: [id, text, type, assertion_status, evidence]
+      properties:
+        id: {type: string, format: uuid}
+        text: {type: string}
+        type: {type: string}
+        assertion_status: {type: string}
+        attribution: {type: [string, 'null']}
+        evidence:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/PublicEvidence'}
+    PublicEvidence:
+      type: object
+      additionalProperties: false
+      required: [id, excerpt, locator_type, source_url]
+      properties:
+        id: {type: string, format: uuid}
+        excerpt: {type: string, maxLength: 2000}
+        locator_type: {type: string, enum: [characters, page, timecode, structured]}
+        page_start: {type: [integer, 'null'], minimum: 1}
+        page_end: {type: [integer, 'null'], minimum: 1}
+        time_start_ms: {type: [integer, 'null'], minimum: 0}
+        time_end_ms: {type: [integer, 'null'], minimum: 0}
+        locator: {type: object, additionalProperties: true}
+        source_url: {type: string, format: uri}
+    EntityType:
+      type: string
+      enum: [person, organization, event, place, document, topic]
+    EntitySummary:
+      type: object
+      additionalProperties: false
+      required: [id, slug, type, name]
+      properties:
+        id: {type: string, format: uuid}
+        slug: {type: string}
+        type: {$ref: '#/components/schemas/EntityType'}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        country_code: {type: [string, 'null'], minLength: 2, maxLength: 2}
+    EntityDetail:
+      type: object
+      additionalProperties: false
+      required: [id, slug, type, name, relations]
+      properties:
+        id: {type: string, format: uuid}
+        slug: {type: string}
+        type: {$ref: '#/components/schemas/EntityType'}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        country_code: {type: [string, 'null'], minLength: 2, maxLength: 2}
+        relations:
+          type: array
+          items: {$ref: '#/components/schemas/PublicRelation'}
+    EntityPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/EntitySummary'}
+        next_cursor: {type: [string, 'null']}
+    PublicRelation:
+      type: object
+      additionalProperties: false
+      required: [id, subject, predicate, object, status, evidence_ids]
+      properties:
+        id: {type: string, format: uuid}
+        subject: {$ref: '#/components/schemas/EntitySummary'}
+        predicate: {type: string}
+        object: {$ref: '#/components/schemas/EntitySummary'}
+        status: {type: string}
+        evidence_ids:
+          type: array
+          minItems: 1
+          items: {type: string, format: uuid}
+    RelationPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/PublicRelation'}
+        next_cursor: {type: [string, 'null']}
+    SearchHit:
+      type: object
+      additionalProperties: false
+      required: [document, highlights]
+      properties:
+        document: {$ref: '#/components/schemas/DocumentSummary'}
+        highlights:
+          type: array
+          items: {type: string, maxLength: 500}
+    SearchPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/SearchHit'}
+        next_cursor: {type: [string, 'null']}
+    ReviewCasePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ReviewCase'}
+        next_cursor: {type: [string, 'null']}
+    ReviewCase:
+      type: object
+      additionalProperties: false
+      required: [id, subject_type, subject_id, status, opened_at]
+      properties:
+        id: {type: string, format: uuid}
+        subject_type: {type: string, enum: [document_version, claim, entity, relation]}
+        subject_id: {type: string, format: uuid}
+        status: {type: string}
+        assigned_to: {type: [string, 'null'], format: uuid}
+        opened_at: {type: string, format: date-time}
+    ReviewCaseDetail:
+      type: object
+      additionalProperties: false
+      required: [id, subject_type, subject_id, status, opened_at, provenance, evidence, decisions]
+      properties:
+        id: {type: string, format: uuid}
+        subject_type: {type: string, enum: [document_version, claim, entity, relation]}
+        subject_id: {type: string, format: uuid}
+        status: {type: string}
+        assigned_to: {type: [string, 'null'], format: uuid}
+        opened_at: {type: string, format: date-time}
+        provenance: {type: object, additionalProperties: true}
+        evidence:
+          type: array
+          items: {type: object, additionalProperties: true}
+        decisions:
+          type: array
+          items: {$ref: '#/components/schemas/ReviewDecision'}
+    CreateReviewDecision:
+      type: object
+      additionalProperties: false
+      required: [decision, reason]
+      properties:
+        decision: {type: string, enum: [approve, reject, dispute, withdraw, revise]}
+        reason: {type: string, minLength: 10, maxLength: 5000}
+        structured_changes: {type: object, additionalProperties: true}
+    ReviewDecision:
+      type: object
+      additionalProperties: false
+      required: [id, review_case_id, sequence, decision, reason, decided_at]
+      properties:
+        id: {type: string, format: uuid}
+        review_case_id: {type: string, format: uuid}
+        sequence: {type: integer, minimum: 1}
+        decision: {type: string}
+        reason: {type: string}
+        decided_at: {type: string, format: date-time}
+        publication_job: {$ref: '#/components/schemas/NullableJobReference'}
+    InternalSource:
+      type: object
+      additionalProperties: false
+      required: [id, slug, name, type, enabled, config_version, health]
+      properties:
+        id: {type: string, format: uuid}
+        slug: {type: string}
+        name: {type: string}
+        type: {type: string}
+        enabled: {type: boolean}
+        config_version: {type: integer}
+        health: {type: object, additionalProperties: true}
+    JobReference:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string}
+    NullableJobReference:
+      anyOf:
+        - $ref: '#/components/schemas/JobReference'
+        - type: 'null'
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, request_id]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: [string, 'null']}
+        request_id: {type: string, format: uuid}
