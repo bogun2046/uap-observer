@@ -15,6 +15,9 @@ compose="docker compose --env-file $platform_dir/.env.versions --env-file $platf
 database_url="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${test_database}"
 
 cleanup() {
+    $compose exec -T postgres psql --no-psqlrc \
+        --username "$UAP_POSTGRES_USER" --dbname "$UAP_POSTGRES_DB" \
+        --command "ALTER ROLE uap_migrator NOLOGIN" >/dev/null 2>&1 || true
     $compose exec -T postgres dropdb --if-exists --force \
         --username "$UAP_POSTGRES_USER" "$test_database" >/dev/null
 }
@@ -39,13 +42,19 @@ test "$(query "SELECT count(*) FROM information_schema.schemata WHERE schema_nam
 test "$(query "SELECT rolname || ':' || rolinherit::text FROM pg_roles WHERE rolname='uap_migrator'")" = "uap_migrator:false"
 test "$(query "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()")" = "uap_owner"
 
+$compose run --rm --no-deps --env "UAP_DATABASE_URL=$database_url" \
+    object-store-init python tools/configure_roles.py configure
+$compose run --rm --no-deps --env "UAP_DATABASE_URL=$database_url" \
+    object-store-init python tools/configure_roles.py enable-migrator
+test "$(query "SELECT rolcanlogin::text FROM pg_roles WHERE rolname='uap_migrator'")" = "true"
+
 alembic_step -x role=migrator upgrade 0002_authoritative_schema
 test "$(query "SELECT version_num FROM public.alembic_version")" = "0002_authoritative_schema"
 query "INSERT INTO audit.principals (id, principal_type, service_name, display_name) VALUES ('00000000-0000-7000-8000-000000000777','service','migration-chain-probe','Migration chain probe')" >/dev/null
 
 alembic_step -x role=migrator upgrade head
 alembic_step -x role=migrator upgrade head
-test "$(query "SELECT version_num FROM public.alembic_version")" = "0003_permissions_and_guards"
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0004_g3_semantic_repairs"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "49"
 test "$(query "SELECT count(*) FROM audit.principals WHERE id='00000000-0000-7000-8000-000000000777'")" = "1"
 
@@ -54,4 +63,8 @@ test "$(query "SELECT version_num FROM public.alembic_version")" = "0002_authori
 test "$(query "SELECT count(*) FROM audit.principals WHERE id='00000000-0000-7000-8000-000000000777'")" = "1"
 alembic_step -x role=migrator upgrade head
 
-echo "Migration chain verified: 0001 -> 0002 -> 0003, idempotent head, downgrade smoke."
+$compose run --rm --no-deps --env "UAP_DATABASE_URL=$database_url" \
+    object-store-init python tools/configure_roles.py disable-migrator
+test "$(query "SELECT rolcanlogin::text FROM pg_roles WHERE rolname='uap_migrator'")" = "false"
+
+echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004, idempotent head, downgrade smoke."

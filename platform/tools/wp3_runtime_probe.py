@@ -18,6 +18,7 @@ from uap_platform.object_store_init import build_client
 
 EXPECTED_TABLE_COUNT = 49
 ROLE_PASSWORDS = {
+    "uap_migrator": "UAP_MIGRATOR_PASSWORD",
     "uap_public_reader": "UAP_PUBLIC_READER_PASSWORD",
     "uap_worker": "UAP_WORKER_PASSWORD",
     "uap_backup": "UAP_BACKUP_PASSWORD",
@@ -33,9 +34,15 @@ def expect_rejected(connection: psycopg.Connection[Any], statement: str) -> str:
         with connection.transaction():
             with connection.cursor() as cursor:
                 cursor.execute(statement)
+                cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
     except psycopg.Error as error:
         return str(error.sqlstate)
     raise RuntimeError(f"database accepted forbidden statement: {statement.split()[0]}")
+
+
+def require_sqlstate(name: str, actual: str, expected: str) -> None:
+    if actual != expected:
+        raise RuntimeError(f"{name} returned SQLSTATE {actual}; expected {expected}")
 
 
 def role_connection(admin_url: str, role: str) -> psycopg.Connection[Any]:
@@ -49,6 +56,405 @@ def role_connection(admin_url: str, role: str) -> psycopg.Connection[Any]:
     base = psycopg.conninfo.make_conninfo(**params)  # type: ignore[arg-type]
     connection_info = psycopg.conninfo.make_conninfo(base, user=role, password=password)
     return psycopg.connect(connection_info)
+
+
+def prepare_semantic_fixture(connection: psycopg.Connection[Any]) -> None:
+    """Create valid internal review data and public projection prerequisites."""
+
+    principal = identifier(1)
+    document = identifier(21)
+    document_version = identifier(22)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO core.documents
+                (id, source_id, source_item_key, document_kind, first_seen_at, last_seen_at)
+            VALUES (%s, %s, 'wp3-semantic-fixture', 'article', now(), now())
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (document, identifier(3)),
+        )
+        cursor.execute(
+            """
+            INSERT INTO core.document_versions
+                (id, document_id, artifact_version_id, version_no,
+                 normalized_content_sha256)
+            VALUES (%s, %s, %s, 1, repeat('0', 64))
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (document_version, document, identifier(7)),
+        )
+        for evidence_id, locator_type, locator_hash, positions in (
+            (identifier(23), "text", "1", (0, 10, None, None, None, None)),
+            (identifier(64), "pdf", "2", (None, None, 1, 1, None, None)),
+            (identifier(65), "video", "3", (None, None, None, None, 0, 1000)),
+        ):
+            cursor.execute(
+                """
+                INSERT INTO core.evidence_spans
+                    (id, document_version_id, evidence_text, locator_type,
+                     char_start, char_end, page_start, page_end,
+                     time_start_ms, time_end_ms, locator, locator_sha256)
+                VALUES (%s, %s, 'valid semantic evidence', %s,
+                        %s, %s, %s, %s, %s, %s, '{}'::jsonb, repeat(%s, 64))
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (evidence_id, document_version, locator_type, *positions, locator_hash),
+            )
+        for entity_id, name in (
+            (identifier(25), "WP3 Entity One"),
+            (identifier(26), "WP3 Entity Two"),
+        ):
+            cursor.execute(
+                """
+                INSERT INTO core.entities (id, entity_type, canonical_name)
+                VALUES (%s, 'organization', %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (entity_id, name),
+            )
+        for claim_id, claim_text, fingerprint in (
+            (identifier(24), "WP3 valid public claim", "5"),
+            (identifier(58), "WP3 orphan-claim guard probe", "6"),
+        ):
+            cursor.execute(
+                """
+                INSERT INTO core.claims
+                    (id, claim_text, claim_fingerprint, claim_type,
+                     assertion_status, created_by)
+                VALUES (%s, %s, repeat(%s, 64), 'observation', 'reported', %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (claim_id, claim_text, fingerprint, principal),
+            )
+        for relation_id, predicate in (
+            (identifier(28), "supports"),
+            (identifier(52), "references"),
+        ):
+            cursor.execute(
+                """
+                INSERT INTO core.relations
+                    (id, subject_entity_id, object_entity_id, predicate,
+                     relation_status, created_by)
+                VALUES (%s, %s, %s, %s, 'reported', %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (relation_id, identifier(25), identifier(26), predicate, principal),
+            )
+
+        cases = (
+            (identifier(29), "document_version_id", document_version, "document"),
+            (identifier(30), "claim_id", identifier(24), "claim"),
+            (identifier(31), "entity_id", identifier(25), "entity"),
+            (identifier(32), "entity_id", identifier(26), "entity"),
+            (identifier(33), "relation_id", identifier(28), "relation"),
+            (identifier(53), "relation_id", identifier(52), "relation"),
+            (identifier(59), "claim_id", identifier(58), "claim"),
+        )
+        for case_id, subject_column, subject_id, case_type in cases:
+            cursor.execute(
+                sql.SQL(
+                    """
+                    INSERT INTO audit.review_cases
+                        (id, {}, case_type, status, opened_by, opened_at, closed_at)
+                    VALUES (%s, %s, %s, 'approved', %s, now(), now())
+                    ON CONFLICT (id) DO NOTHING
+                    """
+                ).format(sql.Identifier(subject_column)),
+                (case_id, subject_id, case_type, principal),
+            )
+
+        decisions = (
+            (identifier(34), identifier(29)),
+            (identifier(35), identifier(30)),
+            (identifier(36), identifier(31)),
+            (identifier(37), identifier(32)),
+            (identifier(38), identifier(33)),
+            (identifier(54), identifier(53)),
+            (identifier(60), identifier(59)),
+        )
+        for decision_id, case_id in decisions:
+            cursor.execute(
+                """
+                INSERT INTO audit.review_decisions
+                    (id, review_case_id, sequence_no, decision, reason,
+                     decided_by, decided_at)
+                VALUES (%s, %s, 1, 'approve', 'WP3 semantic fixture', %s, now())
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (decision_id, case_id, principal),
+            )
+
+        grants = (
+            (
+                "document_publication_grants",
+                "document_version_id",
+                identifier(39),
+                identifier(29),
+                document_version,
+                identifier(34),
+                1,
+            ),
+            (
+                "claim_publication_grants",
+                "claim_id",
+                identifier(40),
+                identifier(30),
+                identifier(24),
+                identifier(35),
+                1,
+            ),
+            (
+                "entity_publication_grants",
+                "entity_id",
+                identifier(41),
+                identifier(31),
+                identifier(25),
+                identifier(36),
+                1,
+            ),
+            (
+                "entity_publication_grants",
+                "entity_id",
+                identifier(42),
+                identifier(32),
+                identifier(26),
+                identifier(37),
+                1,
+            ),
+            (
+                "relation_publication_grants",
+                "relation_id",
+                identifier(43),
+                identifier(33),
+                identifier(28),
+                identifier(38),
+                1,
+            ),
+            (
+                "relation_publication_grants",
+                "relation_id",
+                identifier(55),
+                identifier(53),
+                identifier(52),
+                identifier(54),
+                2,
+            ),
+            (
+                "claim_publication_grants",
+                "claim_id",
+                identifier(61),
+                identifier(59),
+                identifier(58),
+                identifier(60),
+                1,
+            ),
+        )
+        for table, subject_column, grant_id, case_id, subject_id, decision_id, revision in grants:
+            cursor.execute(
+                sql.SQL(
+                    """
+                    INSERT INTO audit.{}
+                        (id, review_case_id, {}, decision_id, revision_no,
+                         grant_status, granted_at, publication_payload_sha256)
+                    VALUES (%s, %s, %s, %s, %s, 'active', now(), repeat('a', 64))
+                    ON CONFLICT (id) DO NOTHING
+                    """
+                ).format(sql.Identifier(table), sql.Identifier(subject_column)),
+                (grant_id, case_id, subject_id, decision_id, revision),
+            )
+
+        cursor.execute(
+            """
+            INSERT INTO public.documents
+                (id, document_grant_id, slug, title, category, fact_status,
+                 source_name, canonical_source_url, published_at, revision_no)
+            VALUES (%s, %s, 'wp3-semantic-document', 'WP3 semantic document',
+                    'test', 'reported', 'WP3 Probe',
+                    'https://example.invalid/wp3-semantic-document', now(), 1)
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (identifier(44), identifier(39)),
+        )
+        cursor.execute(
+            """
+            INSERT INTO public.evidence
+                (id, document_id, excerpt, locator_type, public_locator,
+                 locator_sha256, source_url)
+            VALUES (%s, %s, 'reviewed evidence', 'text', '{}'::jsonb,
+                    repeat('7', 64), 'https://example.invalid/wp3-evidence')
+            ON CONFLICT (id) DO NOTHING
+            """,
+            (identifier(45), identifier(44)),
+        )
+        for entity_id, grant_id, slug, name in (
+            (identifier(48), identifier(41), "wp3-entity-one", "WP3 Entity One"),
+            (identifier(49), identifier(42), "wp3-entity-two", "WP3 Entity Two"),
+        ):
+            cursor.execute(
+                """
+                INSERT INTO public.entities
+                    (id, entity_grant_id, slug, entity_type, name, published_at, revision_no)
+                VALUES (%s, %s, %s, 'organization', %s, now(), 1)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (entity_id, grant_id, slug, name),
+            )
+        for relation_id, grant_id, predicate, revision in (
+            (identifier(50), identifier(43), "supports", 1),
+            (identifier(56), identifier(55), "references", 2),
+        ):
+            cursor.execute(
+                """
+                INSERT INTO public.relations
+                    (id, subject_entity_id, object_entity_id, relation_grant_id,
+                     predicate, relation_status, published_at, revision_no)
+                VALUES (%s, %s, %s, %s, %s, 'reported', now(), %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (relation_id, identifier(48), identifier(49), grant_id, predicate, revision),
+            )
+    connection.commit()
+
+
+def probe_repaired_semantics(connection: psycopg.Connection[Any]) -> dict[str, object]:
+    """Prove each G3-R2 semantic repair with positive and negative transactions."""
+
+    mixed_locator_state = expect_rejected(
+        connection,
+        """
+        INSERT INTO core.evidence_spans
+            (id, document_version_id, evidence_text, locator_type,
+             char_start, char_end, page_start, page_end, locator, locator_sha256)
+        VALUES ('00000000-0000-7000-8000-000000000063',
+                '00000000-0000-7000-8000-000000000022', 'invalid mixed PDF',
+                'pdf', 0, 1, 1, 1, '{}'::jsonb, repeat('4', 64))
+        """,
+    )
+    with connection.transaction():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.claims
+                    (id, document_id, claim_grant_id, ordinal, claim_text,
+                     claim_type, assertion_status, revision_no)
+                VALUES (%s, %s, %s, 0, 'WP3 valid public claim',
+                        'observation', 'reported', 1)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (identifier(46), identifier(44), identifier(40)),
+            )
+            cursor.execute(
+                """
+                INSERT INTO public.claim_evidence (id, claim_id, evidence_id)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (identifier(47), identifier(46), identifier(45)),
+            )
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+    with connection.transaction():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.document_entities
+                    (id, document_id, entity_id, basis_evidence_id,
+                     basis_claim_id, basis_relation_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (
+                    identifier(51),
+                    identifier(44),
+                    identifier(48),
+                    identifier(45),
+                    identifier(46),
+                    identifier(50),
+                ),
+            )
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+    orphan_claim_state = expect_rejected(
+        connection,
+        """
+        INSERT INTO public.claims
+            (id, document_id, claim_grant_id, ordinal, claim_text,
+             claim_type, assertion_status, revision_no)
+        VALUES ('00000000-0000-7000-8000-000000000062',
+                '00000000-0000-7000-8000-000000000044',
+                '00000000-0000-7000-8000-000000000061', 1,
+                'claim without evidence', 'observation', 'reported', 1)
+        """,
+    )
+    last_evidence_state = expect_rejected(
+        connection,
+        """
+        DELETE FROM public.claim_evidence
+         WHERE id='00000000-0000-7000-8000-000000000047'
+        """,
+    )
+    cross_revision_state = expect_rejected(
+        connection,
+        """
+        INSERT INTO public.document_entities
+            (id, document_id, entity_id, basis_evidence_id,
+             basis_claim_id, basis_relation_id)
+        VALUES ('00000000-0000-7000-8000-000000000057',
+                '00000000-0000-7000-8000-000000000044',
+                '00000000-0000-7000-8000-000000000049',
+                '00000000-0000-7000-8000-000000000045',
+                '00000000-0000-7000-8000-000000000046',
+                '00000000-0000-7000-8000-000000000056')
+        """,
+    )
+    linked_revision_update_state = expect_rejected(
+        connection,
+        """
+        UPDATE public.relations SET revision_no=2
+         WHERE id='00000000-0000-7000-8000-000000000050'
+        """,
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                (SELECT count(*) FROM public.claims WHERE id=%s),
+                (SELECT count(*) FROM public.claim_evidence WHERE id=%s),
+                (SELECT count(*) FROM public.document_entities WHERE id=%s),
+                (SELECT count(*) FROM core.evidence_spans
+                  WHERE id IN (%s, %s, %s))
+            """,
+            (
+                identifier(46),
+                identifier(47),
+                identifier(51),
+                identifier(23),
+                identifier(64),
+                identifier(65),
+            ),
+        )
+        row = cursor.fetchone()
+    if row != (1, 1, 1, 3):
+        raise RuntimeError(f"legal G3 semantic fixture did not commit: {row}")
+    for name, state in (
+        ("mixed locator", mixed_locator_state),
+        ("orphan public claim", orphan_claim_state),
+        ("last evidence removal", last_evidence_state),
+        ("cross-revision document entity", cross_revision_state),
+        ("linked revision update", linked_revision_update_state),
+    ):
+        require_sqlstate(name, state, "23514")
+    return {
+        "legal_claim_evidence_committed": True,
+        "legal_document_entity_committed": True,
+        "valid_locator_variants": row[3],
+        "mixed_locator_sqlstate": mixed_locator_state,
+        "orphan_public_claim_sqlstate": orphan_claim_state,
+        "last_evidence_removal_sqlstate": last_evidence_state,
+        "cross_revision_sqlstate": cross_revision_state,
+        "linked_revision_update_sqlstate": linked_revision_update_state,
+    }
 
 
 def probe() -> dict[str, object]:
@@ -75,7 +481,7 @@ def probe() -> dict[str, object]:
             if table_row is None:
                 raise RuntimeError("missing table count")
             table_count = table_row[0]
-        if head != "0003_permissions_and_guards" or table_count != EXPECTED_TABLE_COUNT:
+        if head != "0004_g3_semantic_repairs" or table_count != EXPECTED_TABLE_COUNT:
             raise RuntimeError("runtime schema does not match the frozen WP3 head")
 
         raw_first = store_and_register(
@@ -194,6 +600,9 @@ def probe() -> dict[str, object]:
         if (distinct_objects, artifact_versions) != (1, 2):
             raise RuntimeError("artifact versions did not reuse one registered object")
 
+        prepare_semantic_fixture(connection)
+        repaired_semantics = probe_repaired_semantics(connection)
+
         wrong_domain_state = expect_rejected(
             connection,
             """
@@ -247,18 +656,6 @@ def probe() -> dict[str, object]:
                     '00000000-0000-7000-8000-000000000018',
                     '00000000-0000-7000-8000-000000000019',
                     'invalid', 'reported')
-            """,
-        )
-        bad_evidence_state = expect_rejected(
-            connection,
-            """
-            INSERT INTO core.evidence_spans
-                (id, document_version_id, extraction_id, evidence_text,
-                 locator_type, char_start, char_end, locator, locator_sha256)
-            VALUES ('00000000-0000-7000-8000-000000000020',
-                    '00000000-0000-7000-8000-000000000021',
-                    '00000000-0000-7000-8000-000000000022',
-                    'invalid', 'text', 0, 1, '{}', repeat('0', 64))
             """,
         )
         foreign_keys = 0
@@ -316,6 +713,17 @@ def probe() -> dict[str, object]:
             orphan_rows += int(orphan_row[0])
         if orphan_rows:
             raise RuntimeError(f"foreign key orphan rows found: {orphan_rows}")
+        if foreign_keys != 108:
+            raise RuntimeError(f"foreign key count changed: {foreign_keys}; expected 108")
+
+        for name, state, expected in (
+            ("wrong storage domain", wrong_domain_state, "23514"),
+            ("append-only artifact", append_only_state, "55000"),
+            ("invalid analysis selection", bad_selection_state, "23503"),
+            ("invalid publication grant", bad_grant_state, "23503"),
+            ("orphan relation", orphan_relation_state, "23503"),
+        ):
+            require_sqlstate(name, state, expected)
 
     permission_results: dict[str, str] = {}
     role_statements = {
@@ -340,6 +748,29 @@ def probe() -> dict[str, object]:
                 cursor.execute(allowed)
                 cursor.fetchone()
             permission_results[role] = expect_rejected(role_db, denied)
+    for role, expected in (
+        ("uap_public_reader", "42501"),
+        ("uap_worker", "42501"),
+        ("uap_backup", "25006"),
+    ):
+        require_sqlstate(f"{role} denied operation", permission_results[role], expected)
+
+    migrator_login_rejected = False
+    try:
+        with role_connection(settings.psycopg_database_url, "uap_migrator"):
+            pass
+    except psycopg.OperationalError:
+        migrator_login_rejected = True
+    if not migrator_login_rejected:
+        raise RuntimeError("uap_migrator can still log in after the deployment window")
+    with psycopg.connect(settings.psycopg_database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT rolcanlogin, rolinherit FROM pg_roles WHERE rolname='uap_migrator'"
+            )
+            migrator_state = cursor.fetchone()
+    if migrator_state != (False, False):
+        raise RuntimeError(f"unexpected migrator role state: {migrator_state}")
 
     return {
         "head": head,
@@ -354,7 +785,9 @@ def probe() -> dict[str, object]:
         "invalid_selection_sqlstate": bad_selection_state,
         "invalid_grant_sqlstate": bad_grant_state,
         "orphan_relation_sqlstate": orphan_relation_state,
-        "mismatched_evidence_sqlstate": bad_evidence_state,
+        "repaired_semantics": repaired_semantics,
+        "migrator_login_rejected": migrator_login_rejected,
+        "migrator_role_state": {"can_login": migrator_state[0], "inherits": migrator_state[1]},
         "foreign_keys_checked": foreign_keys,
         "foreign_key_orphans": orphan_rows,
         "denied_role_sqlstates": permission_results,

@@ -82,9 +82,7 @@ services:
       - /bin/sh
       - -ec
       - >-
-        alembic upgrade 0001_roles_and_schemas &&
-        python tools/configure_roles.py &&
-        alembic -x role=migrator upgrade head &&
+        scripts/migrate-platform.sh &&
         exec uap-platform-object-store-init
     restart: "no"
     networks: [backend]

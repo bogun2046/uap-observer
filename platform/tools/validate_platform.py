@@ -210,7 +210,7 @@ def evaluate(root: Path) -> list[Check]:
                     name in compose_text
                     for name in ("raw", "derived", "model-io", "public-assets")
                 )
-                and "alembic -x role=migrator upgrade head" in compose_text,
+                and "scripts/migrate-platform.sh" in compose_text,
                 True,
             ),
             check(
@@ -257,7 +257,7 @@ def evaluate(root: Path) -> list[Check]:
         "ruff check",
         "mypy",
         "pytest",
-        "alembic -x role=migrator upgrade head",
+                "scripts/migrate-platform.sh",
         "pip-audit",
         "bandit",
         "gitleaks",
@@ -322,7 +322,7 @@ def evaluate(root: Path) -> list[Check]:
                 "staging_idempotent_deploy",
                 "config --quiet" in deploy
                 and "uap-platform-object-store-init" in compose_text
-                and "alembic upgrade head" in deploy
+                and "object-store-init" in deploy
                 and "up --build --detach --wait" in deploy
                 and "down --volumes" not in deploy
                 and "permissions must be 600" in deploy,

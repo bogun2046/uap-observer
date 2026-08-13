@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import os
+from collections.abc import Sequence
 
 import psycopg
 from psycopg import sql
@@ -42,5 +44,70 @@ def configure() -> None:
     print(f"Configured {len(passwords)} database role credentials.")
 
 
+def database_bootstrapped() -> bool:
+    """Report whether this database has completed the administrator bootstrap revision."""
+
+    settings = Settings()  # type: ignore[call-arg]
+    with psycopg.connect(settings.psycopg_database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT to_regclass('public.alembic_version')")
+            row = cursor.fetchone()
+            if not row or row[0] is None:
+                return False
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM public.alembic_version
+                     WHERE version_num IN (
+                         '0001_roles_and_schemas',
+                         '0002_authoritative_schema',
+                         '0003_permissions_and_guards',
+                         '0004_g3_semantic_repairs'
+                     )
+                )
+                """
+            )
+            revision_row = cursor.fetchone()
+    return bool(revision_row and revision_row[0])
+
+
+def set_migrator_login(enabled: bool) -> None:
+    """Temporarily open or close the privileged migration login."""
+
+    settings = Settings()  # type: ignore[call-arg]
+    state = sql.SQL("LOGIN") if enabled else sql.SQL("NOLOGIN")
+    with psycopg.connect(settings.psycopg_database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='uap_migrator')")
+            row = cursor.fetchone()
+            if not bool(row and row[0]):
+                if enabled:
+                    raise RuntimeError("uap_migrator does not exist")
+                print("Migrator role absent; login already disabled.")
+                return
+            cursor.execute(sql.SQL("ALTER ROLE uap_migrator {}").format(state))
+    print(f"Migrator login {'enabled' if enabled else 'disabled'}.")
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "operation",
+        nargs="?",
+        default="configure",
+        choices=("configure", "database-bootstrapped", "enable-migrator", "disable-migrator"),
+    )
+    operation = parser.parse_args(argv).operation
+    if operation == "configure":
+        configure()
+    elif operation == "database-bootstrapped":
+        if not database_bootstrapped():
+            raise SystemExit(3)
+        print("Database bootstrap revision exists.")
+    else:
+        set_migrator_login(operation == "enable-migrator")
+
+
 if __name__ == "__main__":
-    configure()
+    main()

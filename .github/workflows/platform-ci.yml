@@ -145,10 +145,13 @@ jobs:
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml up --build --detach --wait
       - name: Run migration smoke test
         working-directory: platform
-        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init alembic -x role=migrator upgrade head
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init scripts/migrate-platform.sh
       - name: Verify every migration revision in sequence
         working-directory: platform
         run: scripts/verify-migration-chain.sh
+      - name: Prove failed migrations close the privileged login
+        working-directory: platform
+        run: scripts/verify-migrator-failure-close.sh
       - name: Run WP3 database and object-storage probes
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp3_runtime_probe.py

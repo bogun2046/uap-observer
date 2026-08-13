@@ -27,15 +27,24 @@ WP3_REQUIRED = (
     "docs/wp3/acceptance-cases.md",
     "docs/wp3/acceptance-ticket.md",
     "docs/wp3/development-self-review.md",
+    "docs/wp3/g3-rejection-record.md",
+    "docs/wp3/g3-r2-remediation-report.md",
     "docs/wp3/implementation-ticket.md",
+    "platform/alembic/env.py",
     "platform/alembic/versions/0001_roles_and_schemas.py",
     "platform/alembic/versions/0002_authoritative_schema.py",
     "platform/alembic/versions/0003_permissions_and_guards.py",
+    "platform/alembic/versions/0004_g3_semantic_repairs.py",
     "platform/scripts/backup-platform.sh",
+    "platform/scripts/deploy-staging.sh",
     "platform/scripts/restore-platform.sh",
+    "platform/scripts/migrate-platform.sh",
+    "platform/scripts/verify-migrator-failure-close.sh",
     "platform/scripts/verify-migration-chain.sh",
     "platform/src/uap_platform/object_registry.py",
     "platform/tools/object_backup.py",
+    "platform/tools/build_wp3_evidence.py",
+    "platform/tools/configure_roles.py",
     "platform/tools/wp3_runtime_probe.py",
 )
 
@@ -82,28 +91,42 @@ def evaluate(platform: Path) -> list[Check]:
     revisions = list(script.walk_revisions(base="base", head="heads"))
     heads = script.get_heads()
     migration = platform / "alembic/versions/0002_authoritative_schema.py"
-    permissions = (platform / "alembic/versions/0003_permissions_and_guards.py").read_text(
-        encoding="utf-8"
+    permissions = "\n".join(
+        (platform / path).read_text(encoding="utf-8")
+        for path in (
+            "alembic/versions/0003_permissions_and_guards.py",
+            "alembic/versions/0004_g3_semantic_repairs.py",
+        )
     )
     role_source = (platform / "alembic/versions/0001_roles_and_schemas.py").read_text(
         encoding="utf-8"
     )
+    lifecycle_source = "\n".join(
+        (platform / path).read_text(encoding="utf-8")
+        for path in (
+            "scripts/migrate-platform.sh",
+            "scripts/verify-migrator-failure-close.sh",
+            "tools/configure_roles.py",
+        )
+    )
+    evidence_source = (platform / "tools/build_wp3_evidence.py").read_text(encoding="utf-8")
     expected_tables = dictionary_tables(repository)
     actual_tables = migration_tables(migration)
     missing_files = [path for path in WP3_REQUIRED if not (repository / path).is_file()]
     checks = [
         result("required_delivery_files", not missing_files, missing_files, []),
-        result("single_head", len(heads) == 1, heads, ["0003_permissions_and_guards"]),
+        result("single_head", len(heads) == 1, heads, ["0004_g3_semantic_repairs"]),
         result(
             "linear_revision_chain",
             [revision.revision for revision in revisions]
             == [
+                "0004_g3_semantic_repairs",
                 "0003_permissions_and_guards",
                 "0002_authoritative_schema",
                 "0001_roles_and_schemas",
             ],
             [revision.revision for revision in revisions],
-            "0003 -> 0002 -> 0001",
+            "0004 -> 0003 -> 0002 -> 0001",
         ),
         result(
             "frozen_49_tables",
@@ -134,11 +157,35 @@ def evaluate(platform: Path) -> list[Check]:
                     "review_decisions_append_only",
                     "audit_events_append_only",
                     "validate_publication_grant",
-                    "public_claim_requires_evidence",
+                    "require_claim_has_evidence",
+                    "ck_evidence_locator_fields",
+                    "require_document_entity_revision_match",
+                    "require_linked_document_entity_revision_match",
                 )
             ),
             True,
             True,
+        ),
+        result(
+            "migrator_window_closes",
+            all(
+                token in lifecycle_source
+                for token in (
+                    "enable-migrator",
+                    "disable-migrator",
+                    "trap close_migrator EXIT HUP INT TERM",
+                    "ALTER ROLE uap_migrator {}",
+                    "migration failure left uap_migrator LOGIN enabled",
+                )
+            ),
+            True,
+            True,
+        ),
+        result(
+            "evidence_manifest_scope",
+            all(path in evidence_source for path in WP3_REQUIRED),
+            [path for path in WP3_REQUIRED if path not in evidence_source],
+            [],
         ),
     ]
     return checks
