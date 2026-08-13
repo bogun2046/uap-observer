@@ -1,6 +1,6 @@
 # WP3 PostgreSQL 与对象存储
 
-状态：G3-R2 整改与开发自测完成，待独立复验；WP4 门禁关闭
+状态：G3 独立技术复验通过；WP4 门禁开启
 
 - 工作包编号：`WP3-IMPL-20260812-01`
 - 冻结标准：`G3-FROZEN-20260812-01`
@@ -31,3 +31,4 @@
 - 开发自检：`development-self-review.md`
 - 首轮不通过记录：`g3-rejection-record.md`
 - G3-R2 整改报告：`g3-r2-remediation-report.md`
+- G3 正式验收记录：`g3-acceptance-record.md`
