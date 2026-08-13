@@ -33,6 +33,11 @@
 - 最终源环境联合备份恢复至第三套独立 volume；2 个对象精确核验；源/目标 50 张用户表统计逐项一致。
 - 正式 staging 脚本连续执行两次，服务均 healthy，第二次 bucket 初始化 `created=[]`，最终 revision 为 0004、migrator 为 NOLOGIN。
 
-## 待独立复验锚点
+## 提交与 CI 锚点
 
-新 Git commit、GitHub required run 和完整清单 SHA-256 将在提交后写入最终证据。以上仅是实现人员开发证据，不构成 G3-R2 独立验收通过结论。
+- 整改提交：`807562fb0eac218da9fe2da6a64a32e48359ac9c`
+- Platform CI required run：[#31677796019](https://github.com/bogun2046/uap-observer/actions/runs/31677796019)，quality、security、integration、gate 全部成功。
+- 本轮完整清单：`artifacts/wp3-engineering-20260813-r2/MANIFEST.sha256`；清单分离式锚点：`artifacts/wp3-engineering-20260813-r2.MANIFEST.sha256`。
+- 上述锚点固定的是提交 `807562f` 的整改版本；后续若继续追加代码或证据变更，必须重新生成清单并重新通过 required `gate`。
+
+以上仅是实现人员开发证据，不构成 G3-R2 独立验收通过结论；WP4 门禁继续关闭，等待独立复验。
