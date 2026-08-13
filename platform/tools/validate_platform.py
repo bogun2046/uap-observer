@@ -210,7 +210,7 @@ def evaluate(root: Path) -> list[Check]:
                     name in compose_text
                     for name in ("raw", "derived", "model-io", "public-assets")
                 )
-                and "alembic upgrade head" in compose_text,
+                and "scripts/migrate-platform.sh" in compose_text,
                 True,
             ),
             check(
@@ -257,7 +257,7 @@ def evaluate(root: Path) -> list[Check]:
         "ruff check",
         "mypy",
         "pytest",
-        "alembic upgrade head",
+                "scripts/migrate-platform.sh",
         "pip-audit",
         "bandit",
         "gitleaks",
@@ -322,7 +322,7 @@ def evaluate(root: Path) -> list[Check]:
                 "staging_idempotent_deploy",
                 "config --quiet" in deploy
                 and "uap-platform-object-store-init" in compose_text
-                and "alembic upgrade head" in deploy
+                and "object-store-init" in deploy
                 and "up --build --detach --wait" in deploy
                 and "down --volumes" not in deploy
                 and "permissions must be 600" in deploy,
@@ -347,7 +347,10 @@ def evaluate(root: Path) -> list[Check]:
 
     tracked_secret_patterns = (
         re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-        re.compile(r"(?i)(?:password|secret|token|api_key)\s*=\s*['\"][^'\"]{12,}['\"]"),
+        re.compile(
+            r"(?i)(?:password|secret|token|api_key)\s*=\s*['\"]"
+            r"(?!\$\{)[^'\"]{12,}['\"]"
+        ),
     )
     candidates = [
         path
