@@ -22,6 +22,7 @@ check:
 	uv run --frozen pytest --cov --cov-report=term-missing
 	uv run --frozen python tools/validate_platform.py
 	uv run --frozen python tools/validate_wp3.py
+	uv run --frozen python tools/validate_wp4.py
 
 lock:
 	uv lock

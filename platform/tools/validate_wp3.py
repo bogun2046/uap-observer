@@ -115,18 +115,32 @@ def evaluate(platform: Path) -> list[Check]:
     missing_files = [path for path in WP3_REQUIRED if not (repository / path).is_file()]
     checks = [
         result("required_delivery_files", not missing_files, missing_files, []),
-        result("single_head", len(heads) == 1, heads, ["0004_g3_semantic_repairs"]),
+        result(
+            "single_head",
+            len(heads) == 1 and heads[0] in {"0004_g3_semantic_repairs", "0005_durable_jobs"},
+            heads,
+            ["0004_g3_semantic_repairs", "0005_durable_jobs"],
+        ),
         result(
             "linear_revision_chain",
             [revision.revision for revision in revisions]
-            == [
-                "0004_g3_semantic_repairs",
-                "0003_permissions_and_guards",
-                "0002_authoritative_schema",
-                "0001_roles_and_schemas",
-            ],
+            in (
+                [
+                    "0004_g3_semantic_repairs",
+                    "0003_permissions_and_guards",
+                    "0002_authoritative_schema",
+                    "0001_roles_and_schemas",
+                ],
+                [
+                    "0005_durable_jobs",
+                    "0004_g3_semantic_repairs",
+                    "0003_permissions_and_guards",
+                    "0002_authoritative_schema",
+                    "0001_roles_and_schemas",
+                ],
+            ),
             [revision.revision for revision in revisions],
-            "0004 -> 0003 -> 0002 -> 0001",
+            "0004 -> 0003 -> 0002 -> 0001 or 0005 -> 0004 -> 0003 -> 0002 -> 0001",
         ),
         result(
             "frozen_49_tables",
