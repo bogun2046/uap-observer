@@ -12,8 +12,8 @@
     },
     {
       "path": "docs/wp4/acceptance-cases.md",
-      "sha256": "0907dfdfa74bef1ea33474bc5a50cd7406f6a4f535440796ebffc9fea3ae77aa",
-      "size": 1635
+      "sha256": "975685a69d0aa2078e19ebbc2b4a4b4f9629dd0bd574db96d28680cc8a176b95",
+      "size": 1633
     },
     {
       "path": "docs/wp4/acceptance-ticket.md",
@@ -22,8 +22,8 @@
     },
     {
       "path": "docs/wp4/development-self-review.md",
-      "sha256": "36c9e8a3f7804bcffa36b0f5d2ea6e287c2ae302df48d91af64c0f08bd7d4edf",
-      "size": 1632
+      "sha256": "20dfab3209ce2d7d51644adb73dc43bcee1a7f8257c53a681cf820ba92a0e978",
+      "size": 1826
     },
     {
       "path": "docs/wp4/implementation-ticket.md",
@@ -72,8 +72,8 @@
     },
     {
       "path": "platform/alembic/versions/0005_durable_jobs.py",
-      "sha256": "b192c3fe143d49269ff7f08cf90cebca984a68ffafcc1a46662348cfab79c00f",
-      "size": 31175
+      "sha256": "cbb66424d90d0b772590b3f482219b3042a41496d2eb186ee0b9be5b01c3b919",
+      "size": 32149
     },
     {
       "path": "platform/compose.yaml",
@@ -132,8 +132,8 @@
     },
     {
       "path": "platform/tools/wp4_runtime_probe.py",
-      "sha256": "71d250e2f30261088637e8dd848c71b60815882bccf999025c440200ec6fbc7d",
-      "size": 12634
+      "sha256": "a5d0939c927a4833b5b609e162cb7f15e9c86637a6cf7cfabbad579f842428d4",
+      "size": 15137
     }
   ],
   "freeze": "G4-FROZEN-20260814-01"

@@ -168,6 +168,28 @@ def main() -> None:
         )
         if publisher_claim["job_id"] != str(publisher_job_id):
             raise RuntimeError("publisher claimed the wrong job")
+        publisher_dead_status = scalar(
+            publisher,
+            """SELECT ops.finish_job(
+                %s::uuid, %s::uuid, %s::uuid,
+                'terminal_failure'::ops.attempt_outcome,
+                403::smallint, 'forbidden'::text, 'publisher dead-letter fixture'::text
+            )""",
+            publisher_job_id,
+            publisher_claim["attempt_id"],
+            publisher_claim["lease_token"],
+        )
+        if publisher_dead_status != "dead":
+            raise RuntimeError("publisher dead-letter fixture did not enter dead state")
+        worker_requeue_publisher = rejected(
+            worker,
+            "SELECT ops.requeue_dead_letter(%s::uuid, 'worker boundary probe'::text)",
+            publisher_job_id,
+        )
+        if worker_requeue_publisher != "42501":
+            raise RuntimeError(
+                f"worker requeued a publisher dead letter with SQLSTATE {worker_requeue_publisher}"
+            )
 
         event_id = scalar(
             scheduler,
@@ -195,11 +217,41 @@ def main() -> None:
         )
         if event["event_id"] != str(event_id):
             raise RuntimeError("publisher claimed the wrong Outbox event")
+        with admin.cursor() as cursor:
+            cursor.execute(
+                "UPDATE ops.outbox_events SET lease_expires_at=now()-interval '1 second' "
+                "WHERE id=%s",
+                (event_id,),
+            )
+        for statement, params in (
+            (
+                "SELECT ops.ack_outbox(%s::uuid, %s::uuid)",
+                (event_id, event["lease_token"]),
+            ),
+            (
+                "SELECT ops.publish_outbox_failure(%s::uuid, %s::uuid, 'timeout', 'expired', 0)",
+                (event_id, event["lease_token"]),
+            ),
+            (
+                "SELECT ops.release_outbox(%s::uuid, %s::uuid, 'timeout', 'expired')",
+                (event_id, event["lease_token"]),
+            ),
+        ):
+            expired_outbox_state = rejected(publisher, statement, *params)
+            if expired_outbox_state != "40001":
+                raise RuntimeError(f"expired Outbox lease returned SQLSTATE {expired_outbox_state}")
+        reclaimed_event = scalar(
+            publisher,
+            "SELECT row_to_json(claimed)::jsonb "
+            "FROM ops.claim_outbox('wp4-dispatcher-expired', 30, 10) AS claimed",
+        )
+        if reclaimed_event["event_id"] != str(event_id):
+            raise RuntimeError("expired Outbox event was not reclaimed")
         scalar(
             publisher,
             "SELECT ops.publish_outbox_failure(%s, %s, 'timeout', 'probe retry', 0)",
             event_id,
-            event["lease_token"],
+            reclaimed_event["lease_token"],
         )
         retried_event = scalar(
             publisher,
@@ -248,6 +300,11 @@ def main() -> None:
         )
         if recovered_claim["job_id"] != str(expired_job_id) or recovered_claim["attempt_no"] != 2:
             raise RuntimeError("expired lease was not recovered as the next attempt")
+        if (
+            scalar(worker, "SELECT recovery_reason FROM ops.jobs WHERE id=%s", expired_job_id)
+            != "lease_expired"
+        ):
+            raise RuntimeError("lease recovery reason was not retained")
         stale_finish = rejected(
             worker,
             "SELECT ops.finish_job(%s::uuid, %s::uuid, %s::uuid, 'succeeded'::ops.attempt_outcome)",

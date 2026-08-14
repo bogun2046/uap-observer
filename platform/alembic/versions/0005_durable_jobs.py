@@ -259,7 +259,11 @@ def upgrade() -> None:
                 UPDATE ops.jobs
                    SET status = 'running', attempt_count = new_attempt_no,
                        lease_owner = p_worker_id, lease_expires_at = deadline, lease_token = new_token,
-                       updated_at = now(), recovery_reason = NULL
+                       updated_at = now(),
+                       recovery_reason = CASE
+                           WHEN candidate.status IN ('leased','running') THEN 'lease_expired'
+                           ELSE candidate.recovery_reason
+                       END
                  WHERE id = candidate.id;
                 INSERT INTO ops.job_attempts (
                     id, job_id, attempt_no, worker_id, lease_token, started_at, outcome
@@ -388,12 +392,25 @@ def upgrade() -> None:
         LANGUAGE plpgsql SECURITY DEFINER
         SET search_path = ops, pg_catalog
         AS $requeue_dead_letter$
+        DECLARE dead_job_type text;
         BEGIN
             IF session_user NOT IN ('uap_scheduler', 'uap_worker') THEN
                 RAISE EXCEPTION 'only scheduler or worker may requeue a dead letter' USING ERRCODE='42501';
             END IF;
             IF btrim(coalesce(p_resolution, '')) = '' THEN
                 RAISE EXCEPTION 'dead-letter resolution is required' USING ERRCODE='22023';
+            END IF;
+            SELECT job_type INTO dead_job_type
+              FROM ops.jobs
+             WHERE id = p_job_id AND status = 'dead'
+             FOR UPDATE;
+            IF dead_job_type IS NULL THEN
+                RAISE EXCEPTION 'dead-letter job is not in dead state' USING ERRCODE='22023';
+            END IF;
+            IF session_user = 'uap_worker'
+               AND dead_job_type IN ('publish_document','withdraw_document','invalidate_public_cache') THEN
+                RAISE EXCEPTION 'ordinary worker cannot requeue a publisher job'
+                    USING ERRCODE='42501';
             END IF;
             UPDATE ops.dead_letters
                SET resolved_at = now(), resolution = p_resolution
@@ -433,7 +450,8 @@ def upgrade() -> None:
                SET lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
                    available_at = now() + make_interval(secs => p_retry_delay_seconds),
                    last_error_code = p_error_code, last_error_summary = p_error_summary
-             WHERE id = p_event_id AND published_at IS NULL AND lease_token = p_lease_token;
+             WHERE id = p_event_id AND published_at IS NULL
+               AND lease_token = p_lease_token AND lease_expires_at > now();
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'Outbox lease is missing or already acknowledged' USING ERRCODE='40001';
             END IF;
@@ -509,7 +527,8 @@ def upgrade() -> None:
             END IF;
             UPDATE ops.outbox_events
                SET published_at = now(), lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL
-             WHERE id = p_event_id AND published_at IS NULL AND lease_token = p_lease_token;
+             WHERE id = p_event_id AND published_at IS NULL
+               AND lease_token = p_lease_token AND lease_expires_at > now();
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'Outbox lease is missing or already acknowledged' USING ERRCODE='40001';
             END IF;
@@ -529,7 +548,8 @@ def upgrade() -> None:
             UPDATE ops.outbox_events
                SET lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
                    last_error_code = p_error_code, last_error_summary = p_error_summary
-             WHERE id = p_event_id AND published_at IS NULL AND lease_token = p_lease_token;
+             WHERE id = p_event_id AND published_at IS NULL
+               AND lease_token = p_lease_token AND lease_expires_at > now();
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'Outbox lease is missing or already acknowledged' USING ERRCODE='40001';
             END IF;
