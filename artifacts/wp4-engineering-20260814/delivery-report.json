@@ -7,8 +7,8 @@
     },
     {
       "path": "docs/wp4/README.md",
-      "sha256": "5fd052654ad894c805f17e688b11987533e124a4ecbec50404e0b25521d58dea",
-      "size": 1287
+      "sha256": "6de9afac925e4fd764d6a3e61d2c63127e8860e2884ded474036b1246fdec691",
+      "size": 1257
     },
     {
       "path": "docs/wp4/acceptance-cases.md",
@@ -17,8 +17,8 @@
     },
     {
       "path": "docs/wp4/acceptance-ticket.md",
-      "sha256": "73813f0c57c205ae35c728049294ba0fac7501ceb8a82f0d80c80983a773c32b",
-      "size": 916
+      "sha256": "70ffd1c46b5dba3be35df53b1ccbf0993142f471405e248f076ced4e7b90a171",
+      "size": 1560
     },
     {
       "path": "docs/wp4/development-self-review.md",
