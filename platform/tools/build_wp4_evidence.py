@@ -27,6 +27,7 @@ EVIDENCE_REQUIRED = (
     "platform/alembic/versions/0005_durable_jobs.py",
     "platform/pyproject.toml",
     "platform/scripts/migrate-platform.sh",
+    "platform/scripts/scan-images.sh",
     "platform/scripts/verify-migration-chain.sh",
     "platform/scripts/verify-migrator-failure-close.sh",
     "platform/tools/build_wp4_evidence.py",

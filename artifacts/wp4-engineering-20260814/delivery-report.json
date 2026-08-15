@@ -91,6 +91,11 @@
       "size": 497
     },
     {
+      "path": "platform/scripts/scan-images.sh",
+      "sha256": "c149926aca0b995e8107be55104fba0d18b431f9ee545f233990f7fe51ed58cf",
+      "size": 1519
+    },
+    {
       "path": "platform/scripts/verify-migration-chain.sh",
       "sha256": "ccb95b4152cd34b0c53328330d01554caa689ec705fbe3f2020edba112f896e7",
       "size": 3685
@@ -102,8 +107,8 @@
     },
     {
       "path": "platform/tools/build_wp4_evidence.py",
-      "sha256": "7bde1cd6dda6d72c23de79ae3f31229c1d1c485fc54375a097f67ad721c0c640",
-      "size": 3222
+      "sha256": "60503da7cdd1305e48f37a8576067948d92e91ca5993259d736f0a58d8d183ed",
+      "size": 3261
     },
     {
       "path": "platform/tools/configure_roles.py",
