@@ -1,0 +1,150 @@
+{
+  "files": [
+    {
+      "path": ".github/workflows/platform-ci.yml",
+      "sha256": "ede4726e546901f3c6dccae78075da1103a0710832d5cae6f3231b84401e7f22",
+      "size": 8209
+    },
+    {
+      "path": "docs/wp4/README.md",
+      "sha256": "5fd052654ad894c805f17e688b11987533e124a4ecbec50404e0b25521d58dea",
+      "size": 1287
+    },
+    {
+      "path": "docs/wp4/acceptance-cases.md",
+      "sha256": "975685a69d0aa2078e19ebbc2b4a4b4f9629dd0bd574db96d28680cc8a176b95",
+      "size": 1633
+    },
+    {
+      "path": "docs/wp4/acceptance-ticket.md",
+      "sha256": "73813f0c57c205ae35c728049294ba0fac7501ceb8a82f0d80c80983a773c32b",
+      "size": 916
+    },
+    {
+      "path": "docs/wp4/development-self-review.md",
+      "sha256": "2825ace685e0809921ced8bd61df08f998c2ba18a70af8c3e9ac266b1b0fb631",
+      "size": 2441
+    },
+    {
+      "path": "docs/wp4/implementation-ticket.md",
+      "sha256": "3f08af1a7a3dc6e85ea47c34d9cc91a956799925cf51977160098d64d36565e7",
+      "size": 1012
+    },
+    {
+      "path": "platform/.env.versions",
+      "sha256": "f8f92c59ca9a24aad0492201a88aa88edb53ce02975afd2ab77f8265c9e5cb50",
+      "size": 880
+    },
+    {
+      "path": "platform/Dockerfile",
+      "sha256": "bfe12a1dbb376ec1dfb95413f8c5512d4ef54e371b64f96f73583461e4dc9cbe",
+      "size": 1177
+    },
+    {
+      "path": "platform/Makefile",
+      "sha256": "296cc02a26511283c275be0f274e5ae218f370f0ebfe25aec84e28baa099a5bd",
+      "size": 963
+    },
+    {
+      "path": "platform/alembic/env.py",
+      "sha256": "a9ff9c6e3def66c1955c460c00637120d596ec202a217b1aab96d559471fecee",
+      "size": 2057
+    },
+    {
+      "path": "platform/alembic/versions/0001_roles_and_schemas.py",
+      "sha256": "586de3330c6fa357a50ed929ab73eeb56b151d488c72707c078b9ea17d2f3bc7",
+      "size": 2530
+    },
+    {
+      "path": "platform/alembic/versions/0002_authoritative_schema.py",
+      "sha256": "5a8b070c01312aad574c549a6f0c5b0dd16d4be790f86855052eb72fc7f33e2f",
+      "size": 41866
+    },
+    {
+      "path": "platform/alembic/versions/0003_permissions_and_guards.py",
+      "sha256": "0435f5f18ef8f2f23e648505ce7f9ca51d0afd2d573eeff63867ede223acf371",
+      "size": 8987
+    },
+    {
+      "path": "platform/alembic/versions/0004_g3_semantic_repairs.py",
+      "sha256": "86b18cc1f23d60f354ba5ff3743b42b1e1e94420fdde36d4e05c4522982e11eb",
+      "size": 9018
+    },
+    {
+      "path": "platform/alembic/versions/0005_durable_jobs.py",
+      "sha256": "e3bc023af944088b0a1ebb11b45e62c932c10ce592556f1ba905aa089796d595",
+      "size": 32749
+    },
+    {
+      "path": "platform/compose.yaml",
+      "sha256": "e960333aa3e9a4e12ea7c20744c5686ec2e21f665b47e116f6679fadf418f5e3",
+      "size": 4969
+    },
+    {
+      "path": "platform/object-store/Dockerfile",
+      "sha256": "310d140acfd9ea70c9d36eb8c6d6a1bb11ff15c6d61f5099669c801e53b95101",
+      "size": 752
+    },
+    {
+      "path": "platform/pyproject.toml",
+      "sha256": "6e2e5ad72dc628197efec4c2dd1b75501ccc5350e1b90eef87c9fa5915b0077b",
+      "size": 1510
+    },
+    {
+      "path": "platform/scripts/migrate-platform.sh",
+      "sha256": "752e1dccd130de715b510c481086f1ec95ee988dfa3b5ff3cffcbf0c214f1fe8",
+      "size": 497
+    },
+    {
+      "path": "platform/scripts/scan-images.sh",
+      "sha256": "c149926aca0b995e8107be55104fba0d18b431f9ee545f233990f7fe51ed58cf",
+      "size": 1519
+    },
+    {
+      "path": "platform/scripts/verify-migration-chain.sh",
+      "sha256": "ccb95b4152cd34b0c53328330d01554caa689ec705fbe3f2020edba112f896e7",
+      "size": 3685
+    },
+    {
+      "path": "platform/scripts/verify-migrator-failure-close.sh",
+      "sha256": "bd8a2738cc0496b9ae3f71bc11a0bd1f458ceb88c6f7daed01f6f26113f5a5e5",
+      "size": 2210
+    },
+    {
+      "path": "platform/tools/build_wp4_evidence.py",
+      "sha256": "bdb5c34819d08256b0a3b85c53f7d65b05361fa057f44aadf354763beae5fe76",
+      "size": 3301
+    },
+    {
+      "path": "platform/tools/configure_roles.py",
+      "sha256": "6d5e08971adfad8a51b7fcd00151871ed5ffe7e28f1e1ed7ba8df80a05eb34fb",
+      "size": 4181
+    },
+    {
+      "path": "platform/tools/validate_platform.py",
+      "sha256": "537e298e3baa412bae3596e742b33937587beff95ac73029490ca9f91a0dd3b0",
+      "size": 16094
+    },
+    {
+      "path": "platform/tools/validate_wp3.py",
+      "sha256": "85aac9dae30ceb3707ad05cf0157658b02320bd658ed0b36c6a8001162f8487b",
+      "size": 7618
+    },
+    {
+      "path": "platform/tools/validate_wp4.py",
+      "sha256": "ef952c7b8ffc163748ebe68e4c90dea505125261e3342a8947e57cdf1b8701d9",
+      "size": 3496
+    },
+    {
+      "path": "platform/tools/wp3_runtime_probe.py",
+      "sha256": "0fa83d137986d9ab17e4585b86ec94a1aa8b1b6497346aa4ac8ced56b84c03f9",
+      "size": 32379
+    },
+    {
+      "path": "platform/tools/wp4_runtime_probe.py",
+      "sha256": "fc2fe43003a00dad6da4b0b6812448db8d55c3577d71985d44de248aba836fcd",
+      "size": 19037
+    }
+  ],
+  "freeze": "G4-FROZEN-20260814-01"
+}
