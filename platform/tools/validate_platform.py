@@ -155,7 +155,13 @@ def evaluate(root: Path) -> list[Check]:
                 and trivy_image.startswith("aquasec/trivy:0.73.0@sha256:")
                 and all(
                     "@sha256:" in image
-                    for image in (python_image, postgres_image, go_image, seaweedfs_base_image, trivy_image)
+                    for image in (
+                        python_image,
+                        postgres_image,
+                        go_image,
+                        seaweedfs_base_image,
+                        trivy_image,
+                    )
                 ),
                 {
                     "python": python_image,

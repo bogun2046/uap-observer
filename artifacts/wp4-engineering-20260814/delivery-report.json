@@ -122,8 +122,8 @@
     },
     {
       "path": "platform/tools/validate_platform.py",
-      "sha256": "480ea0a917ee67bf255b39ad8d55778cccaa10d2a092b11775bb0446539e5713",
-      "size": 15951
+      "sha256": "537e298e3baa412bae3596e742b33937587beff95ac73029490ca9f91a0dd3b0",
+      "size": 16094
     },
     {
       "path": "platform/tools/validate_wp3.py",
