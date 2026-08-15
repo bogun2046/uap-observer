@@ -19,6 +19,7 @@ EVIDENCE_REQUIRED = (
 
     "platform/Makefile",
     "platform/compose.yaml",
+    "platform/object-store/Dockerfile",
     "platform/alembic/env.py",
     "platform/alembic/versions/0001_roles_and_schemas.py",
     "platform/alembic/versions/0002_authoritative_schema.py",

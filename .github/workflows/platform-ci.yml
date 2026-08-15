@@ -121,9 +121,9 @@ jobs:
           fetch-depth: 0
       - name: Create ephemeral CI credentials
         run: platform/scripts/bootstrap-env.sh
-      - name: Build deployable application and hardened PostgreSQL images
+      - name: Build deployable application, hardened PostgreSQL, and object storage images
         working-directory: platform
-        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml -f compose.staging.yaml build app postgres
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml -f compose.staging.yaml build app postgres object-store
       - name: Build isolated security tools image
         working-directory: platform
         run: |

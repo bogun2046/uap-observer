@@ -21,5 +21,6 @@
 - 迁移链通过：`0001 -> 0002 -> 0003 -> 0004 -> 0005` 顺序升级、重复升级、降级到 WP2 后回升 head 均成功；失败迁移后 migrator 收口验证通过。
 - 容器质量检查通过：Ruff、mypy、28/28 pytest，覆盖率 91.86%，WP2 23/23、WP3 9/9、WP4 6/6。
 - 证据清单由 `platform/tools/build_wp4_evidence.py` 生成；最终提交后须由独立验收记录绑定 commit、required CI run 和清单 SHA-256。
+- required CI 的 Trivy 扫描发现 SeaweedFS 4.41 上游 `weed` 二进制包含 7 个 High 级 Go 漏洞；对象存储镜像现以固定 Go 1.25.13 和 SeaweedFS 4.41 提交 `de34a1a87c02893507f961cda9574172ee5064e9` 重建 `weed`，并继续复用固定的官方 SeaweedFS 运行时层。整改后的最终镜像必须由 required security job 重新证明 High/Critical 为 0。
 
 实现人员不填写最终独立验收结论；本报告只记录开发自测证据。

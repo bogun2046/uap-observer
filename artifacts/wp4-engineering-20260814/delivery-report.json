@@ -2,8 +2,8 @@
   "files": [
     {
       "path": ".github/workflows/platform-ci.yml",
-      "sha256": "241a603b6d5293b6b69708bfbc07c57f3506bca6cabcc322695dd34921c5fada",
-      "size": 8179
+      "sha256": "ede4726e546901f3c6dccae78075da1103a0710832d5cae6f3231b84401e7f22",
+      "size": 8209
     },
     {
       "path": "docs/wp4/README.md",
@@ -22,8 +22,8 @@
     },
     {
       "path": "docs/wp4/development-self-review.md",
-      "sha256": "106e773df2a12e61fb4ed25babae0f0b4d47ca47d53d0cb83847d6d3903bd8d7",
-      "size": 2057
+      "sha256": "2825ace685e0809921ced8bd61df08f998c2ba18a70af8c3e9ac266b1b0fb631",
+      "size": 2441
     },
     {
       "path": "docs/wp4/implementation-ticket.md",
@@ -32,8 +32,8 @@
     },
     {
       "path": "platform/.env.versions",
-      "sha256": "dbcf9610f49cb1642aff5d6c3e9cf04f6839df7e3049d854ff26d3e74226661b",
-      "size": 654
+      "sha256": "f8f92c59ca9a24aad0492201a88aa88edb53ce02975afd2ab77f8265c9e5cb50",
+      "size": 880
     },
     {
       "path": "platform/Dockerfile",
@@ -77,8 +77,13 @@
     },
     {
       "path": "platform/compose.yaml",
-      "sha256": "45c927dbf2939fc39ff36cc38a9cb95150fc39fe4f5fa7c0f93727ce28ba6337",
-      "size": 4646
+      "sha256": "e960333aa3e9a4e12ea7c20744c5686ec2e21f665b47e116f6679fadf418f5e3",
+      "size": 4969
+    },
+    {
+      "path": "platform/object-store/Dockerfile",
+      "sha256": "310d140acfd9ea70c9d36eb8c6d6a1bb11ff15c6d61f5099669c801e53b95101",
+      "size": 752
     },
     {
       "path": "platform/pyproject.toml",
@@ -107,8 +112,8 @@
     },
     {
       "path": "platform/tools/build_wp4_evidence.py",
-      "sha256": "60503da7cdd1305e48f37a8576067948d92e91ca5993259d736f0a58d8d183ed",
-      "size": 3261
+      "sha256": "bdb5c34819d08256b0a3b85c53f7d65b05361fa057f44aadf354763beae5fe76",
+      "size": 3301
     },
     {
       "path": "platform/tools/configure_roles.py",
@@ -117,8 +122,8 @@
     },
     {
       "path": "platform/tools/validate_platform.py",
-      "sha256": "9075956d7841a6e628acabce2cdccf959b1fa3ed052a69aca4a15178e2ebe9b9",
-      "size": 15218
+      "sha256": "480ea0a917ee67bf255b39ad8d55778cccaa10d2a092b11775bb0446539e5713",
+      "size": 15951
     },
     {
       "path": "platform/tools/validate_wp3.py",

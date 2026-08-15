@@ -80,6 +80,7 @@ def evaluate(root: Path) -> list[Check]:
         "alembic/env.py",
         "compose.staging.yaml",
         "compose.yaml",
+        "object-store/Dockerfile",
         "postgres/Dockerfile",
         "pyproject.toml",
         "scripts/bootstrap-env.sh",
@@ -122,6 +123,9 @@ def evaluate(root: Path) -> list[Check]:
     python_image = versions.get("UAP_PYTHON_IMAGE", "")
     postgres_image = versions.get("UAP_POSTGRES_IMAGE", "")
     object_store_image = versions.get("UAP_OBJECT_STORE_IMAGE", "")
+    go_image = versions.get("UAP_GO_IMAGE", "")
+    seaweedfs_commit = versions.get("UAP_SEAWEEDFS_COMMIT", "")
+    seaweedfs_base_image = versions.get("UAP_SEAWEEDFS_BASE_IMAGE", "")
     trivy_image = versions.get("UAP_TRIVY_IMAGE", "")
     postgres_dockerfile = (root / "postgres/Dockerfile").read_text(encoding="utf-8")
     image_scan = (root / "scripts/scan-images.sh").read_text(encoding="utf-8")
@@ -144,16 +148,22 @@ def evaluate(root: Path) -> list[Check]:
                 "patched_runtime_versions",
                 python_image.startswith("python:3.12.13-alpine")
                 and postgres_image.startswith("postgres:16.14-alpine")
-                and object_store_image.startswith("chrislusf/seaweedfs:4.41@sha256:")
+                and object_store_image == "uap-seaweedfs:4.41-hardened"
+                and go_image.startswith("golang:1.25.13-alpine3.23@sha256:")
+                and len(seaweedfs_commit) == 40
+                and seaweedfs_base_image.startswith("chrislusf/seaweedfs:4.41@sha256:")
                 and trivy_image.startswith("aquasec/trivy:0.73.0@sha256:")
                 and all(
                     "@sha256:" in image
-                    for image in (python_image, postgres_image, object_store_image, trivy_image)
+                    for image in (python_image, postgres_image, go_image, seaweedfs_base_image, trivy_image)
                 ),
                 {
                     "python": python_image,
                     "postgres": postgres_image,
                     "object_store": object_store_image,
+                    "go": go_image,
+                    "seaweedfs_commit": seaweedfs_commit,
+                    "seaweedfs_base": seaweedfs_base_image,
                     "trivy": trivy_image,
                 },
             ),
@@ -172,6 +182,9 @@ def evaluate(root: Path) -> list[Check]:
                         "${UAP_POSTGRES_IMAGE:",
                         "${UAP_POSTGRES_RUNTIME_IMAGE:",
                         "${UAP_OBJECT_STORE_IMAGE:",
+                        "${UAP_GO_IMAGE:",
+                        "${UAP_SEAWEEDFS_COMMIT:",
+                        "${UAP_SEAWEEDFS_BASE_IMAGE:",
                         "${UAP_UV_VERSION:",
                     )
                 )

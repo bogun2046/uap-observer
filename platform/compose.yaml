@@ -24,6 +24,13 @@ services:
 
   object-store:
     image: ${UAP_OBJECT_STORE_IMAGE:?load platform/.env.versions}
+    build:
+      context: .
+      dockerfile: object-store/Dockerfile
+      args:
+        UAP_GO_IMAGE: ${UAP_GO_IMAGE:?load platform/.env.versions}
+        UAP_SEAWEEDFS_COMMIT: ${UAP_SEAWEEDFS_COMMIT:?load platform/.env.versions}
+        UAP_SEAWEEDFS_BASE_IMAGE: ${UAP_SEAWEEDFS_BASE_IMAGE:?load platform/.env.versions}
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - >-
