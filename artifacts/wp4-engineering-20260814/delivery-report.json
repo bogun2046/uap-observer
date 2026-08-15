@@ -22,8 +22,8 @@
     },
     {
       "path": "docs/wp4/development-self-review.md",
-      "sha256": "20dfab3209ce2d7d51644adb73dc43bcee1a7f8257c53a681cf820ba92a0e978",
-      "size": 1826
+      "sha256": "106e773df2a12e61fb4ed25babae0f0b4d47ca47d53d0cb83847d6d3903bd8d7",
+      "size": 2057
     },
     {
       "path": "docs/wp4/implementation-ticket.md",
@@ -72,8 +72,8 @@
     },
     {
       "path": "platform/alembic/versions/0005_durable_jobs.py",
-      "sha256": "cbb66424d90d0b772590b3f482219b3042a41496d2eb186ee0b9be5b01c3b919",
-      "size": 32149
+      "sha256": "e3bc023af944088b0a1ebb11b45e62c932c10ce592556f1ba905aa089796d595",
+      "size": 32749
     },
     {
       "path": "platform/compose.yaml",
@@ -132,8 +132,8 @@
     },
     {
       "path": "platform/tools/wp4_runtime_probe.py",
-      "sha256": "a5d0939c927a4833b5b609e162cb7f15e9c86637a6cf7cfabbad579f842428d4",
-      "size": 15137
+      "sha256": "fc2fe43003a00dad6da4b0b6812448db8d55c3577d71985d44de248aba836fcd",
+      "size": 19037
     }
   ],
   "freeze": "G4-FROZEN-20260814-01"

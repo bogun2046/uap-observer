@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 import uuid
 from typing import Any
 
@@ -50,6 +51,19 @@ def rejected(connection: psycopg.Connection[Any], statement: str, *params: objec
     raise RuntimeError("probe accepted a forbidden operation")
 
 
+def rejected_in_open_transaction(
+    connection: psycopg.Connection[Any], statement: str, *params: object
+) -> str:
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(statement, params)
+    except psycopg.Error as error:
+        state = str(error.sqlstate)
+        connection.rollback()
+        return state
+    raise RuntimeError("probe accepted an expired lease in an open transaction")
+
+
 def main() -> None:
     settings = load_settings()
     admin_url = settings.psycopg_database_url
@@ -60,7 +74,9 @@ def main() -> None:
     forbidden_key = f"wp4-forbidden-publish-{run_tag}"
     publisher_key = f"wp4-publisher-job-{run_tag}"
     expired_key = f"wp4-expired-job-{run_tag}"
+    clock_job_key = f"wp4-clock-job-{run_tag}"
     event_key = f"wp4-event-key-{run_tag}"
+    clock_event_key = f"wp4-clock-event-{run_tag}"
     worker = connection_for(admin_url, "uap_worker")
     scheduler = connection_for(admin_url, "uap_scheduler")
     publisher = connection_for(admin_url, "uap_publisher")
@@ -143,6 +159,54 @@ def main() -> None:
         )
         if retry_status != "retry_wait":
             raise RuntimeError(f"503 did not enter retry_wait: {retry_status}")
+
+        clock_job_id = scalar(
+            scheduler,
+            "SELECT ops.enqueue_job('fetch_source', '{}'::jsonb, '1', %s, "
+            "32767::smallint, now(), 1, 30)",
+            clock_job_key,
+        )
+        long_worker = connection_for(admin_url, "uap_worker")
+        long_worker.autocommit = False
+        try:
+            clock_claim = scalar(
+                long_worker,
+                """SELECT row_to_json(claimed)::jsonb
+                     FROM ops.claim_job(
+                         'worker', 'wp4-worker-clock', ARRAY['fetch_source'], 1
+                     ) AS claimed""",
+            )
+            time.sleep(1.2)
+            expired_finish_state = rejected_in_open_transaction(
+                long_worker,
+                "SELECT ops.finish_job(%s::uuid, %s::uuid, %s::uuid, "
+                "'succeeded'::ops.attempt_outcome)",
+                clock_job_id,
+                clock_claim["attempt_id"],
+                clock_claim["lease_token"],
+            )
+            if expired_finish_state != "40001":
+                raise RuntimeError(
+                    f"long-transaction job finish returned SQLSTATE {expired_finish_state}"
+                )
+        finally:
+            long_worker.close()
+        cleanup_clock_job = scalar(
+            worker,
+            "SELECT row_to_json(claimed)::jsonb "
+            "FROM ops.claim_job('worker', 'wp4-clock-cleanup', "
+            "ARRAY['fetch_source'], 30) AS claimed",
+        )
+        if cleanup_clock_job["job_id"] != str(clock_job_id):
+            raise RuntimeError("clock lease fixture cleanup claimed the wrong job")
+        scalar(
+            worker,
+            "SELECT ops.finish_job(%s::uuid, %s::uuid, %s::uuid, "
+            "'succeeded'::ops.attempt_outcome)",
+            clock_job_id,
+            cleanup_clock_job["attempt_id"],
+            cleanup_clock_job["lease_token"],
+        )
 
         publisher_job_id = scalar(
             scheduler,
@@ -270,6 +334,46 @@ def main() -> None:
             is not True
         ):
             raise RuntimeError("Outbox acknowledgement did not publish event")
+
+        clock_event_id = scalar(
+            scheduler,
+            "SELECT ops.emit_outbox(%s, 'document', %s, 'clock_probe', %s, '{}'::jsonb)",
+            job_id,
+            id_for(4),
+            clock_event_key,
+        )
+        long_publisher = connection_for(admin_url, "uap_publisher")
+        long_publisher.autocommit = False
+        try:
+            clock_event = scalar(
+                long_publisher,
+                "SELECT row_to_json(claimed)::jsonb "
+                "FROM ops.claim_outbox('wp4-dispatcher-clock', 1, 10) AS claimed",
+            )
+            time.sleep(1.2)
+            expired_ack_state = rejected_in_open_transaction(
+                long_publisher,
+                "SELECT ops.ack_outbox(%s::uuid, %s::uuid)",
+                clock_event_id,
+                clock_event["lease_token"],
+            )
+            if expired_ack_state != "40001":
+                raise RuntimeError(
+                    f"long-transaction Outbox ack returned SQLSTATE {expired_ack_state}"
+                )
+        finally:
+            long_publisher.close()
+        cleanup_clock_event = scalar(
+            publisher,
+            "SELECT row_to_json(claimed)::jsonb "
+            "FROM ops.claim_outbox('wp4-dispatcher-clock-cleanup', 30, 10) AS claimed",
+        )
+        scalar(
+            publisher,
+            "SELECT ops.ack_outbox(%s::uuid, %s::uuid)",
+            clock_event_id,
+            cleanup_clock_event["lease_token"],
+        )
 
         expired_job_id = scalar(
             scheduler,

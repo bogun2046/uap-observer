@@ -170,6 +170,7 @@ def upgrade() -> None:
             new_attempt_no integer;
             new_attempt_id uuid;
             deadline timestamptz;
+            observed_at timestamptz;
         BEGIN
             IF p_worker_id IS NULL OR btrim(p_worker_id) = '' THEN
                 RAISE EXCEPTION 'worker identity is required' USING ERRCODE='22023';
@@ -206,13 +207,14 @@ def upgrade() -> None:
             ELSE
                 RAISE EXCEPTION 'unknown executor role' USING ERRCODE='22023';
             END IF;
+            observed_at := clock_timestamp();
 
             FOR candidate IN
                 SELECT j.*
                   FROM ops.jobs AS j
                  WHERE (
-                       (j.status IN ('queued','retry_wait') AND j.available_at <= now())
-                    OR (j.status IN ('leased','running') AND j.lease_expires_at <= now())
+                       (j.status IN ('queued','retry_wait') AND j.available_at <= observed_at)
+                    OR (j.status IN ('leased','running') AND j.lease_expires_at <= observed_at)
                  )
                    AND j.job_type = ANY (p_job_types)
                  ORDER BY j.priority DESC, j.available_at, j.created_at
@@ -226,23 +228,23 @@ def upgrade() -> None:
                      FOR UPDATE;
                     IF previous_attempt.id IS NOT NULL AND previous_attempt.finished_at IS NULL THEN
                         UPDATE ops.job_attempts
-                           SET finished_at = clock_timestamp(),
-                               duration_ms = greatest(0, (extract(epoch FROM (clock_timestamp() - started_at)) * 1000)::bigint),
+                           SET finished_at = observed_at,
+                               duration_ms = greatest(0, (extract(epoch FROM (observed_at - started_at)) * 1000)::bigint),
                                outcome = 'retryable_failure',
                                error_code = 'lease_expired',
                                error_summary = 'lease expired before completion',
-                               retry_at = now()
+                               retry_at = observed_at
                          WHERE id = previous_attempt.id;
                     END IF;
                     IF candidate.attempt_count >= candidate.max_attempts THEN
                         INSERT INTO ops.dead_letters (
                             id, job_id, last_attempt_id, reason_code, payload_snapshot, dead_at
                         ) VALUES (
-                            md5(random()::text || clock_timestamp()::text)::uuid,
-                            candidate.id, previous_attempt.id, 'lease_expired', candidate.payload, now()
+                            md5(random()::text || observed_at::text)::uuid,
+                            candidate.id, previous_attempt.id, 'lease_expired', candidate.payload, observed_at
                         ) ON CONFLICT ON CONSTRAINT dead_letters_job_id_key DO NOTHING;
                         UPDATE ops.jobs
-                           SET status = 'dead', completed_at = now(), updated_at = now(),
+                           SET status = 'dead', completed_at = observed_at, updated_at = observed_at,
                                lease_owner = NULL, lease_expires_at = NULL, lease_token = NULL,
                                last_error_code = 'lease_expired',
                                last_error_summary = 'maximum attempts exhausted after lease expiry',
@@ -253,13 +255,13 @@ def upgrade() -> None:
                 END IF;
 
                 new_attempt_no := candidate.attempt_count + 1;
-                new_attempt_id := md5(random()::text || clock_timestamp()::text)::uuid;
-                new_token := md5(random()::text || clock_timestamp()::text)::uuid;
-                deadline := now() + make_interval(secs => p_lease_seconds);
+                new_attempt_id := md5(random()::text || observed_at::text)::uuid;
+                new_token := md5(random()::text || observed_at::text)::uuid;
+                deadline := observed_at + make_interval(secs => p_lease_seconds);
                 UPDATE ops.jobs
                    SET status = 'running', attempt_count = new_attempt_no,
                        lease_owner = p_worker_id, lease_expires_at = deadline, lease_token = new_token,
-                       updated_at = now(),
+                       updated_at = observed_at,
                        recovery_reason = CASE
                            WHEN candidate.status IN ('leased','running') THEN 'lease_expired'
                            ELSE candidate.recovery_reason
@@ -268,7 +270,7 @@ def upgrade() -> None:
                 INSERT INTO ops.job_attempts (
                     id, job_id, attempt_no, worker_id, lease_token, started_at, outcome
                 ) VALUES (
-                    new_attempt_id, candidate.id, new_attempt_no, p_worker_id, new_token, now(), 'running'
+                    new_attempt_id, candidate.id, new_attempt_no, p_worker_id, new_token, observed_at, 'running'
                 );
                 job_id := candidate.id;
                 attempt_id := new_attempt_id;
@@ -303,6 +305,7 @@ def upgrade() -> None:
             next_status ops.job_status;
             retry_at timestamptz;
             dead_reason text;
+            observed_at timestamptz;
         BEGIN
             IF p_outcome = 'running' THEN
                 RAISE EXCEPTION 'running is not a terminal attempt outcome' USING ERRCODE='22023';
@@ -313,9 +316,10 @@ def upgrade() -> None:
                     USING ERRCODE='22023';
             END IF;
             SELECT * INTO current_job FROM ops.jobs WHERE id = p_job_id FOR UPDATE;
+            observed_at := clock_timestamp();
             IF current_job.id IS NULL OR current_job.status <> 'running'
                OR current_job.lease_token IS DISTINCT FROM p_lease_token
-               OR current_job.lease_expires_at <= now() THEN
+               OR current_job.lease_expires_at <= observed_at THEN
                 RAISE EXCEPTION 'job lease is missing, expired, or owned by another worker' USING ERRCODE='40001';
             END IF;
             IF session_user IN ('uap_worker', 'uap_scheduler')
@@ -333,12 +337,12 @@ def upgrade() -> None:
                 RAISE EXCEPTION 'attempt is missing or already finished' USING ERRCODE='40001';
             END IF;
             UPDATE ops.job_attempts
-               SET finished_at = clock_timestamp(),
-                   duration_ms = greatest(0, (extract(epoch FROM (clock_timestamp() - started_at)) * 1000)::bigint),
+               SET finished_at = observed_at,
+                   duration_ms = greatest(0, (extract(epoch FROM (observed_at - started_at)) * 1000)::bigint),
                    outcome = p_outcome, http_status = p_http_status,
                    error_code = p_error_code, error_summary = p_error_summary,
                    retry_at = CASE WHEN p_outcome = 'retryable_failure'
-                                   THEN now() + make_interval(secs => greatest(0, coalesce(p_retry_delay_seconds, 0)))
+                                   THEN observed_at + make_interval(secs => greatest(0, coalesce(p_retry_delay_seconds, 0)))
                                    ELSE NULL END
              WHERE id = p_attempt_id;
 
@@ -358,7 +362,7 @@ def upgrade() -> None:
                     id, job_id, last_attempt_id, reason_code, payload_snapshot, dead_at
                 ) VALUES (
                     md5(random()::text || clock_timestamp()::text)::uuid,
-                    p_job_id, p_attempt_id, dead_reason, current_job.payload, now()
+                    p_job_id, p_attempt_id, dead_reason, current_job.payload, observed_at
                 ) ON CONFLICT (job_id) DO UPDATE
                     SET last_attempt_id = EXCLUDED.last_attempt_id,
                         reason_code = EXCLUDED.reason_code,
@@ -367,7 +371,7 @@ def upgrade() -> None:
                         resolved_at = NULL, resolution = NULL;
             END IF;
             retry_at := CASE WHEN next_status = 'retry_wait'
-                             THEN now() + make_interval(secs => least(3600, greatest(0, coalesce(
+                             THEN observed_at + make_interval(secs => least(3600, greatest(0, coalesce(
                                   p_retry_delay_seconds,
                                   (power(2::numeric, least(greatest(current_job.attempt_count - 1, 0), 9)))::integer
                               ))))
@@ -375,11 +379,11 @@ def upgrade() -> None:
             UPDATE ops.jobs
                SET status = next_status,
                    available_at = coalesce(retry_at, available_at),
-                   completed_at = CASE WHEN next_status IN ('succeeded','dead','cancelled') THEN now() ELSE NULL END,
+                   completed_at = CASE WHEN next_status IN ('succeeded','dead','cancelled') THEN observed_at ELSE NULL END,
                    lease_owner = NULL, lease_expires_at = NULL, lease_token = NULL,
                    last_error_code = CASE WHEN p_outcome = 'succeeded' THEN NULL ELSE p_error_code END,
                    last_error_summary = CASE WHEN p_outcome = 'succeeded' THEN NULL ELSE p_error_summary END,
-                   updated_at = now()
+                   updated_at = observed_at
              WHERE id = p_job_id;
             RETURN next_status;
         END
@@ -439,6 +443,7 @@ def upgrade() -> None:
         LANGUAGE plpgsql SECURITY DEFINER
         SET search_path = ops, pg_catalog
         AS $publish_outbox_failure$
+        DECLARE observed_at timestamptz;
         BEGIN
             IF session_user <> 'uap_publisher' THEN
                 RAISE EXCEPTION 'only publisher may record Outbox failures' USING ERRCODE='42501';
@@ -446,12 +451,13 @@ def upgrade() -> None:
             IF p_retry_delay_seconds NOT BETWEEN 0 AND 3600 THEN
                 RAISE EXCEPTION 'Outbox retry delay is outside the allowed range' USING ERRCODE='22023';
             END IF;
+            observed_at := clock_timestamp();
             UPDATE ops.outbox_events
                SET lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
-                   available_at = now() + make_interval(secs => p_retry_delay_seconds),
+                   available_at = observed_at + make_interval(secs => p_retry_delay_seconds),
                    last_error_code = p_error_code, last_error_summary = p_error_summary
              WHERE id = p_event_id AND published_at IS NULL
-               AND lease_token = p_lease_token AND lease_expires_at > now();
+               AND lease_token = p_lease_token AND lease_expires_at > observed_at;
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'Outbox lease is missing or already acknowledged' USING ERRCODE='40001';
             END IF;
@@ -480,6 +486,7 @@ def upgrade() -> None:
             event_row ops.outbox_events%ROWTYPE;
             token uuid;
             deadline timestamptz;
+            observed_at timestamptz;
         BEGIN
             IF session_user <> 'uap_publisher' THEN
                 RAISE EXCEPTION 'only publisher may claim Outbox events' USING ERRCODE='42501';
@@ -488,17 +495,18 @@ def upgrade() -> None:
                OR p_limit NOT BETWEEN 1 AND 100 THEN
                 RAISE EXCEPTION 'invalid Outbox claim parameters' USING ERRCODE='22023';
             END IF;
+            observed_at := clock_timestamp();
             FOR event_row IN
                 SELECT e.* FROM ops.outbox_events AS e
                  WHERE e.published_at IS NULL
-                   AND e.available_at <= now()
-                   AND (e.lease_expires_at IS NULL OR e.lease_expires_at <= now())
+                   AND e.available_at <= observed_at
+                   AND (e.lease_expires_at IS NULL OR e.lease_expires_at <= observed_at)
                  ORDER BY e.occurred_at, e.id
                  FOR UPDATE SKIP LOCKED
                  LIMIT p_limit
             LOOP
-                token := md5(random()::text || clock_timestamp()::text)::uuid;
-                deadline := now() + make_interval(secs => p_lease_seconds);
+                token := md5(random()::text || observed_at::text)::uuid;
+                deadline := observed_at + make_interval(secs => p_lease_seconds);
                 UPDATE ops.outbox_events
                    SET lease_owner = p_dispatcher_id, lease_token = token,
                        lease_expires_at = deadline, publish_attempts = publish_attempts + 1
@@ -521,14 +529,16 @@ def upgrade() -> None:
         LANGUAGE plpgsql SECURITY DEFINER
         SET search_path = ops, pg_catalog
         AS $ack_outbox$
+        DECLARE observed_at timestamptz;
         BEGIN
             IF session_user <> 'uap_publisher' THEN
                 RAISE EXCEPTION 'only publisher may acknowledge Outbox events' USING ERRCODE='42501';
             END IF;
+            observed_at := clock_timestamp();
             UPDATE ops.outbox_events
-               SET published_at = now(), lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL
+               SET published_at = observed_at, lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL
              WHERE id = p_event_id AND published_at IS NULL
-               AND lease_token = p_lease_token AND lease_expires_at > now();
+               AND lease_token = p_lease_token AND lease_expires_at > observed_at;
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'Outbox lease is missing or already acknowledged' USING ERRCODE='40001';
             END IF;
@@ -541,15 +551,17 @@ def upgrade() -> None:
         LANGUAGE plpgsql SECURITY DEFINER
         SET search_path = ops, pg_catalog
         AS $release_outbox$
+        DECLARE observed_at timestamptz;
         BEGIN
             IF session_user <> 'uap_publisher' THEN
                 RAISE EXCEPTION 'only publisher may release Outbox events' USING ERRCODE='42501';
             END IF;
+            observed_at := clock_timestamp();
             UPDATE ops.outbox_events
                SET lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
                    last_error_code = p_error_code, last_error_summary = p_error_summary
              WHERE id = p_event_id AND published_at IS NULL
-               AND lease_token = p_lease_token AND lease_expires_at > now();
+               AND lease_token = p_lease_token AND lease_expires_at > observed_at;
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'Outbox lease is missing or already acknowledged' USING ERRCODE='40001';
             END IF;
