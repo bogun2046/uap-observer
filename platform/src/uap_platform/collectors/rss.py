@@ -96,14 +96,20 @@ def _item_elements(root: Element) -> tuple[Element, ...]:
 
 
 def _entry_link(element: Element) -> str | None:
+    fallback: str | None = None
     for child in element:
         if _local_name(child.tag) != "link":
             continue
         href = child.attrib.get("href")
         value = href or _text(child)
-        if value:
+        if not value:
+            continue
+        if fallback is None:
+            fallback = value
+        relation = child.attrib.get("rel", "").casefold()
+        if relation in {"", "alternate"}:
             return value
-    return None
+    return fallback
 
 
 def _source_item_key(element: Element, canonical_url: str | None) -> str | None:
@@ -123,6 +129,7 @@ def parse_rss(
 
     items: list[NormalizedItem] = []
     seen_keys: set[str] = set()
+    seen_urls: set[str] = set()
     invalid_count = 0
     duplicate_count = 0
     for element in _item_elements(root):
@@ -136,10 +143,12 @@ def parse_rss(
         if not title or not key or (raw_url and canonical_url is None):
             invalid_count += 1
             continue
-        if key in seen_keys:
+        if key in seen_keys or (canonical_url is not None and canonical_url in seen_urls):
             duplicate_count += 1
             continue
         seen_keys.add(key)
+        if canonical_url is not None:
+            seen_urls.add(canonical_url)
         items.append(
             NormalizedItem(
                 source_item_key=key,
@@ -178,14 +187,25 @@ class RssCollector:
             for key, value in (("If-None-Match", etag), ("If-Modified-Since", last_modified))
             if value
         }
-        response = self._fetch(source_url, headers)
+        try:
+            response = self._fetch(source_url, headers)
+        except TimeoutError as error:
+            return CollectionResult(
+                classification=FetchClassification.TRANSIENT_FAILURE,
+                http_status=599,
+                fetched_count=0,
+                error_code="timeout",
+                error_summary=str(error) or "source fetch timed out",
+            )
         classification = response.classify()
         base = CollectionResult(
             classification=classification,
             http_status=response.status_code,
             fetched_count=1,
-            etag=response.headers.get("etag"),
-            last_modified=response.headers.get("last-modified"),
+            etag=response.header("etag"),
+            last_modified=response.header("last-modified"),
+            error_code=response.error_code,
+            error_summary=response.error_summary,
         )
         if classification is not FetchClassification.SUCCESS:
             return base
@@ -208,6 +228,8 @@ class RssCollector:
             fetched_count=base.fetched_count,
             etag=base.etag,
             last_modified=base.last_modified,
+            error_code=base.error_code,
+            error_summary=base.error_summary,
             parsed_count=parsed.parsed_count,
             persisted_count=persisted_count,
             duplicate_count=parsed.duplicate_count,

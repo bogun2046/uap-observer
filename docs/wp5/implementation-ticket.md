@@ -47,6 +47,7 @@
 
 - 已完成 Collector 四阶段的可测试边界、RSS 解析、URL 规范化、条目键规范化和重复计数。
 - 已完成 304、空响应、403、429、408、5xx、其他终态 HTTP 状态分类。
-- 已完成条件请求头传递和注入式持久化回调；数据库 source-run 持久化尚未声称完成。
+- 已完成条件请求头传递、urllib 传输适配器和注入式持久化回调；连接/HTTP 错误均转换为可记录的 FetchResponse。
+- 已完成 `RssSourceRunRunner` 生命周期编排和 `PostgresSourceRunStore` 的 source run、artifact、document 事务写入适配器。
 - XML 解析使用 `defusedxml`，并将运行库与类型存根写入 `pyproject.toml`/`uv.lock`。
-- 下一步：实现 `ingest.source_runs`、`ingest.artifacts` 和 `core.documents` 的事务持久化适配器，再补限速、冷却和健康检查。
+- 下一步：补限速、冷却、来源健康检查、版本化 payload 和固定快照哈希；随后进行真实 PostgreSQL 运行态验证。

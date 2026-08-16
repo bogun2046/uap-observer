@@ -61,13 +61,45 @@ def test_parse_rss_is_deterministic_and_counts_duplicates() -> None:
     assert first.items[0].published_at == datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 
+def test_parse_rss_deduplicates_different_ids_with_same_canonical_url() -> None:
+    payload = b"""
+    <rss><channel>
+      <item><guid>first-id</guid><title>First</title>
+        <link>https://example.test/story?utm_source=one</link></item>
+      <item><guid>second-id</guid><title>Second</title>
+        <link>https://example.test/story?utm_source=two</link></item>
+    </channel></rss>
+    """
+
+    parsed = parse_rss(payload)
+
+    assert parsed.parsed_count == 1
+    assert parsed.duplicate_count == 1
+
+
+def test_parse_atom_prefers_alternate_link_over_self() -> None:
+    payload = b"""
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>atom-1</id><title>Atom story</title>
+        <link rel="self" href="https://api.example.test/items/1" />
+        <link rel="alternate" href="https://example.test/story/1" />
+      </entry>
+    </feed>
+    """
+
+    parsed = parse_rss(payload)
+
+    assert parsed.items[0].canonical_url == "https://example.test/story/1"
+
+
 def test_collector_sends_conditional_headers_and_persists_items() -> None:
     calls: list[tuple[str, dict[str, str]]] = []
     persisted: list[tuple[object, ...]] = []
 
     def fetch(url: str, headers: Mapping[str, str]) -> FetchResponse:
         calls.append((url, dict(headers)))
-        return FetchResponse(200, RSS_FIXTURE, {"etag": "new-etag"})
+        return FetchResponse(200, RSS_FIXTURE, {"ETag": "new-etag", "Last-Modified": "today"})
 
     def persist(items: tuple[NormalizedItem, ...]) -> int:
         persisted.append(items)
@@ -79,6 +111,8 @@ def test_collector_sends_conditional_headers_and_persists_items() -> None:
 
     assert result.classification is FetchClassification.SUCCESS
     assert result.persisted_count == 2
+    assert result.etag == "new-etag"
+    assert result.last_modified == "today"
     assert calls == [
         (
             "https://example.test/feed",
@@ -103,6 +137,17 @@ def test_collector_classifies_not_modified_without_persisting() -> None:
     assert result.classification is FetchClassification.NOT_MODIFIED
     assert result.persisted_count == 0
     assert persisted is False
+
+
+def test_collector_maps_connection_timeout_to_transient_failure() -> None:
+    result = RssCollector(
+        lambda _url, _headers: (_ for _ in ()).throw(TimeoutError("socket timed out")),
+        lambda _items: 0,
+    ).collect("https://example.test/feed")
+
+    assert result.classification is FetchClassification.TRANSIENT_FAILURE
+    assert result.http_status == 599
+    assert result.error_code == "timeout"
 
 
 def test_fetch_classification_covers_frozen_http_cases() -> None:

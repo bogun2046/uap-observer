@@ -28,6 +28,17 @@ class FetchResponse:
     body: bytes = b""
     headers: Mapping[str, str] = field(default_factory=dict)
     retrieved_at: datetime | None = None
+    error_code: str | None = None
+    error_summary: str | None = None
+
+    def header(self, name: str) -> str | None:
+        """Read an HTTP header without relying on the transport's casing."""
+
+        wanted = name.casefold()
+        for key, value in self.headers.items():
+            if key.casefold() == wanted:
+                return value
+        return None
 
     def classify(self) -> FetchClassification:
         """Map HTTP status and body presence to the frozen source-run semantics."""

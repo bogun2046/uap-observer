@@ -7,7 +7,10 @@ from .contracts import (
     NormalizedItem,
     ParsedFeed,
 )
+from .persistence import PostgresSourceRunStore
 from .rss import RssCollector, normalize_url, parse_rss
+from .transport import UrlLibFetcher
+from .workflow import RssSourceRunRunner
 
 __all__ = [
     "CollectionResult",
@@ -15,7 +18,10 @@ __all__ = [
     "FetchResponse",
     "NormalizedItem",
     "ParsedFeed",
+    "PostgresSourceRunStore",
     "RssCollector",
+    "RssSourceRunRunner",
+    "UrlLibFetcher",
     "normalize_url",
     "parse_rss",
 ]
