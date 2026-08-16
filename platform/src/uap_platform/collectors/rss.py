@@ -157,6 +157,7 @@ def parse_rss(
                 published_at=_parse_date(_first_text(element, "pubdate", "published", "updated")),
                 summary=_first_text(element, "description", "summary", "content"),
                 metadata={},
+                raw_payload=ElementTree.tostring(element, encoding="utf-8"),
             )
         )
     return ParsedFeed(tuple(items), len(items), invalid_count, duplicate_count)

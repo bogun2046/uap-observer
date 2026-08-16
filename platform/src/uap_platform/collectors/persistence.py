@@ -2,28 +2,37 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Iterable
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 from psycopg import Connection
 
-from uap_platform.object_registry import uuid7
+from uap_platform.object_registry import (
+    ObjectClient,
+    StorageDomain,
+    sha256_bytes,
+    store_and_register,
+)
 
 from .contracts import CollectionResult, FetchClassification, NormalizedItem
 
 
 class PostgresSourceRunStore:
-    """Persist one collector run using the caller-owned PostgreSQL transaction."""
+    """Persist source runs with an explicit start/finish transaction boundary."""
 
-    def __init__(self, connection: Connection[object]) -> None:
+    def __init__(self, connection: Connection[object], object_client: ObjectClient) -> None:
         self._connection = connection
+        self._object_client = object_client
 
     def start_source_run(
         self, source_id: uuid.UUID, job_id: uuid.UUID, run_key: str, started_at: datetime
     ) -> uuid.UUID:
-        run_id = uuid7()
+        """Checkpoint the run row before business writes can be rolled back."""
+
+        run_id = uuid.uuid4()
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -33,6 +42,7 @@ class PostgresSourceRunStore:
                 """,
                 (run_id, source_id, job_id, run_key, started_at),
             )
+        self._connection.commit()
         return run_id
 
     def persist_items(
@@ -42,71 +52,244 @@ class PostgresSourceRunStore:
         items: Iterable[NormalizedItem],
         seen_at: datetime,
     ) -> int:
-        """Upsert source artifacts and documents, returning newly created documents."""
+        """Persist raw objects, artifact versions, documents and document versions."""
 
         created_count = 0
         with self._connection.cursor() as cursor:
             for item in items:
-                locator = item.canonical_url or f"rss-item:{item.source_item_key}"
-                cursor.execute(
-                    """
-                    INSERT INTO ingest.artifacts (
-                        id, source_id, canonical_locator, artifact_kind,
-                        first_seen_at, last_seen_at
-                    ) VALUES (
-                        %s, %s, %s, 'rss_item'::ingest.artifact_kind, %s, %s
-                    )
-                    ON CONFLICT (source_id, canonical_locator) DO UPDATE
-                    SET last_seen_at = GREATEST(
-                        ingest.artifacts.last_seen_at, EXCLUDED.last_seen_at
-                    )
-                    RETURNING id
-                    """,
-                    (uuid7(), source_id, locator, seen_at, seen_at),
+                artifact_id = self._upsert_artifact(cursor, source_id, item, seen_at)
+                registered = store_and_register(
+                    self._object_client,
+                    self._connection,
+                    StorageDomain.RAW,
+                    item.raw_payload,
+                    "application/xml",
                 )
-                artifact_row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-                if artifact_row is None:
-                    raise RuntimeError("artifact upsert did not return an id")
-
-                cursor.execute(
-                    """
-                    INSERT INTO core.documents (
-                        id, source_id, source_item_key, canonical_url, document_kind,
-                        first_seen_at, last_seen_at
-                    ) VALUES (
-                        %s, %s, %s, %s, 'article'::core.document_kind, %s, %s
-                    )
-                    ON CONFLICT (source_id, source_item_key)
-                    WHERE source_item_key IS NOT NULL DO NOTHING
-                    RETURNING id
-                    """,
-                    (
-                        uuid7(),
-                        source_id,
-                        item.source_item_key,
-                        item.canonical_url,
-                        seen_at,
-                        seen_at,
-                    ),
+                artifact_version_id = self._upsert_artifact_version(
+                    cursor,
+                    artifact_id,
+                    source_run_id,
+                    registered.id,
+                    item,
+                    seen_at,
                 )
-                document_row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-                if document_row is not None:
-                    created_count += 1
-                else:
-                    cursor.execute(
-                        """
-                        UPDATE core.documents
-                           SET last_seen_at = GREATEST(last_seen_at, %s)
-                         WHERE source_id = %s AND source_item_key = %s
-                        RETURNING id
-                        """,
-                        (seen_at, source_id, item.source_item_key),
-                    )
-                    if cursor.fetchone() is None:
-                        raise RuntimeError("document upsert did not find the existing row")
+                document_id, document_created = self._upsert_document(
+                    cursor, source_id, item, seen_at
+                )
+                self._upsert_document_version(
+                    cursor,
+                    document_id,
+                    artifact_version_id,
+                    item,
+                    seen_at,
+                )
+                created_count += int(document_created)
         return created_count
 
     def finish_source_run(
+        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
+    ) -> None:
+        self._update_source_run(run_id, result, finished_at)
+        self._connection.commit()
+
+    def fail_source_run(
+        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
+    ) -> None:
+        """Rollback business writes, then durably record failure on the checkpoint row."""
+
+        self._connection.rollback()
+        self._update_source_run(run_id, result, finished_at)
+        self._connection.commit()
+
+    @staticmethod
+    def _upsert_artifact(
+        cursor: Any, source_id: uuid.UUID, item: NormalizedItem, seen_at: datetime
+    ) -> uuid.UUID:
+        cursor.execute(
+            """
+            INSERT INTO ingest.artifacts (
+                id, source_id, canonical_locator, artifact_kind,
+                first_seen_at, last_seen_at
+            ) VALUES (
+                %s, %s, %s, 'rss_item'::ingest.artifact_kind, %s, %s
+            )
+            ON CONFLICT (source_id, canonical_locator) DO UPDATE
+            SET last_seen_at = GREATEST(
+                ingest.artifacts.last_seen_at, EXCLUDED.last_seen_at
+            )
+            RETURNING id
+            """,
+            (
+                uuid.uuid4(),
+                source_id,
+                item.canonical_url or f"rss-item:{item.source_item_key}",
+                seen_at,
+                seen_at,
+            ),
+        )
+        row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+        if row is None:
+            raise RuntimeError("artifact upsert did not return an id")
+        return uuid.UUID(str(row[0]))
+
+    @staticmethod
+    def _upsert_artifact_version(
+        cursor: Any,
+        artifact_id: uuid.UUID,
+        source_run_id: uuid.UUID,
+        stored_object_id: uuid.UUID,
+        item: NormalizedItem,
+        seen_at: datetime,
+    ) -> uuid.UUID:
+        cursor.execute(
+            """
+            INSERT INTO ingest.artifact_versions (
+                id, artifact_id, source_run_id, stored_object_id,
+                storage_domain, retrieved_at, source_published_at, metadata
+            ) VALUES (
+                %s, %s, %s, %s, 'raw'::core.storage_domain, %s, %s, %s::jsonb
+            )
+            ON CONFLICT (artifact_id, stored_object_id) DO NOTHING
+            RETURNING id
+            """,
+            (
+                uuid.uuid4(),
+                artifact_id,
+                source_run_id,
+                stored_object_id,
+                seen_at,
+                item.published_at,
+                json.dumps(dict(item.metadata), sort_keys=True),
+            ),
+        )
+        row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+        if row is not None:
+            return uuid.UUID(str(row[0]))
+        cursor.execute(
+            """
+            SELECT id
+              FROM ingest.artifact_versions
+             WHERE artifact_id = %s AND stored_object_id = %s
+            """,
+            (artifact_id, stored_object_id),
+        )
+        existing = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+        if existing is None:
+            raise RuntimeError("artifact version upsert did not find the existing row")
+        return uuid.UUID(str(existing[0]))
+
+    @staticmethod
+    def _upsert_document(
+        cursor: Any, source_id: uuid.UUID, item: NormalizedItem, seen_at: datetime
+    ) -> tuple[uuid.UUID, bool]:
+        if item.canonical_url is not None:
+            cursor.execute(
+                """
+                SELECT id
+                  FROM core.documents
+                 WHERE canonical_url = %s
+                 FOR UPDATE
+                """,
+                (item.canonical_url,),
+            )
+            by_url = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+            if by_url is not None:
+                PostgresSourceRunStore._touch_document(cursor, by_url[0], seen_at)
+                return uuid.UUID(str(by_url[0])), False
+
+        cursor.execute(
+            """
+            INSERT INTO core.documents (
+                id, source_id, source_item_key, canonical_url, document_kind,
+                first_seen_at, last_seen_at
+            ) VALUES (
+                %s, %s, %s, %s, 'article'::core.document_kind, %s, %s
+            )
+            ON CONFLICT (source_id, source_item_key)
+            WHERE source_item_key IS NOT NULL DO NOTHING
+            RETURNING id
+            """,
+            (
+                uuid.uuid4(),
+                source_id,
+                item.source_item_key,
+                item.canonical_url,
+                seen_at,
+                seen_at,
+            ),
+        )
+        inserted = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+        if inserted is not None:
+            return uuid.UUID(str(inserted[0])), True
+
+        cursor.execute(
+            """
+            SELECT id
+              FROM core.documents
+             WHERE source_id = %s AND source_item_key = %s
+             FOR UPDATE
+            """,
+            (source_id, item.source_item_key),
+        )
+        existing = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+        if existing is None:
+            raise RuntimeError("document upsert did not find the existing row")
+        PostgresSourceRunStore._touch_document(cursor, existing[0], seen_at)
+        return uuid.UUID(str(existing[0])), False
+
+    @staticmethod
+    def _touch_document(cursor: Any, document_id: uuid.UUID, seen_at: datetime) -> None:
+        cursor.execute(
+            "UPDATE core.documents SET last_seen_at = GREATEST(last_seen_at, %s) WHERE id = %s",
+            (seen_at, document_id),
+        )
+
+    @staticmethod
+    def _upsert_document_version(
+        cursor: Any,
+        document_id: uuid.UUID,
+        artifact_version_id: uuid.UUID,
+        item: NormalizedItem,
+        seen_at: datetime,
+    ) -> None:
+        content_hash = sha256_bytes(item.raw_payload)
+        cursor.execute(
+            """
+            SELECT version_no, normalized_content_sha256
+              FROM core.document_versions
+             WHERE document_id = %s
+             ORDER BY version_no DESC
+             LIMIT 1
+            """,
+            (document_id,),
+        )
+        latest = cast(tuple[int, str] | None, cursor.fetchone())
+        if latest is not None and str(latest[1]) == content_hash:
+            return
+        next_version = 1 if latest is None else int(latest[0]) + 1
+        cursor.execute(
+            """
+            INSERT INTO core.document_versions (
+                id, document_id, artifact_version_id, version_no,
+                original_title, source_published_at, normalized_content_sha256,
+                metadata, created_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+            ON CONFLICT (document_id, normalized_content_sha256) DO NOTHING
+            """,
+            (
+                uuid.uuid4(),
+                document_id,
+                artifact_version_id,
+                next_version,
+                item.title,
+                item.published_at,
+                content_hash,
+                json.dumps(dict(item.metadata), sort_keys=True),
+                seen_at,
+            ),
+        )
+
+    def _update_source_run(
         self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
     ) -> None:
         outcome = {

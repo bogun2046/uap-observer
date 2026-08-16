@@ -15,6 +15,7 @@ from uap_platform.collectors import (
 class FakeStore:
     def __init__(self) -> None:
         self.run_id = uuid.UUID("00000000-0000-7000-8000-000000000001")
+        self.raise_on_persist = False
         self.started: tuple[object, ...] | None = None
         self.persisted: tuple[object, ...] | None = None
         self.finished: tuple[object, ...] | None = None
@@ -32,10 +33,17 @@ class FakeStore:
         items: tuple[NormalizedItem, ...],
         seen_at: datetime,
     ) -> int:
+        if self.raise_on_persist:
+            raise RuntimeError("persist failed")
         self.persisted = (source_id, source_run_id, items, seen_at)
         return len(items)
 
     def finish_source_run(
+        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
+    ) -> None:
+        self.finished = (run_id, result, finished_at)
+
+    def fail_source_run(
         self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
     ) -> None:
         self.finished = (run_id, result, finished_at)
@@ -88,3 +96,28 @@ def test_runner_finishes_timeout_as_transient_failure() -> None:
     finished_result = store.finished[1]
     assert isinstance(finished_result, CollectionResult)
     assert finished_result.error_code == "timeout"
+
+
+def test_runner_records_persist_failure_before_reraising() -> None:
+    store = FakeStore()
+    store.raise_on_persist = True
+
+    try:
+        RssSourceRunRunner(
+            lambda _url, _headers: FetchResponse(
+                200,
+                b"<rss><channel><item><guid>x</guid><title>Story</title>"
+                b"<link>https://example.test/story</link></item></channel></rss>",
+            ),
+            store,
+            clock=lambda: datetime(2026, 8, 16, tzinfo=UTC),
+        ).run(uuid.uuid4(), uuid.uuid4(), "source-run-persist-failure", "https://example.test/feed")
+    except RuntimeError as error:
+        assert str(error) == "persist failed"
+    else:
+        raise AssertionError("persist failure was not re-raised")
+
+    assert store.finished is not None
+    failed_result = store.finished[1]
+    assert isinstance(failed_result, CollectionResult)
+    assert failed_result.error_code == "collector_error"

@@ -70,6 +70,7 @@ class NormalizedItem:
     published_at: datetime | None
     summary: str | None
     metadata: Mapping[str, str] = field(default_factory=dict)
+    raw_payload: bytes = b""
 
 
 @dataclass(frozen=True, slots=True)

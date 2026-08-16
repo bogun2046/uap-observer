@@ -49,5 +49,7 @@
 - 已完成 304、空响应、403、429、408、5xx、其他终态 HTTP 状态分类。
 - 已完成条件请求头传递、urllib 传输适配器和注入式持久化回调；连接/HTTP 错误均转换为可记录的 FetchResponse。
 - 已完成 `RssSourceRunRunner` 生命周期编排和 `PostgresSourceRunStore` 的 source run、artifact、document 事务写入适配器。
+- 已建立 `source_run → artifact_version → document_version` 追溯链；原始 RSS 条目通过对象登记表进入 raw 域。
+- 失败路径采用已提交的 source-run checkpoint、业务写入回滚和独立失败收口；canonical URL 冲突先复用已有 document。
 - XML 解析使用 `defusedxml`，并将运行库与类型存根写入 `pyproject.toml`/`uv.lock`。
 - 下一步：补限速、冷却、来源健康检查、版本化 payload 和固定快照哈希；随后进行真实 PostgreSQL 运行态验证。
