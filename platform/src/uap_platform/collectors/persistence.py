@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from psycopg import Connection
@@ -21,6 +21,7 @@ from uap_platform.object_registry import (
 )
 
 from .contracts import CollectionResult, FetchClassification, NormalizedItem
+from .policy import SourceCoolingDown, SourcePolicy
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,9 +33,15 @@ class PostgresSourceRunStore:
         self._connection = connection
         self._object_client = object_client
         self._new_objects: list[RegisteredObject] = []
+        self._run_sources: dict[uuid.UUID, uuid.UUID] = {}
 
     def start_source_run(
-        self, source_id: uuid.UUID, job_id: uuid.UUID, run_key: str, started_at: datetime
+        self,
+        source_id: uuid.UUID,
+        job_id: uuid.UUID,
+        run_key: str,
+        started_at: datetime,
+        source_config_version_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
         """Checkpoint the run row before business writes can be rolled back."""
 
@@ -43,13 +50,60 @@ class PostgresSourceRunStore:
             cursor.execute(
                 """
                 INSERT INTO ingest.source_runs (
-                    id, source_id, job_id, run_key, outcome, started_at
-                ) VALUES (%s, %s, %s, %s, 'failed'::ingest.source_run_outcome, %s)
+                    id, source_id, source_config_version_id, job_id, run_key,
+                    outcome, payload_schema_version, started_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, 'failed'::ingest.source_run_outcome,
+                    'rss.v1', %s
+                )
                 """,
-                (run_id, source_id, job_id, run_key, started_at),
+                (run_id, source_id, source_config_version_id, job_id, run_key, started_at),
             )
         self._connection.commit()
+        self._run_sources[run_id] = source_id
         return run_id
+
+    def reserve_source_request(
+        self, source_id: uuid.UUID, policy: SourcePolicy, now: datetime
+    ) -> float:
+        """Atomically reserve a source request or return seconds to wait."""
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT last_requested_at, cooldown_until,
+                       minimum_request_interval_seconds
+                  FROM ingest.sources
+                 WHERE id = %s
+                 FOR UPDATE
+                """,
+                (source_id,),
+            )
+            row = cast(
+                tuple[datetime | None, datetime | None, int] | None,
+                cursor.fetchone(),
+            )
+            if row is None:
+                raise RuntimeError("source does not exist")
+            last_requested_at, cooldown_until, configured_interval_seconds = row
+            if cooldown_until is not None and cooldown_until > now:
+                self._connection.rollback()
+                raise SourceCoolingDown(source_id, cooldown_until)
+            if last_requested_at is not None:
+                interval = max(
+                    policy.minimum_request_interval,
+                    timedelta(seconds=int(configured_interval_seconds)),
+                )
+                due_at = last_requested_at + interval
+                if due_at > now:
+                    self._connection.rollback()
+                    return (due_at - now).total_seconds()
+            cursor.execute(
+                "UPDATE ingest.sources SET last_requested_at = %s, updated_at = %s WHERE id = %s",
+                (now, now, source_id),
+            )
+        self._connection.commit()
+        return 0.0
 
     def persist_items(
         self,
@@ -320,6 +374,8 @@ class PostgresSourceRunStore:
                        last_modified = %s,
                        error_code = %s,
                        error_summary = %s,
+                       payload_schema_version = %s,
+                       snapshot_sha256 = %s,
                        finished_at = %s
                  WHERE id = %s
                 """,
@@ -335,9 +391,45 @@ class PostgresSourceRunStore:
                     result.last_modified,
                     result.error_code,
                     result.error_summary,
+                    result.payload_schema_version,
+                    result.snapshot_sha256,
                     finished_at,
                     run_id,
                 ),
             )
             if cursor.rowcount != 1:
                 raise RuntimeError("source run update did not affect exactly one row")
+            source_id = self._run_sources.get(run_id)
+            if source_id is not None:
+                successful = result.classification in {
+                    FetchClassification.SUCCESS,
+                    FetchClassification.NOT_MODIFIED,
+                    FetchClassification.EMPTY,
+                }
+                if successful:
+                    cursor.execute(
+                        """
+                        UPDATE ingest.sources
+                           SET last_success_at = %s,
+                               consecutive_failures = 0,
+                               cooldown_until = NULL,
+                               updated_at = %s
+                         WHERE id = %s
+                        """,
+                        (finished_at, finished_at, source_id),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE ingest.sources
+                           SET consecutive_failures = consecutive_failures + 1,
+                               cooldown_until = CASE
+                                   WHEN consecutive_failures + 1 >= failure_threshold
+                                   THEN %s + cooldown_seconds * interval '1 second'
+                                   ELSE cooldown_until
+                               END,
+                               updated_at = %s
+                         WHERE id = %s
+                        """,
+                        (finished_at, finished_at, source_id),
+                    )

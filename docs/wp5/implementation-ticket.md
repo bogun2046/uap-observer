@@ -5,7 +5,7 @@
 - 前置提交：`add1b9505012a0c7d40831bd31e1dea4a6dc6fef`
 - 前置门禁：G4 通过，WP5 已开启
 - 负责人：后端负责人 + 数据负责人
-- 当前状态：实现中（RSS 与 source-run 持久化主路径已完成，待补齐运行策略后验收）
+- 当前状态：实现自检完成（RSS、持久化、运行策略、版本化 payload 和 G5 证据清单已完成，待 Draft PR、required CI 与独立验收）
 
 ## 输入与边界
 
@@ -55,4 +55,5 @@
 - raw 对象登记在任何 `stat/PUT/读取校验` 前取得同内容地址的事务级 advisory lock，并保持至数据库提交或回滚；已通过真实双事务失败/重试竞态验证。
 - 提供 `tools/reconcile_object_storage.py` 定期一致性扫描；清理失败不再只有日志路径，可由扫描重试未登记 raw 对象。
 - XML 解析使用 `defusedxml`，并将运行库与类型存根写入 `pyproject.toml`/`uv.lock`。
-- 下一步：补限速、冷却、来源健康检查、版本化 payload 和固定快照哈希；随后整理完整 G5 证据并申请独立验收。
+- 固定快照 `platform/tests/fixtures/rss/g5-fixed-feed.xml` 的 SHA-256 为 `b3a998a48fecd9c18bfb75d294a60465aad12a55490b1c72e6629ebcf9dd73c8`，解析结果会重复计算并校验该哈希。
+- 下一步：整理 G5 完整证据清单、运行态报告和 required CI，然后申请独立验收。

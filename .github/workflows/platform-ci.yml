@@ -8,6 +8,7 @@ on:
       - "docs/wp2/**"
       - "docs/wp3/**"
       - "docs/wp4/**"
+      - "docs/wp5/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   push:
@@ -18,6 +19,7 @@ on:
       - "docs/wp2/**"
       - "docs/wp3/**"
       - "docs/wp4/**"
+      - "docs/wp5/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   workflow_dispatch:
@@ -107,6 +109,20 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/build_wp4_evidence.py --output /tmp/wp4-evidence
+      - name: WP5 collector contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp5.py
+      - name: WP5 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp5_evidence.py --output /tmp/wp5-evidence
 
   security:
     runs-on: ubuntu-latest

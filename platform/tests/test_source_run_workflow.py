@@ -21,9 +21,14 @@ class FakeStore:
         self.finished: tuple[object, ...] | None = None
 
     def start_source_run(
-        self, source_id: uuid.UUID, job_id: uuid.UUID, run_key: str, started_at: datetime
+        self,
+        source_id: uuid.UUID,
+        job_id: uuid.UUID,
+        run_key: str,
+        started_at: datetime,
+        source_config_version_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
-        self.started = (source_id, job_id, run_key, started_at)
+        self.started = (source_id, job_id, run_key, started_at, source_config_version_id)
         return self.run_id
 
     def persist_items(
@@ -76,6 +81,7 @@ def test_runner_records_start_persist_and_finish_in_order() -> None:
         job_id,
         "source-run-1",
         datetime(2026, 8, 16, 1, 0, tzinfo=UTC),
+        None,
     )
     assert store.persisted is not None
     assert store.finished is not None

@@ -64,10 +64,10 @@ def evaluate(platform: Path) -> list[Check]:
         result("required_files", not missing, missing, []),
         result(
             "linear_revision_chain",
-            [revision.revision for revision in revisions][:2]
-            == ["0005_durable_jobs", "0004_g3_semantic_repairs"],
+            [revision.revision for revision in revisions][:3]
+            == ["0006_collectors", "0005_durable_jobs", "0004_g3_semantic_repairs"],
             [revision.revision for revision in revisions],
-            "0005 -> 0004 -> 0003 -> 0002 -> 0001",
+            "0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001",
         ),
         result("migration_revision_id", 'revision = "0005_durable_jobs"' in source, True, True),
         result("durable_job_semantics", all(token in source for token in tokens), True, True),

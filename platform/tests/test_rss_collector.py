@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 
 from uap_platform.collectors import (
     CollectionResult,
@@ -59,6 +60,18 @@ def test_parse_rss_is_deterministic_and_counts_duplicates() -> None:
     assert first.items[0].source_item_key == "story-1"
     assert first.items[0].canonical_url == "https://example.test/news?id=7"
     assert first.items[0].published_at == datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+
+
+def test_fixed_snapshot_hash_is_stable() -> None:
+    payload = (Path(__file__).parent / "fixtures/rss/g5-fixed-feed.xml").read_bytes()
+
+    first = parse_rss(payload)
+    second = parse_rss(payload)
+
+    assert first == second
+    assert first.snapshot_sha256 == (
+        "b3a998a48fecd9c18bfb75d294a60465aad12a55490b1c72e6629ebcf9dd73c8"
+    )
 
 
 def test_parse_rss_deduplicates_different_ids_with_same_canonical_url() -> None:

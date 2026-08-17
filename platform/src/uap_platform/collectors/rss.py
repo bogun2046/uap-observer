@@ -20,6 +20,7 @@ from .contracts import (
     FetchResponse,
     NormalizedItem,
     ParsedFeed,
+    snapshot_sha256,
 )
 
 _DEFAULT_TRACKING_PARAMETERS = frozenset(
@@ -160,7 +161,13 @@ def parse_rss(
                 raw_payload=ElementTree.tostring(element, encoding="utf-8"),
             )
         )
-    return ParsedFeed(tuple(items), len(items), invalid_count, duplicate_count)
+    return ParsedFeed(
+        tuple(items),
+        len(items),
+        invalid_count,
+        duplicate_count,
+        snapshot_sha256(payload),
+    )
 
 
 class RssCollector:
@@ -207,6 +214,8 @@ class RssCollector:
             last_modified=response.header("last-modified"),
             error_code=response.error_code,
             error_summary=response.error_summary,
+            snapshot_sha256=snapshot_sha256(response.body) if response.body else None,
+            payload_schema_version=response.payload_schema_version,
         )
         if classification is not FetchClassification.SUCCESS:
             return base
@@ -221,6 +230,8 @@ class RssCollector:
                 last_modified=base.last_modified,
                 error_code="invalid_rss",
                 error_summary=str(error),
+                snapshot_sha256=base.snapshot_sha256,
+                payload_schema_version=base.payload_schema_version,
             )
         persisted_count = self._persist(parsed.items) if parsed.items else 0
         return CollectionResult(
@@ -236,4 +247,6 @@ class RssCollector:
             duplicate_count=parsed.duplicate_count,
             invalid_count=parsed.invalid_count,
             items=parsed.items,
+            snapshot_sha256=parsed.snapshot_sha256,
+            payload_schema_version=parsed.payload_schema_version,
         )

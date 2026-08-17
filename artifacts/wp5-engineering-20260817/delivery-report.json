@@ -1,0 +1,195 @@
+{
+  "files": [
+    {
+      "path": ".github/workflows/platform-ci.yml",
+      "sha256": "5ec8bb2beda6551e40bc3795301af8b499cac9c6b5a7631bfe5abcdfebce42e0",
+      "size": 8751
+    },
+    {
+      "path": "docs/wp5/README.md",
+      "sha256": "85e668470356d5b8e48dd325433401706f5096935212c81f2bd050c81337d1cb",
+      "size": 1555
+    },
+    {
+      "path": "docs/wp5/acceptance-cases.md",
+      "sha256": "0c5a4623917064ab5131f36f24049e3901603473f3bdd57e2916972e411faee1",
+      "size": 2582
+    },
+    {
+      "path": "docs/wp5/acceptance-ticket.md",
+      "sha256": "eb246faa1c5db45db26e600596825a68f0492e5d2be329cb997b2fcf22a9ec4f",
+      "size": 1658
+    },
+    {
+      "path": "docs/wp5/development-self-review.md",
+      "sha256": "fdd157bcc16b224aa6629a1631af92ea54cf13f6e297f9366d9b768429cefc1b",
+      "size": 1390
+    },
+    {
+      "path": "docs/wp5/implementation-ticket.md",
+      "sha256": "c7cc069448bd44d1005abd1b2d092802afb61a18cfb6ec7012026ff1ecb9a3ac",
+      "size": 4546
+    },
+    {
+      "path": "platform/.env.versions",
+      "sha256": "f8f92c59ca9a24aad0492201a88aa88edb53ce02975afd2ab77f8265c9e5cb50",
+      "size": 880
+    },
+    {
+      "path": "platform/Dockerfile",
+      "sha256": "308e3efe409b399463fadf4459c00ea4ec6fccfb59c9431f0f776b133dcbf5e9",
+      "size": 1211
+    },
+    {
+      "path": "platform/Makefile",
+      "sha256": "a728f09c54df60fff7c77173ee1e48db8ab9eeeb41fd2a30d64ba31199d44ef3",
+      "size": 1009
+    },
+    {
+      "path": "platform/alembic/env.py",
+      "sha256": "a9ff9c6e3def66c1955c460c00637120d596ec202a217b1aab96d559471fecee",
+      "size": 2057
+    },
+    {
+      "path": "platform/alembic/versions/0001_roles_and_schemas.py",
+      "sha256": "586de3330c6fa357a50ed929ab73eeb56b151d488c72707c078b9ea17d2f3bc7",
+      "size": 2530
+    },
+    {
+      "path": "platform/alembic/versions/0002_authoritative_schema.py",
+      "sha256": "5a8b070c01312aad574c549a6f0c5b0dd16d4be790f86855052eb72fc7f33e2f",
+      "size": 41866
+    },
+    {
+      "path": "platform/alembic/versions/0003_permissions_and_guards.py",
+      "sha256": "0435f5f18ef8f2f23e648505ce7f9ca51d0afd2d573eeff63867ede223acf371",
+      "size": 8987
+    },
+    {
+      "path": "platform/alembic/versions/0004_g3_semantic_repairs.py",
+      "sha256": "86b18cc1f23d60f354ba5ff3743b42b1e1e94420fdde36d4e05c4522982e11eb",
+      "size": 9018
+    },
+    {
+      "path": "platform/alembic/versions/0005_durable_jobs.py",
+      "sha256": "e3bc023af944088b0a1ebb11b45e62c932c10ce592556f1ba905aa089796d595",
+      "size": 32749
+    },
+    {
+      "path": "platform/alembic/versions/0006_collectors.py",
+      "sha256": "c4938fa98be72ec026ab908d60f5e4e32ef6b22f0738b4c4b911c25a93b69658",
+      "size": 2418
+    },
+    {
+      "path": "platform/pyproject.toml",
+      "sha256": "100be36741cb7fd6fe3e89a492fbae6c02d13876ffd16d8afe96dd3e5cc67310",
+      "size": 1570
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/__init__.py",
+      "sha256": "c98bcdb216c3e60aea2e1601a08f4d92b31fb3c9acefd2c90e5624dbf84860bc",
+      "size": 1009
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/contracts.py",
+      "sha256": "312fa01a44b0452a35d7b6bcf810d0f56abf6b679bdcfb280027c774fbd1974f",
+      "size": 3657
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/persistence.py",
+      "sha256": "7ae236f6a918d541306b10ef37344a74eb04abd4eec3972029e1dd0fca03d5a0",
+      "size": 16264
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/policy.py",
+      "sha256": "c1129ec721fa6e5c0dede95c475d011e199f0a05bdaf0586aef83c30af401da3",
+      "size": 4253
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/rss.py",
+      "sha256": "6f3a128117d879d29c11c416bfeb80dbf82b6dee7bb64b8554369382dd6719f8",
+      "size": 8650
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/transport.py",
+      "sha256": "1c850d35ad45d5240e1682fcd7249bccb7ed274d98290f489870a790f0b2b713",
+      "size": 2354
+    },
+    {
+      "path": "platform/src/uap_platform/collectors/workflow.py",
+      "sha256": "35be1860385b18d5da29b50211ecea97a6cde6a2a471c8e9e9723d1cd0ffb980",
+      "size": 4889
+    },
+    {
+      "path": "platform/src/uap_platform/object_registry.py",
+      "sha256": "00c82a9840eeb2cd602d7c2b912af395de42300a25b9ef5945721507f70acc25",
+      "size": 10774
+    },
+    {
+      "path": "platform/tests/fixtures/rss/g5-fixed-feed.xml",
+      "sha256": "b3a998a48fecd9c18bfb75d294a60465aad12a55490b1c72e6629ebcf9dd73c8",
+      "size": 547
+    },
+    {
+      "path": "platform/tests/test_collector_policy.py",
+      "sha256": "e8951406e2290210da92703ebb123e86fa2e17c458e6e68337af026f157dc4b2",
+      "size": 1788
+    },
+    {
+      "path": "platform/tests/test_collector_transport.py",
+      "sha256": "1d919f4c11deb952a1a4974b94683d231ed87899e706f63cf461498dbafad4e0",
+      "size": 1458
+    },
+    {
+      "path": "platform/tests/test_object_registry.py",
+      "sha256": "290e9af2cdbb63330261d64510206a978ac0ebc5f1665591d4386d1fab162411",
+      "size": 6893
+    },
+    {
+      "path": "platform/tests/test_rss_collector.py",
+      "sha256": "4426b95ca5e1b5d571d3d39af92fed70d952ec6528f2d99338cd0413a0be983b",
+      "size": 5934
+    },
+    {
+      "path": "platform/tests/test_source_run_store.py",
+      "sha256": "6d3829621266bac5a1e07ab45cdb54e3787ca87c5f744f40080a7021cdb4f65a",
+      "size": 8004
+    },
+    {
+      "path": "platform/tests/test_source_run_workflow.py",
+      "sha256": "003fd42b60c2f027cc08d8e44b088ea5639ac66bc38ea41dff70c984d7162191",
+      "size": 4425
+    },
+    {
+      "path": "platform/tools/build_wp5_evidence.py",
+      "sha256": "6952ae9116ec30262dac555ea2b8f83b41148b31cbb61fd53cdc31b8e1d9459e",
+      "size": 3811
+    },
+    {
+      "path": "platform/tools/reconcile_object_storage.py",
+      "sha256": "565cd4724c81d1fa32b527db8e44e4e6020b278fb9b71d99bac86067b085caa8",
+      "size": 745
+    },
+    {
+      "path": "platform/tools/validate_platform.py",
+      "sha256": "537e298e3baa412bae3596e742b33937587beff95ac73029490ca9f91a0dd3b0",
+      "size": 16094
+    },
+    {
+      "path": "platform/tools/validate_wp3.py",
+      "sha256": "804be719ef5c7473d384acbcf5858517ef6c07c2cb023eef6d8faf8af837fe1d",
+      "size": 8109
+    },
+    {
+      "path": "platform/tools/validate_wp4.py",
+      "sha256": "a4ea015199f7b9c48647cc04a56d954befaf586aaff7ae00ae9c93ae7bcd8834",
+      "size": 3523
+    },
+    {
+      "path": "platform/tools/validate_wp5.py",
+      "sha256": "daa06a7041ca08be7cc23a13ee4b9748504e44b8fd8521ff8892d5e63d94372d",
+      "size": 3368
+    }
+  ],
+  "freeze": "G5-FROZEN-20260816-01"
+}

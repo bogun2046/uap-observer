@@ -1,6 +1,6 @@
 # WP5 统一采集器插件
 
-状态：实现中；RSS 与 source-run 持久化已完成，限速/冷却和健康检查仍待实现，G5 待验收
+状态：实现中；RSS、source-run 持久化、限速/冷却、健康检查、版本化 payload 和证据清单已完成，待 required CI 与独立验收
 
 - 工作包编号：`WP5-IMPL-20260816-01`
 - 冻结标准：`G5-FROZEN-20260816-01`
@@ -13,7 +13,7 @@
 - 以一个 RSS 来源作为端到端试点，使用固定离线快照完成确定性验证。
 - 记录 `ingest.sources`、`ingest.source_config_versions` 和 `ingest.source_runs`。
 - 通过 WP4 持久化任务队列执行采集，使用幂等键避免重复任务和重复条目。
-- 实现 URL 规范化、来源条目 ID 规范化、限速、冷却和来源健康检查。
+- 实现 URL 规范化、来源条目 ID 规范化、限速、冷却和来源健康检查；每次 source run 记录配置版本、payload schema 和快照哈希。
 - 为 304、空结果、403、429、超时和 5xx 建立统一结果分类。
 
 ## 不做事项

@@ -482,7 +482,7 @@ def probe() -> dict[str, object]:
                 raise RuntimeError("missing table count")
             table_count = table_row[0]
         if (
-            head not in {"0004_g3_semantic_repairs", "0005_durable_jobs"}
+            head not in {"0004_g3_semantic_repairs", "0005_durable_jobs", "0006_collectors"}
             or table_count != EXPECTED_TABLE_COUNT
         ):
             raise RuntimeError("runtime schema does not match the frozen WP3-compatible head")

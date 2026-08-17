@@ -11,6 +11,7 @@ from uap_platform.object_registry import (
     StorageDomain,
     object_key,
     put_verified,
+    reconcile_unregistered_objects,
     register_object,
     sha256_bytes,
 )
@@ -71,6 +72,14 @@ class FakeClient:
 
     def remove_object(self, bucket_name: str, object_name: str) -> None:
         self.objects.pop((bucket_name, object_name), None)
+
+    def list_objects(self, bucket_name: str, recursive: bool = False) -> tuple[object, ...]:
+        del recursive
+        return tuple(
+            type("Summary", (), {"object_name": object_name})()
+            for current_bucket, object_name in self.objects
+            if current_bucket == bucket_name
+        )
 
 
 def test_content_address_is_domain_scoped() -> None:
@@ -137,6 +146,7 @@ class FakeCursor:
     def __init__(self, row: tuple[object, ...]) -> None:
         self.row = row
         self.parameters: tuple[object, ...] | None = None
+        self.last_query = ""
 
     def __enter__(self) -> FakeCursor:
         return self
@@ -144,11 +154,12 @@ class FakeCursor:
     def __exit__(self, *_args: object) -> None:
         return None
 
-    def execute(self, _query: str, parameters: tuple[object, ...]) -> None:
+    def execute(self, query: str, parameters: tuple[object, ...]) -> None:
+        self.last_query = query
         self.parameters = parameters
 
-    def fetchone(self) -> tuple[object, ...]:
-        return self.row
+    def fetchone(self) -> tuple[object, ...] | None:
+        return None if "SELECT EXISTS" in self.last_query else self.row
 
 
 class FakeConnection:
@@ -192,3 +203,29 @@ def test_register_object_rejects_conflicting_metadata() -> None:
 
     with pytest.raises(RuntimeError, match="registry conflicts"):
         register_object(connection, physical)  # type: ignore[arg-type]
+
+
+def test_reconcile_unregistered_objects_is_idempotent() -> None:
+    client = FakeClient()
+    payload = b"orphan"
+    digest = sha256_bytes(payload)
+    client.put_object(
+        "raw",
+        object_key(StorageDomain.RAW, digest),
+        io.BytesIO(payload),
+        len(payload),
+        "text/plain",
+        {},
+    )
+    connection = FakeConnection((uuid.uuid4(), "raw", "unused", 1, "text/plain"))
+
+    assert reconcile_unregistered_objects(
+        connection,  # type: ignore[arg-type]
+        client,
+        StorageDomain.RAW,
+    ) == 1
+    assert reconcile_unregistered_objects(
+        connection,  # type: ignore[arg-type]
+        client,
+        StorageDomain.RAW,
+    ) == 0

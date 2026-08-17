@@ -23,6 +23,7 @@ check:
 	uv run --frozen python tools/validate_platform.py
 	uv run --frozen python tools/validate_wp3.py
 	uv run --frozen python tools/validate_wp4.py
+	uv run --frozen python tools/validate_wp5.py
 
 lock:
 	uv lock

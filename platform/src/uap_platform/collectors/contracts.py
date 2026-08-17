@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+
+RSS_PAYLOAD_SCHEMA_VERSION = "rss.v1"
 
 
 class FetchClassification(StrEnum):
@@ -30,6 +33,7 @@ class FetchResponse:
     retrieved_at: datetime | None = None
     error_code: str | None = None
     error_summary: str | None = None
+    payload_schema_version: str = RSS_PAYLOAD_SCHEMA_VERSION
 
     def header(self, name: str) -> str | None:
         """Read an HTTP header without relying on the transport's casing."""
@@ -71,6 +75,7 @@ class NormalizedItem:
     summary: str | None
     metadata: Mapping[str, str] = field(default_factory=dict)
     raw_payload: bytes = b""
+    payload_schema_version: str = RSS_PAYLOAD_SCHEMA_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +86,8 @@ class ParsedFeed:
     parsed_count: int
     invalid_count: int
     duplicate_count: int
+    snapshot_sha256: str = ""
+    payload_schema_version: str = RSS_PAYLOAD_SCHEMA_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,3 +106,11 @@ class CollectionResult:
     error_code: str | None = None
     error_summary: str | None = None
     items: tuple[NormalizedItem, ...] = ()
+    snapshot_sha256: str | None = None
+    payload_schema_version: str = RSS_PAYLOAD_SCHEMA_VERSION
+
+
+def snapshot_sha256(payload: bytes) -> str:
+    """Return the immutable hash recorded for a fetched source snapshot."""
+
+    return hashlib.sha256(payload).hexdigest()
