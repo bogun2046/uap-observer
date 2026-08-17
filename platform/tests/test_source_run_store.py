@@ -64,9 +64,16 @@ class FakeObjectClient:
 
 
 class FakeCursor:
-    def __init__(self, *, existing_url: bool = False, same_version: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        existing_url: bool = False,
+        same_version: bool = False,
+        fail_document_version: bool = False,
+    ) -> None:
         self.existing_url = existing_url
         self.same_version = same_version
+        self.fail_document_version = fail_document_version
         self.last_query = ""
         self.parameters: object = None
         self.rowcount = 1
@@ -79,6 +86,8 @@ class FakeCursor:
         return None
 
     def execute(self, query: str, parameters: object = None) -> None:
+        if self.fail_document_version and "INSERT INTO core.document_versions" in query:
+            raise RuntimeError("injected document write failure")
         self.last_query = query
         self.parameters = parameters
         self.executed.append(query)
@@ -106,9 +115,8 @@ class FakeCursor:
             )
         if "INSERT INTO core.documents" in self.last_query:
             return (
-                None
-                if self.existing_url
-                else (uuid.UUID("00000000-0000-7000-8000-000000000023"),)
+                uuid.UUID("00000000-0000-7000-8000-000000000023"),
+                not self.existing_url,
             )
         if "SELECT version_no" in self.last_query:
             return (1, "" + "0" * 64) if self.same_version else None
@@ -118,8 +126,18 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, *, existing_url: bool = False, same_version: bool = False) -> None:
-        self.cursor_value = FakeCursor(existing_url=existing_url, same_version=same_version)
+    def __init__(
+        self,
+        *,
+        existing_url: bool = False,
+        same_version: bool = False,
+        fail_document_version: bool = False,
+    ) -> None:
+        self.cursor_value = FakeCursor(
+            existing_url=existing_url,
+            same_version=same_version,
+            fail_document_version=fail_document_version,
+        )
         self.commits = 0
         self.rollbacks = 0
 
@@ -169,7 +187,30 @@ def test_store_reuses_document_by_canonical_url() -> None:
     store = PostgresSourceRunStore(connection, FakeObjectClient())  # type: ignore[arg-type]
 
     assert store.persist_items(uuid.uuid4(), uuid.uuid4(), (item(),), datetime.now(UTC)) == 0
-    assert any("WHERE canonical_url" in query for query in connection.cursor_value.executed)
+    assert any("ON CONFLICT (canonical_url)" in query for query in connection.cursor_value.executed)
+
+
+def test_store_failure_removes_new_unregistered_object() -> None:
+    connection = FakeConnection(fail_document_version=True)
+    object_client = FakeObjectClient()
+    store = PostgresSourceRunStore(connection, object_client)  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeError, match="injected document write failure"):
+        store.persist_items(uuid.uuid4(), uuid.uuid4(), (item(),), datetime.now(UTC))
+
+    store.fail_source_run(
+        uuid.uuid4(),
+        CollectionResult(
+            FetchClassification.TERMINAL_FAILURE,
+            599,
+            0,
+            error_code="collector_error",
+            error_summary="persist failed",
+        ),
+        datetime.now(UTC),
+    )
+
+    assert object_client.objects == {}
 
 
 def test_store_failure_rolls_back_business_writes_and_commits_failure() -> None:

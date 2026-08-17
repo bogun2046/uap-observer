@@ -95,8 +95,9 @@ def test_put_verified_reuses_same_physical_object() -> None:
         expected_sha256=digest,
     )
 
-    assert first == second
     assert first.content_sha256 == digest
+    assert first.created is True
+    assert second.created is False
     assert client.put_count == 1
     assert len(client.objects) == 1
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Iterable
 from datetime import datetime
@@ -12,12 +13,16 @@ from psycopg import Connection
 
 from uap_platform.object_registry import (
     ObjectClient,
+    RegisteredObject,
     StorageDomain,
+    cleanup_unregistered_object,
     sha256_bytes,
     store_and_register,
 )
 
 from .contracts import CollectionResult, FetchClassification, NormalizedItem
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PostgresSourceRunStore:
@@ -26,6 +31,7 @@ class PostgresSourceRunStore:
     def __init__(self, connection: Connection[object], object_client: ObjectClient) -> None:
         self._connection = connection
         self._object_client = object_client
+        self._new_objects: list[RegisteredObject] = []
 
     def start_source_run(
         self, source_id: uuid.UUID, job_id: uuid.UUID, run_key: str, started_at: datetime
@@ -65,6 +71,8 @@ class PostgresSourceRunStore:
                     item.raw_payload,
                     "application/xml",
                 )
+                if registered.created:
+                    self._new_objects.append(registered)
                 artifact_version_id = self._upsert_artifact_version(
                     cursor,
                     artifact_id,
@@ -91,6 +99,7 @@ class PostgresSourceRunStore:
     ) -> None:
         self._update_source_run(run_id, result, finished_at)
         self._connection.commit()
+        self._new_objects.clear()
 
     def fail_source_run(
         self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
@@ -98,6 +107,15 @@ class PostgresSourceRunStore:
         """Rollback business writes, then durably record failure on the checkpoint row."""
 
         self._connection.rollback()
+        pending_cleanup = tuple(self._new_objects)
+        self._new_objects.clear()
+        for registered in pending_cleanup:
+            try:
+                cleanup_unregistered_object(self._connection, self._object_client, registered)
+            except Exception as error:
+                # The failed run must still be durably recorded. A later object
+                # sweep can retry cleanup if the storage service is unavailable.
+                LOGGER.warning("object cleanup deferred: %s", error)
         self._update_source_run(run_id, result, finished_at)
         self._connection.commit()
 
@@ -183,22 +201,21 @@ class PostgresSourceRunStore:
         cursor: Any, source_id: uuid.UUID, item: NormalizedItem, seen_at: datetime
     ) -> tuple[uuid.UUID, bool]:
         if item.canonical_url is not None:
-            cursor.execute(
-                """
-                SELECT id
-                  FROM core.documents
-                 WHERE canonical_url = %s
-                 FOR UPDATE
-                """,
-                (item.canonical_url,),
+            query = """
+            INSERT INTO core.documents (
+                id, source_id, source_item_key, canonical_url, document_kind,
+                first_seen_at, last_seen_at
+            ) VALUES (
+                %s, %s, %s, %s, 'article'::core.document_kind, %s, %s
             )
-            by_url = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-            if by_url is not None:
-                PostgresSourceRunStore._touch_document(cursor, by_url[0], seen_at)
-                return uuid.UUID(str(by_url[0])), False
-
-        cursor.execute(
+            ON CONFLICT (canonical_url) WHERE canonical_url IS NOT NULL
+            DO UPDATE SET last_seen_at = GREATEST(
+                core.documents.last_seen_at, EXCLUDED.last_seen_at
+            )
+            RETURNING id, (xmax = 0) AS inserted
             """
+        else:
+            query = """
             INSERT INTO core.documents (
                 id, source_id, source_item_key, canonical_url, document_kind,
                 first_seen_at, last_seen_at
@@ -206,9 +223,14 @@ class PostgresSourceRunStore:
                 %s, %s, %s, %s, 'article'::core.document_kind, %s, %s
             )
             ON CONFLICT (source_id, source_item_key)
-            WHERE source_item_key IS NOT NULL DO NOTHING
-            RETURNING id
-            """,
+            WHERE source_item_key IS NOT NULL
+            DO UPDATE SET last_seen_at = GREATEST(
+                core.documents.last_seen_at, EXCLUDED.last_seen_at
+            )
+            RETURNING id, (xmax = 0) AS inserted
+            """
+        cursor.execute(
+            query,
             (
                 uuid.uuid4(),
                 source_id,
@@ -218,24 +240,10 @@ class PostgresSourceRunStore:
                 seen_at,
             ),
         )
-        inserted = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-        if inserted is not None:
-            return uuid.UUID(str(inserted[0])), True
-
-        cursor.execute(
-            """
-            SELECT id
-              FROM core.documents
-             WHERE source_id = %s AND source_item_key = %s
-             FOR UPDATE
-            """,
-            (source_id, item.source_item_key),
-        )
-        existing = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-        if existing is None:
-            raise RuntimeError("document upsert did not find the existing row")
-        PostgresSourceRunStore._touch_document(cursor, existing[0], seen_at)
-        return uuid.UUID(str(existing[0])), False
+        row = cast(tuple[uuid.UUID, bool] | None, cursor.fetchone())
+        if row is None:
+            raise RuntimeError("document upsert did not return an id")
+        return uuid.UUID(str(row[0])), bool(row[1])
 
     @staticmethod
     def _touch_document(cursor: Any, document_id: uuid.UUID, seen_at: datetime) -> None:

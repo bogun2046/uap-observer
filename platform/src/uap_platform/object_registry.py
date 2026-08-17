@@ -7,7 +7,7 @@ import io
 import secrets
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, cast
 
@@ -73,6 +73,7 @@ class PhysicalObject:
     content_sha256: str
     byte_length: int
     media_type: str
+    created: bool = field(default=False, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -161,7 +162,15 @@ def put_verified(
             client.remove_object(bucket, key)
         raise RuntimeError("object storage verification failed")
 
-    return PhysicalObject(domain, bucket, key, digest, len(data), media_type)
+    return PhysicalObject(
+        domain,
+        bucket,
+        key,
+        digest,
+        len(data),
+        media_type,
+        created=not exists,
+    )
 
 
 def register_object(connection: Connection[object], physical: PhysicalObject) -> RegisteredObject:
@@ -169,6 +178,13 @@ def register_object(connection: Connection[object], physical: PhysicalObject) ->
 
     candidate_id = uuid7()
     with connection.cursor() as cursor:
+        # Serialise registration and rollback compensation for this content address.
+        # The lock is transaction-scoped and therefore also covers another writer
+        # that raced the physical PUT before either transaction registered a row.
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"{physical.storage_domain.value}:{physical.content_sha256}",),
+        )
         cursor.execute(
             """
             INSERT INTO core.stored_objects (
@@ -209,7 +225,44 @@ def register_object(connection: Connection[object], physical: PhysicalObject) ->
         str(media_type),
         uuid.UUID(str(object_id)),
         uuid.UUID(str(object_id)) != candidate_id,
+        created=physical.created,
     )
+
+
+def cleanup_unregistered_object(
+    connection: Connection[object], client: ObjectClient, registered: RegisteredObject
+) -> bool:
+    """Remove a physical object created by a failed transaction if it is unreferenced.
+
+    The same transaction-scoped advisory lock used by ``register_object`` prevents a
+    concurrent registrar from appearing between the reference check and the delete.
+    Existing or concurrently reused content is never deleted.
+    """
+
+    if not registered.created:
+        return False
+    lock_key = f"{registered.storage_domain.value}:{registered.content_sha256}"
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (lock_key,),
+        )
+        cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM core.stored_objects
+                 WHERE storage_domain = %s::core.storage_domain
+                   AND content_sha256 = %s
+            )
+            """,
+            (registered.storage_domain.value, registered.content_sha256),
+        )
+        row = cast(tuple[bool] | None, cursor.fetchone())
+    if row is not None and bool(row[0]):
+        return False
+    client.remove_object(registered.bucket_name, registered.object_key)
+    return True
 
 
 def store_and_register(
