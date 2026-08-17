@@ -190,6 +190,9 @@ jobs:
       - name: Run WP4 durable-jobs and Outbox probe
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp4_runtime_probe.py
+      - name: Run WP5 provenance and job-lifecycle probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp5_runtime_probe.py
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json

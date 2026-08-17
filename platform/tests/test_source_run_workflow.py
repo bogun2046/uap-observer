@@ -44,23 +44,28 @@ class FakeStore:
         self.persisted = (source_id, source_run_id, items, seen_at)
         return len(items)
 
-    def finish_source_run(
-        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
-    ) -> None:
-        self.finished = (run_id, result, finished_at)
-
-    def fail_source_run(
-        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
-    ) -> None:
-        self.finished = (run_id, result, finished_at)
-
-    def finish_job(
+    def finish_source_run_and_job(
         self,
+        run_id: uuid.UUID,
         job_id: uuid.UUID,
         attempt_id: uuid.UUID,
         lease_token: uuid.UUID,
         result: CollectionResult,
+        finished_at: datetime,
     ) -> None:
+        self.finished = (run_id, result, finished_at)
+        self.job_finished = (job_id, attempt_id, lease_token, result)
+
+    def fail_source_run_and_job(
+        self,
+        run_id: uuid.UUID,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
+        finished_at: datetime,
+    ) -> None:
+        self.finished = (run_id, result, finished_at)
         self.job_finished = (job_id, attempt_id, lease_token, result)
 
 

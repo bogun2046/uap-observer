@@ -56,9 +56,32 @@ class PostgresSourceRunStore:
                     %s, %s, %s, %s, %s, 'failed'::ingest.source_run_outcome,
                     'rss.v1', %s
                 )
+                ON CONFLICT (job_id) DO UPDATE
+                   SET source_id = EXCLUDED.source_id,
+                       source_config_version_id = EXCLUDED.source_config_version_id,
+                       run_key = EXCLUDED.run_key,
+                       outcome = 'failed'::ingest.source_run_outcome,
+                       http_status = NULL,
+                       fetched_count = 0,
+                       parsed_count = 0,
+                       persisted_count = 0,
+                       duplicate_count = 0,
+                       invalid_count = 0,
+                       etag = NULL,
+                       last_modified = NULL,
+                       error_code = NULL,
+                       error_summary = NULL,
+                       snapshot_sha256 = NULL,
+                       started_at = EXCLUDED.started_at,
+                       finished_at = NULL
+                RETURNING id
                 """,
                 (run_id, source_id, source_config_version_id, job_id, run_key, started_at),
             )
+            row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+        if row is None:
+            raise RuntimeError("source run upsert did not return an id")
+        run_id = uuid.UUID(str(row[0]))
         self._connection.commit()
         self._run_sources[run_id] = source_id
         return run_id
@@ -155,6 +178,26 @@ class PostgresSourceRunStore:
         self._connection.commit()
         self._new_objects.clear()
 
+    def finish_source_run_and_job(
+        self,
+        run_id: uuid.UUID,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
+        finished_at: datetime,
+    ) -> None:
+        """Commit source-run completion and lease completion atomically."""
+
+        try:
+            self._update_source_run(run_id, result, finished_at)
+            self._finish_job(job_id, attempt_id, lease_token, result)
+            self._connection.commit()
+        except Exception:
+            self._connection.rollback()
+            raise
+        self._new_objects.clear()
+
     def fail_source_run(
         self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
     ) -> None:
@@ -173,6 +216,33 @@ class PostgresSourceRunStore:
         self._update_source_run(run_id, result, finished_at)
         self._connection.commit()
 
+    def fail_source_run_and_job(
+        self,
+        run_id: uuid.UUID,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
+        finished_at: datetime,
+    ) -> None:
+        """Rollback business writes, then atomically record run and job outcome."""
+
+        self._connection.rollback()
+        pending_cleanup = tuple(self._new_objects)
+        self._new_objects.clear()
+        for registered in pending_cleanup:
+            try:
+                cleanup_unregistered_object(self._connection, self._object_client, registered)
+            except Exception as error:
+                LOGGER.warning("object cleanup deferred: %s", error)
+        try:
+            self._update_source_run(run_id, result, finished_at)
+            self._finish_job(job_id, attempt_id, lease_token, result)
+            self._connection.commit()
+        except Exception:
+            self._connection.rollback()
+            raise
+
     def finish_job(
         self,
         job_id: uuid.UUID,
@@ -182,6 +252,16 @@ class PostgresSourceRunStore:
     ) -> None:
         """Close the WP4 lease using the collector result classification."""
 
+        self._finish_job(job_id, attempt_id, lease_token, result)
+        self._connection.commit()
+
+    def _finish_job(
+        self,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
+    ) -> None:
         outcome = {
             FetchClassification.SUCCESS: "succeeded",
             FetchClassification.NOT_MODIFIED: "succeeded",
@@ -211,7 +291,6 @@ class PostgresSourceRunStore:
             )
             if cursor.fetchone() is None:
                 raise RuntimeError("finish_job did not return a status")
-        self._connection.commit()
 
     @staticmethod
     def _upsert_artifact(

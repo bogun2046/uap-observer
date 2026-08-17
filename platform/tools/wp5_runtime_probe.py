@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -11,6 +12,8 @@ import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from uap_platform.collectors import (
+    CollectionResult,
+    FetchClassification,
     FetchResponse,
     PostgresSourceRunStore,
     RssSourceRunRunner,
@@ -59,7 +62,10 @@ def main() -> None:
     probe_key = uuid.uuid4().hex
     now = datetime.now(UTC)
     with connection.cursor() as cursor:
-        for current_id, slug in ((source_id, "wp5-runtime-a"), (other_source_id, "wp5-runtime-b")):
+        for current_id, slug in (
+            (source_id, "wp5-runtime-a"),
+            (other_source_id, "wp5-runtime-b"),
+        ):
             cursor.execute(
                 """
                 INSERT INTO ingest.sources
@@ -149,6 +155,77 @@ def main() -> None:
     if retry_result.error_code != "timeout" or retry_status != ("retry_wait",):
         raise RuntimeError(f"unexpected retry lifecycle result: {retry_result}, {retry_status}")
 
+    atomic_enqueued_job = enqueue(connection, f"wp5-runtime-atomic-{probe_key}")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM ops.claim_job('worker', 'wp5-runtime-worker', ARRAY['fetch_source'], 1)"
+        )
+        atomic_claim = cursor.fetchone()
+    connection.commit()
+    if atomic_claim is None:
+        raise RuntimeError("claim_job returned no atomicity claim")
+    atomic_job_id = uuid.UUID(str(atomic_claim[0]))
+    if atomic_job_id != atomic_enqueued_job:
+        raise RuntimeError("atomicity probe did not claim its newly enqueued job")
+    atomic_attempt_id = uuid.UUID(str(atomic_claim[1]))
+    atomic_lease_token = uuid.UUID(str(atomic_claim[7]))
+    atomic_run_id = store.start_source_run(
+        source_id,
+        atomic_job_id,
+        f"wp5-runtime-atomic-{probe_key}",
+        datetime.now(UTC),
+        config_id,
+    )
+    time.sleep(1.2)
+    try:
+        store.finish_source_run_and_job(
+            atomic_run_id,
+            atomic_job_id,
+            atomic_attempt_id,
+            atomic_lease_token,
+            CollectionResult(FetchClassification.EMPTY, 200, 0),
+            datetime.now(UTC),
+        )
+    except psycopg.errors.SerializationFailure:
+        pass
+    else:
+        raise RuntimeError("expired lease unexpectedly committed source run and job")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT outcome, finished_at FROM ingest.source_runs WHERE id = %s",
+            (atomic_run_id,),
+        )
+        atomic_run_state = cursor.fetchone()
+    if (
+        atomic_run_state is None
+        or atomic_run_state[0] != "failed"
+        or atomic_run_state[1] is not None
+    ):
+        raise RuntimeError(f"source run was not rolled back atomically: {atomic_run_state}")
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM ops.claim_job('worker', 'wp5-runtime-worker', ARRAY['fetch_source'], 60)"
+        )
+        atomic_retry_claim = cursor.fetchone()
+    connection.commit()
+    if atomic_retry_claim is None or uuid.UUID(str(atomic_retry_claim[0])) != atomic_job_id:
+        raise RuntimeError("expired job could not be reclaimed for source-run retry")
+    atomic_retry_result = RssSourceRunRunner(
+        lambda _url, _headers: FetchResponse(200, b""),
+        store,
+    ).run(
+        source_id,
+        atomic_job_id,
+        f"wp5-runtime-atomic-retry-{probe_key}",
+        "https://wp5-runtime-a.example.test/feed",
+        attempt_id=uuid.UUID(str(atomic_retry_claim[1])),
+        lease_token=uuid.UUID(str(atomic_retry_claim[7])),
+        source_config_version_id=config_id,
+    )
+    if atomic_retry_result.classification.value != "empty":
+        raise RuntimeError("reclaimed source-run retry did not complete")
+
     cross_source_job = enqueue(connection, f"wp5-runtime-cross-source-{probe_key}")
     try:
         with connection.transaction():
@@ -174,6 +251,7 @@ def main() -> None:
             "source_run_outcome": run_outcome[0],
             "job_status": job_status[0],
             "retry_job_status": retry_status[0],
+            "atomic_retry": "reclaimed and completed",
             "cross_source_config_sqlstate": "23503",
         }
     )

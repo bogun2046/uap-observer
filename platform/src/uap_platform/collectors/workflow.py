@@ -31,20 +31,24 @@ class SourceRunStore(Protocol):
         seen_at: datetime,
     ) -> int: ...
 
-    def finish_source_run(
-        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
-    ) -> None: ...
-
-    def fail_source_run(
-        self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
-    ) -> None: ...
-
-    def finish_job(
+    def finish_source_run_and_job(
         self,
+        run_id: uuid.UUID,
         job_id: uuid.UUID,
         attempt_id: uuid.UUID,
         lease_token: uuid.UUID,
         result: CollectionResult,
+        finished_at: datetime,
+    ) -> None: ...
+
+    def fail_source_run_and_job(
+        self,
+        run_id: uuid.UUID,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
+        finished_at: datetime,
     ) -> None: ...
 
 
@@ -124,8 +128,14 @@ class RssSourceRunRunner:
                     error_code="cooldown",
                     error_summary=str(error),
                 )
-                self._store.fail_source_run(run_id, failure, self._clock())
-                self._store.finish_job(job_id, attempt_id, lease_token, failure)
+                self._store.fail_source_run_and_job(
+                    run_id,
+                    job_id,
+                    attempt_id,
+                    lease_token,
+                    failure,
+                    self._clock(),
+                )
                 return failure
             failure = CollectionResult(
                 classification=FetchClassification.TRANSIENT_FAILURE,
@@ -138,9 +148,21 @@ class RssSourceRunRunner:
                 self._health_tracker.record(
                     source_id, failure, self._clock(), self._source_policy
                 )
-            self._store.fail_source_run(run_id, failure, self._clock())
-            self._store.finish_job(job_id, attempt_id, lease_token, failure)
+            self._store.fail_source_run_and_job(
+                run_id,
+                job_id,
+                attempt_id,
+                lease_token,
+                failure,
+                self._clock(),
+            )
             raise
-        self._store.finish_source_run(run_id, result, self._clock())
-        self._store.finish_job(job_id, attempt_id, lease_token, result)
+        self._store.finish_source_run_and_job(
+            run_id,
+            job_id,
+            attempt_id,
+            lease_token,
+            result,
+            self._clock(),
+        )
         return result

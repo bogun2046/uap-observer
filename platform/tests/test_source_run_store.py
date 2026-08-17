@@ -95,6 +95,8 @@ class FakeCursor:
     def fetchone(self) -> tuple[object, ...] | None:
         if "SELECT ops.finish_job" in self.last_query:
             return ("succeeded",)
+        if "INSERT INTO ingest.source_runs" in self.last_query:
+            return (uuid.UUID("00000000-0000-7000-8000-000000000001"),)
         if "INSERT INTO core.stored_objects" in self.last_query:
             params = self.parameters
             assert isinstance(params, tuple)
@@ -264,3 +266,18 @@ def test_store_finishes_wp4_job_with_collector_outcome() -> None:
 
     assert connection.commits == 1
     assert "ops.finish_job" in connection.cursor_value.last_query
+
+
+def test_store_commits_source_run_and_job_together() -> None:
+    connection = FakeConnection()
+    store = PostgresSourceRunStore(connection, FakeObjectClient())  # type: ignore[arg-type]
+    store.finish_source_run_and_job(
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        CollectionResult(FetchClassification.SUCCESS, 200, 1),
+        datetime.now(UTC),
+    )
+
+    assert connection.commits == 1
