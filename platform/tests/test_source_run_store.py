@@ -93,6 +93,8 @@ class FakeCursor:
         self.executed.append(query)
 
     def fetchone(self) -> tuple[object, ...] | None:
+        if "SELECT ops.finish_job" in self.last_query:
+            return ("succeeded",)
         if "INSERT INTO core.stored_objects" in self.last_query:
             params = self.parameters
             assert isinstance(params, tuple)
@@ -167,7 +169,9 @@ def test_store_links_source_run_to_artifact_and_document_versions() -> None:
     store = PostgresSourceRunStore(connection, FakeObjectClient())  # type: ignore[arg-type]
     source_id = uuid.UUID("00000000-0000-7000-8000-000000000010")
     job_id = uuid.UUID("00000000-0000-7000-8000-000000000011")
-    run_id = store.start_source_run(source_id, job_id, "run-1", datetime.now(UTC))
+    run_id = store.start_source_run(
+        source_id, job_id, "run-1", datetime.now(UTC), uuid.uuid4()
+    )
 
     assert store.persist_items(source_id, run_id, (item(),), datetime.now(UTC)) == 1
     sql = "\n".join(connection.cursor_value.executed)
@@ -246,3 +250,17 @@ def test_store_finish_accepts_non_success_source_run(status: int) -> None:
     )
 
     assert connection.commits == 1
+
+
+def test_store_finishes_wp4_job_with_collector_outcome() -> None:
+    connection = FakeConnection()
+    store = PostgresSourceRunStore(connection, FakeObjectClient())  # type: ignore[arg-type]
+    store.finish_job(
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        CollectionResult(FetchClassification.SUCCESS, 200, 1),
+    )
+
+    assert connection.commits == 1
+    assert "ops.finish_job" in connection.cursor_value.last_query

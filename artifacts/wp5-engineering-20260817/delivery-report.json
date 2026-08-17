@@ -22,13 +22,13 @@
     },
     {
       "path": "docs/wp5/development-self-review.md",
-      "sha256": "fdd157bcc16b224aa6629a1631af92ea54cf13f6e297f9366d9b768429cefc1b",
-      "size": 1390
+      "sha256": "6df95d67587fc653ada4abdb4dd363c9cfbf359169278a6a5d68dfdb47cbe489",
+      "size": 1605
     },
     {
       "path": "docs/wp5/implementation-ticket.md",
-      "sha256": "c7cc069448bd44d1005abd1b2d092802afb61a18cfb6ec7012026ff1ecb9a3ac",
-      "size": 4546
+      "sha256": "0f6e53a0503260ebf39815bf57fad4d8c015dd6c3520dbfb1d59bc3ad7e28c2d",
+      "size": 4639
     },
     {
       "path": "platform/.env.versions",
@@ -77,13 +77,18 @@
     },
     {
       "path": "platform/alembic/versions/0006_collectors.py",
-      "sha256": "c4938fa98be72ec026ab908d60f5e4e32ef6b22f0738b4c4b911c25a93b69658",
-      "size": 2418
+      "sha256": "6d32afe5978bd3686e25248d63fbdf61a0d4848e9de8efff57e0474de4013559",
+      "size": 2935
     },
     {
       "path": "platform/pyproject.toml",
       "sha256": "100be36741cb7fd6fe3e89a492fbae6c02d13876ffd16d8afe96dd3e5cc67310",
       "size": 1570
+    },
+    {
+      "path": "platform/scripts/verify-migration-chain.sh",
+      "sha256": "1d24064273303ff2c97d0c69ab0e5de26689960852b8c1d7fafd52d93055a91f",
+      "size": 3691
     },
     {
       "path": "platform/src/uap_platform/collectors/__init__.py",
@@ -97,8 +102,8 @@
     },
     {
       "path": "platform/src/uap_platform/collectors/persistence.py",
-      "sha256": "7ae236f6a918d541306b10ef37344a74eb04abd4eec3972029e1dd0fca03d5a0",
-      "size": 16264
+      "sha256": "262d46855a55beeb9edffb456e044de6df6bd76ccf3ec918d6cc44534be7c298",
+      "size": 17717
     },
     {
       "path": "platform/src/uap_platform/collectors/policy.py",
@@ -117,8 +122,8 @@
     },
     {
       "path": "platform/src/uap_platform/collectors/workflow.py",
-      "sha256": "35be1860385b18d5da29b50211ecea97a6cde6a2a471c8e9e9723d1cd0ffb980",
-      "size": 4889
+      "sha256": "1b8fb624e6917294b51e74b61af34c389f2ae7fcaaf8bf3e16e1fd1dae55e4ed",
+      "size": 5156
     },
     {
       "path": "platform/src/uap_platform/object_registry.py",
@@ -152,18 +157,18 @@
     },
     {
       "path": "platform/tests/test_source_run_store.py",
-      "sha256": "6d3829621266bac5a1e07ab45cdb54e3787ca87c5f744f40080a7021cdb4f65a",
-      "size": 8004
+      "sha256": "4d48757cd60bc57fa74cbf522e6ad677c838df39fbcb3bdb10820a850e92adf4",
+      "size": 8575
     },
     {
       "path": "platform/tests/test_source_run_workflow.py",
-      "sha256": "003fd42b60c2f027cc08d8e44b088ea5639ac66bc38ea41dff70c984d7162191",
-      "size": 4425
+      "sha256": "78be79da65312442d9bdff10c72686525795810e1aef0f0110190f31db41e5be",
+      "size": 5953
     },
     {
       "path": "platform/tools/build_wp5_evidence.py",
-      "sha256": "6952ae9116ec30262dac555ea2b8f83b41148b31cbb61fd53cdc31b8e1d9459e",
-      "size": 3811
+      "sha256": "8720a3e36a28df4c5a15a5aef6b0ab4d36ec4e8bd905bf023a70662a2a28b47d",
+      "size": 3947
     },
     {
       "path": "platform/tools/reconcile_object_storage.py",
@@ -187,8 +192,18 @@
     },
     {
       "path": "platform/tools/validate_wp5.py",
-      "sha256": "daa06a7041ca08be7cc23a13ee4b9748504e44b8fd8521ff8892d5e63d94372d",
-      "size": 3368
+      "sha256": "c6279bd2033a4bf881d3e0e3d0e74bf473bc5628e8dcfc477118c617d82512de",
+      "size": 3965
+    },
+    {
+      "path": "platform/tools/wp3_runtime_probe.py",
+      "sha256": "aaf4160b65f05fef99cd462aaa7acce2e6dd0fbe9a82e5e7afb36ce2eb6b2cf6",
+      "size": 33010
+    },
+    {
+      "path": "platform/tools/wp5_runtime_probe.py",
+      "sha256": "32f61de31943526917d3dfd78d81d19aef68db203607e944cfadb9f3335c685b",
+      "size": 6675
     }
   ],
   "freeze": "G5-FROZEN-20260816-01"

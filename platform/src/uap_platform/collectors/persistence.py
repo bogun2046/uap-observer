@@ -41,7 +41,7 @@ class PostgresSourceRunStore:
         job_id: uuid.UUID,
         run_key: str,
         started_at: datetime,
-        source_config_version_id: uuid.UUID | None = None,
+        source_config_version_id: uuid.UUID,
     ) -> uuid.UUID:
         """Checkpoint the run row before business writes can be rolled back."""
 
@@ -171,6 +171,46 @@ class PostgresSourceRunStore:
                 # object-storage consistency scan can retry cleanup later.
                 LOGGER.warning("object cleanup deferred: %s", error)
         self._update_source_run(run_id, result, finished_at)
+        self._connection.commit()
+
+    def finish_job(
+        self,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
+    ) -> None:
+        """Close the WP4 lease using the collector result classification."""
+
+        outcome = {
+            FetchClassification.SUCCESS: "succeeded",
+            FetchClassification.NOT_MODIFIED: "succeeded",
+            FetchClassification.EMPTY: "succeeded",
+            FetchClassification.TRANSIENT_FAILURE: "retryable_failure",
+            FetchClassification.RATE_LIMITED: "retryable_failure",
+            FetchClassification.AUTHORIZATION_FAILURE: "terminal_failure",
+            FetchClassification.TERMINAL_FAILURE: "terminal_failure",
+        }[result.classification]
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT ops.finish_job(
+                    %s, %s, %s, %s::ops.attempt_outcome,
+                    %s, %s, %s, NULL
+                )
+                """,
+                (
+                    job_id,
+                    attempt_id,
+                    lease_token,
+                    outcome,
+                    result.http_status,
+                    result.error_code,
+                    result.error_summary,
+                ),
+            )
+            if cursor.fetchone() is None:
+                raise RuntimeError("finish_job did not return a status")
         self._connection.commit()
 
     @staticmethod

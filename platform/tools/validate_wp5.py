@@ -34,6 +34,8 @@ def evaluate(platform: Path) -> list[Check]:
         "docs/wp5/development-self-review.md",
         "docs/wp5/implementation-ticket.md",
         "platform/alembic/versions/0006_collectors.py",
+        "platform/scripts/verify-migration-chain.sh",
+        "platform/tools/wp5_runtime_probe.py",
         "platform/src/uap_platform/collectors/contracts.py",
         "platform/src/uap_platform/collectors/persistence.py",
         "platform/src/uap_platform/collectors/policy.py",
@@ -74,6 +76,21 @@ def evaluate(platform: Path) -> list[Check]:
             all(
                 token in source
                 for token in ("SourceRateLimiter", "SourceHealthTracker", "cooldown_until")
+            ),
+            True,
+        ),
+        check(
+            "source_config_and_job_lifecycle",
+            all(
+                token in source
+                for token in (
+                    "fk_source_run_config_same_source",
+                    "source_config_version_id, source_id",
+                    "ALTER COLUMN source_config_version_id SET NOT NULL",
+                    "finish_job",
+                    "attempt_id",
+                    "lease_token",
+                )
             ),
             True,
         ),

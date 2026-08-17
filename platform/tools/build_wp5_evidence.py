@@ -24,6 +24,7 @@ EVIDENCE_REQUIRED = (
     "platform/alembic/versions/0004_g3_semantic_repairs.py",
     "platform/alembic/versions/0005_durable_jobs.py",
     "platform/alembic/versions/0006_collectors.py",
+    "platform/scripts/verify-migration-chain.sh",
     "platform/pyproject.toml",
     "platform/src/uap_platform/collectors/contracts.py",
     "platform/src/uap_platform/collectors/__init__.py",
@@ -46,6 +47,8 @@ EVIDENCE_REQUIRED = (
     "platform/tools/validate_wp3.py",
     "platform/tools/validate_wp4.py",
     "platform/tools/validate_wp5.py",
+    "platform/tools/wp3_runtime_probe.py",
+    "platform/tools/wp5_runtime_probe.py",
 )
 
 

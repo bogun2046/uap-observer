@@ -20,7 +20,7 @@ class SourceRunStore(Protocol):
         job_id: uuid.UUID,
         run_key: str,
         started_at: datetime,
-        source_config_version_id: uuid.UUID | None = None,
+        source_config_version_id: uuid.UUID,
     ) -> uuid.UUID: ...
 
     def persist_items(
@@ -37,6 +37,14 @@ class SourceRunStore(Protocol):
 
     def fail_source_run(
         self, run_id: uuid.UUID, result: CollectionResult, finished_at: datetime
+    ) -> None: ...
+
+    def finish_job(
+        self,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+        result: CollectionResult,
     ) -> None: ...
 
 
@@ -66,21 +74,20 @@ class RssSourceRunRunner:
         run_key: str,
         source_url: str,
         *,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
         etag: str | None = None,
         last_modified: str | None = None,
-        source_config_version_id: uuid.UUID | None = None,
+        source_config_version_id: uuid.UUID,
     ) -> CollectionResult:
         started_at = self._clock()
-        if source_config_version_id is None:
-            run_id = self._store.start_source_run(source_id, job_id, run_key, started_at)
-        else:
-            run_id = self._store.start_source_run(
-                source_id,
-                job_id,
-                run_key,
-                started_at,
-                source_config_version_id,
-            )
+        run_id = self._store.start_source_run(
+            source_id,
+            job_id,
+            run_key,
+            started_at,
+            source_config_version_id,
+        )
         collector = RssCollector(
             self._fetch,
             lambda items: self._store.persist_items(
@@ -118,9 +125,10 @@ class RssSourceRunRunner:
                     error_summary=str(error),
                 )
                 self._store.fail_source_run(run_id, failure, self._clock())
+                self._store.finish_job(job_id, attempt_id, lease_token, failure)
                 return failure
             failure = CollectionResult(
-                classification=FetchClassification.TERMINAL_FAILURE,
+                classification=FetchClassification.TRANSIENT_FAILURE,
                 http_status=599,
                 fetched_count=0,
                 error_code="collector_error",
@@ -131,6 +139,8 @@ class RssSourceRunRunner:
                     source_id, failure, self._clock(), self._source_policy
                 )
             self._store.fail_source_run(run_id, failure, self._clock())
+            self._store.finish_job(job_id, attempt_id, lease_token, failure)
             raise
         self._store.finish_source_run(run_id, result, self._clock())
+        self._store.finish_job(job_id, attempt_id, lease_token, result)
         return result

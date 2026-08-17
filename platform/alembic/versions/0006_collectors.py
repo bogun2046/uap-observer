@@ -20,11 +20,17 @@ def upgrade() -> None:
         """
         SET ROLE uap_owner;
 
+        ALTER TABLE ingest.source_config_versions
+            ADD CONSTRAINT uq_source_config_versions_id_source UNIQUE (id, source_id);
+
         ALTER TABLE ingest.source_runs
-            ADD COLUMN source_config_version_id uuid
-                REFERENCES ingest.source_config_versions(id),
+            ADD COLUMN source_config_version_id uuid,
             ADD COLUMN payload_schema_version text NOT NULL DEFAULT 'rss.v1',
             ADD COLUMN snapshot_sha256 char(64),
+            ADD CONSTRAINT fk_source_run_config_same_source
+                FOREIGN KEY (source_config_version_id, source_id)
+                REFERENCES ingest.source_config_versions(id, source_id),
+            ALTER COLUMN source_config_version_id SET NOT NULL,
             ADD CONSTRAINT ck_source_run_snapshot_sha256
                 CHECK (snapshot_sha256 IS NULL OR snapshot_sha256 ~ '^[0-9a-f]{64}$');
 
@@ -62,9 +68,12 @@ def downgrade() -> None:
             DROP COLUMN cooldown_seconds,
             DROP COLUMN minimum_request_interval_seconds;
         ALTER TABLE ingest.source_runs
+            DROP CONSTRAINT fk_source_run_config_same_source,
             DROP CONSTRAINT ck_source_run_snapshot_sha256,
             DROP COLUMN snapshot_sha256,
             DROP COLUMN payload_schema_version,
             DROP COLUMN source_config_version_id;
+        ALTER TABLE ingest.source_config_versions
+            DROP CONSTRAINT uq_source_config_versions_id_source;
         """
     )

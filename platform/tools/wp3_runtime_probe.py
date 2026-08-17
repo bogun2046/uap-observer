@@ -518,6 +518,7 @@ def probe() -> dict[str, object]:
         principal = identifier(1)
         job = identifier(2)
         source = identifier(3)
+        source_config = identifier(66)
         run = identifier(4)
         artifact_one = identifier(5)
         artifact_two = identifier(6)
@@ -554,12 +555,24 @@ def probe() -> dict[str, object]:
             )
             cursor.execute(
                 """
-                INSERT INTO ingest.source_runs
-                    (id, source_id, job_id, run_key, outcome, started_at, finished_at)
-                VALUES (%s, %s, %s, 'wp3-runtime-probe', 'succeeded', now(), now())
+                INSERT INTO ingest.source_config_versions
+                    (id, source_id, version_no, configuration, configuration_sha256,
+                     effective_from, changed_by, change_reason)
+                VALUES (%s, %s, 1, '{}'::jsonb, repeat('c', 64), now(), %s,
+                        'WP3 runtime probe')
                 ON CONFLICT (id) DO NOTHING
                 """,
-                (run, source, job),
+                (source_config, source, principal),
+            )
+            cursor.execute(
+                """
+                INSERT INTO ingest.source_runs
+                    (id, source_id, source_config_version_id, job_id, run_key,
+                     outcome, started_at, finished_at)
+                VALUES (%s, %s, %s, %s, 'wp3-runtime-probe', 'succeeded', now(), now())
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (run, source, source_config, job),
             )
             for artifact, locator in (
                 (artifact_one, "urn:uap:wp3:artifact:1"),
@@ -716,8 +729,8 @@ def probe() -> dict[str, object]:
             orphan_rows += int(orphan_row[0])
         if orphan_rows:
             raise RuntimeError(f"foreign key orphan rows found: {orphan_rows}")
-        if foreign_keys != 108:
-            raise RuntimeError(f"foreign key count changed: {foreign_keys}; expected 108")
+        if foreign_keys != 109:
+            raise RuntimeError(f"foreign key count changed: {foreign_keys}; expected 109")
 
         for name, state, expected in (
             ("wrong storage domain", wrong_domain_state, "23514"),
