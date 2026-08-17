@@ -52,6 +52,7 @@
 - 已建立 `source_run → artifact_version → document_version` 追溯链；原始 RSS 条目通过对象登记表进入 raw 域。
 - 失败路径采用已提交的 source-run checkpoint、业务写入回滚和独立失败收口；canonical URL 冲突先复用已有 document。
 - canonical URL 非空分支使用对应部分唯一索引的原子 `INSERT ... ON CONFLICT ... RETURNING`，已通过真实双连接首次并发复用验证。
-- raw 对象登记使用同内容地址的事务级 advisory lock；失败收口仅清理本次新建且数据库中仍无引用的物理对象，已通过真实对象存储失败补偿验证。
+- raw 对象登记在任何 `stat/PUT/读取校验` 前取得同内容地址的事务级 advisory lock，并保持至数据库提交或回滚；已通过真实双事务失败/重试竞态验证。
+- 提供 `tools/reconcile_object_storage.py` 定期一致性扫描；清理失败不再只有日志路径，可由扫描重试未登记 raw 对象。
 - XML 解析使用 `defusedxml`，并将运行库与类型存根写入 `pyproject.toml`/`uv.lock`。
-- 下一步：补限速、冷却、来源健康检查、版本化 payload 和固定快照哈希；随后进行真实 PostgreSQL 运行态验证。
+- 下一步：补限速、冷却、来源健康检查、版本化 payload 和固定快照哈希；随后整理完整 G5 证据并申请独立验收。

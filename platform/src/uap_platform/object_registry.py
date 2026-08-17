@@ -9,7 +9,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from psycopg import Connection
 
@@ -51,7 +51,6 @@ class ObjectClient(Protocol):
     def stat_object(self, bucket_name: str, object_name: str) -> object: ...
 
     def remove_object(self, bucket_name: str, object_name: str) -> None: ...
-
 
 class ObjectStat(Protocol):
     size: int
@@ -112,6 +111,18 @@ def _response_bytes(response: object) -> bytes:
     finally:
         typed.close()
         typed.release_conn()
+
+
+def _lock_content_address(
+    connection: Connection[object], domain: StorageDomain, digest: str
+) -> None:
+    """Hold the content-address lock for the surrounding database transaction."""
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"{domain.value}:{digest}",),
+        )
 
 
 def put_verified(
@@ -177,14 +188,11 @@ def register_object(connection: Connection[object], physical: PhysicalObject) ->
     """Register or reuse one object row per storage domain and SHA-256."""
 
     candidate_id = uuid7()
+    # Keep the lock held from before physical storage access through the database
+    # registration. store_and_register acquires it earlier; this also protects
+    # direct register_object callers and makes compensation use the same key.
+    _lock_content_address(connection, physical.storage_domain, physical.content_sha256)
     with connection.cursor() as cursor:
-        # Serialise registration and rollback compensation for this content address.
-        # The lock is transaction-scoped and therefore also covers another writer
-        # that raced the physical PUT before either transaction registered a row.
-        cursor.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            (f"{physical.storage_domain.value}:{physical.content_sha256}",),
-        )
         cursor.execute(
             """
             INSERT INTO core.stored_objects (
@@ -241,12 +249,8 @@ def cleanup_unregistered_object(
 
     if not registered.created:
         return False
-    lock_key = f"{registered.storage_domain.value}:{registered.content_sha256}"
+    _lock_content_address(connection, registered.storage_domain, registered.content_sha256)
     with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            (lock_key,),
-        )
         cursor.execute(
             """
             SELECT EXISTS (
@@ -265,6 +269,55 @@ def cleanup_unregistered_object(
     return True
 
 
+def reconcile_unregistered_objects(
+    connection: Connection[object],
+    client: Any,
+    domain: StorageDomain,
+    *,
+    limit: int = 1000,
+) -> int:
+    """Delete content-addressed objects with no committed registry row.
+
+    This is intended for a scheduled consistency scan. It uses the same advisory
+    lock as registration, so an in-flight writer either commits its registry row
+    before the check or re-uploads after the scan releases the lock.
+    """
+
+    bucket = BUCKETS[domain]
+    removed = 0
+    for summary in client.list_objects(bucket, recursive=True):
+        if removed >= limit:
+            break
+        key = str(summary.object_name)
+        prefix = f"{domain.value}/"
+        digest = key.removeprefix(prefix)
+        if key == digest or len(digest) != 64:
+            continue
+        try:
+            object_key(domain, digest)
+        except ValueError:
+            continue
+        _lock_content_address(connection, domain, digest)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM core.stored_objects
+                     WHERE storage_domain = %s::core.storage_domain
+                       AND content_sha256 = %s
+                )
+                """,
+                (domain.value, digest),
+            )
+            row = cast(tuple[bool] | None, cursor.fetchone())
+        if row is not None and bool(row[0]):
+            continue
+        client.remove_object(bucket, key)
+        removed += 1
+    return removed
+
+
 def store_and_register(
     client: ObjectClient,
     connection: Connection[object],
@@ -274,11 +327,17 @@ def store_and_register(
     *,
     expected_sha256: str | None = None,
 ) -> RegisteredObject:
+    digest = sha256_bytes(data)
+    if expected_sha256 is not None and not secrets.compare_digest(digest, expected_sha256):
+        raise ValueError("content SHA-256 does not match the expected digest")
+    # This must precede stat/PUT/read-back. The lock is transaction-scoped and
+    # remains held until the caller commits or rolls back its database work.
+    _lock_content_address(connection, domain, digest)
     physical = put_verified(
         client,
         domain,
         data,
         media_type,
-        expected_sha256=expected_sha256,
+        expected_sha256=digest,
     )
     return register_object(connection, physical)

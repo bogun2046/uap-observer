@@ -113,8 +113,8 @@ class PostgresSourceRunStore:
             try:
                 cleanup_unregistered_object(self._connection, self._object_client, registered)
             except Exception as error:
-                # The failed run must still be durably recorded. A later object
-                # sweep can retry cleanup if the storage service is unavailable.
+                # The failed run must still be durably recorded. The scheduled
+                # object-storage consistency scan can retry cleanup later.
                 LOGGER.warning("object cleanup deferred: %s", error)
         self._update_source_run(run_id, result, finished_at)
         self._connection.commit()
