@@ -57,9 +57,7 @@ class PostgresSourceRunStore:
                     'rss.v1', %s
                 )
                 ON CONFLICT (job_id) DO UPDATE
-                   SET source_id = EXCLUDED.source_id,
-                       source_config_version_id = EXCLUDED.source_config_version_id,
-                       run_key = EXCLUDED.run_key,
+                   SET run_key = EXCLUDED.run_key,
                        outcome = 'failed'::ingest.source_run_outcome,
                        http_status = NULL,
                        fetched_count = 0,
@@ -74,13 +72,17 @@ class PostgresSourceRunStore:
                        snapshot_sha256 = NULL,
                        started_at = EXCLUDED.started_at,
                        finished_at = NULL
+                 WHERE ingest.source_runs.source_id = EXCLUDED.source_id
+                   AND ingest.source_runs.source_config_version_id =
+                       EXCLUDED.source_config_version_id
                 RETURNING id
                 """,
                 (run_id, source_id, source_config_version_id, job_id, run_key, started_at),
             )
             row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
         if row is None:
-            raise RuntimeError("source run upsert did not return an id")
+            self._connection.rollback()
+            raise RuntimeError("source run provenance does not match the existing job")
         run_id = uuid.UUID(str(row[0]))
         self._connection.commit()
         self._run_sources[run_id] = source_id

@@ -15,11 +15,13 @@
 
 - Python 3.12.13 容器内 Ruff：通过。
 - Python 3.12.13 容器内 mypy 严格检查：通过。
-- 全量平台测试：57/57 通过。
-- 覆盖率：83.61%，高于项目 80% 门槛。
-- RSS、source-run workflow、持久化和传输测试：22/22 通过。
+- 全量平台测试：58/58 通过。
+- 覆盖率：83.84%，高于项目 80% 门槛。
+- RSS、source-run workflow、持久化和传输测试：27/27 通过。
 - 真实 PostgreSQL + 对象存储 R4 探针通过：失败事务与并发事务围绕同一内容地址交错执行后，数据库登记和物理对象均存在；一致性扫描成功删除手工制造的未登记 raw 对象。
 - 真实 PostgreSQL R1 探针通过：source config 版本、`rss.v1`、快照 SHA-256、最近成功时间、连续失败计数和 cooldown 均正确落库；冷却期间未发出请求。
 - 真实 PostgreSQL G5 运行态探针通过：跨来源配置引用返回 `23503`；成功采集后 `source_run=empty` 且任务为 `succeeded`；超时采集后任务进入 `retry_wait`。
 - 租约跨越到期点的原子性探针通过：source run 最终更新与 `finish_job` 一起回滚，过期任务可重新领取并复用原 source run 完成重试。
+- source run 重试追溯保护通过：同一 `job_id` 只能复用原 `source_id` 和 `source_config_version_id`，跨来源重标被拒绝且原记录保持不变。
+- WP5 探针自包含验证通过；全新数据库可直接运行。按 required CI 的实际顺序 `WP3 → WP4 → WP5` 执行时，每次领取均严格命中本探针新建任务，未领取 WP4 遗留任务。
 - 限速、冷却、来源健康检查、版本化 payload、固定快照和扫描器幂等回归测试已完成；G5 证据清单已生成，Draft PR 和 required CI 尚未完成。

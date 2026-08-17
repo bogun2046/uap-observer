@@ -51,9 +51,11 @@
 - 已完成 `RssSourceRunRunner` 生命周期编排和 `PostgresSourceRunStore` 的 source run、artifact、document 事务写入适配器。
 - 已建立 `source_run → artifact_version → document_version` 追溯链；原始 RSS 条目通过对象登记表进入 raw 域。
 - 失败路径采用已提交的 source-run checkpoint、业务写入回滚和独立失败收口；canonical URL 冲突先复用已有 document。
+- 同一任务重试仅重置运行状态，不允许改写既有 source run 的来源或配置版本；source run 最终更新和 `ops.finish_job` 在同一事务提交。
 - canonical URL 非空分支使用对应部分唯一索引的原子 `INSERT ... ON CONFLICT ... RETURNING`，已通过真实双连接首次并发复用验证。
 - raw 对象登记在任何 `stat/PUT/读取校验` 前取得同内容地址的事务级 advisory lock，并保持至数据库提交或回滚；已通过真实双事务失败/重试竞态验证。
 - 提供 `tools/reconcile_object_storage.py` 定期一致性扫描；清理失败不再只有日志路径，可由扫描重试未登记 raw 对象。
 - XML 解析使用 `defusedxml`，并将运行库与类型存根写入 `pyproject.toml`/`uv.lock`。
 - 固定快照 `platform/tests/fixtures/rss/g5-fixed-feed.xml` 的 SHA-256 为 `b3a998a48fecd9c18bfb75d294a60465aad12a55490b1c72e6629ebcf9dd73c8`，解析结果会重复计算并校验该哈希。
+- WP5 运行态探针自建独立 principal，并以最高优先级入队、逐次核对领取的 job ID；全新数据库直接执行及 `WP3 → WP4 → WP5` 顺序执行均通过。
 - 下一步：整理 G5 完整证据清单、运行态报告和 required CI，然后申请独立验收。

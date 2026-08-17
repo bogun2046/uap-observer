@@ -70,10 +70,12 @@ class FakeCursor:
         existing_url: bool = False,
         same_version: bool = False,
         fail_document_version: bool = False,
+        source_run_provenance_mismatch: bool = False,
     ) -> None:
         self.existing_url = existing_url
         self.same_version = same_version
         self.fail_document_version = fail_document_version
+        self.source_run_provenance_mismatch = source_run_provenance_mismatch
         self.last_query = ""
         self.parameters: object = None
         self.rowcount = 1
@@ -96,6 +98,8 @@ class FakeCursor:
         if "SELECT ops.finish_job" in self.last_query:
             return ("succeeded",)
         if "INSERT INTO ingest.source_runs" in self.last_query:
+            if self.source_run_provenance_mismatch:
+                return None
             return (uuid.UUID("00000000-0000-7000-8000-000000000001"),)
         if "INSERT INTO core.stored_objects" in self.last_query:
             params = self.parameters
@@ -136,11 +140,13 @@ class FakeConnection:
         existing_url: bool = False,
         same_version: bool = False,
         fail_document_version: bool = False,
+        source_run_provenance_mismatch: bool = False,
     ) -> None:
         self.cursor_value = FakeCursor(
             existing_url=existing_url,
             same_version=same_version,
             fail_document_version=fail_document_version,
+            source_run_provenance_mismatch=source_run_provenance_mismatch,
         )
         self.commits = 0
         self.rollbacks = 0
@@ -186,6 +192,23 @@ def test_store_links_source_run_to_artifact_and_document_versions() -> None:
         datetime.now(UTC),
     )
     assert connection.commits == 2
+
+
+def test_store_rejects_source_run_provenance_relabel() -> None:
+    connection = FakeConnection(source_run_provenance_mismatch=True)
+    store = PostgresSourceRunStore(connection, FakeObjectClient())  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeError, match="provenance"):
+        store.start_source_run(
+            uuid.uuid4(),
+            uuid.uuid4(),
+            "retry-run",
+            datetime.now(UTC),
+            uuid.uuid4(),
+        )
+
+    assert connection.commits == 0
+    assert connection.rollbacks == 1
 
 
 def test_store_reuses_document_by_canonical_url() -> None:
