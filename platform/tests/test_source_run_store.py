@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from psycopg import errors
 
 from uap_platform.collectors import (
     CollectionResult,
@@ -71,11 +72,13 @@ class FakeCursor:
         same_version: bool = False,
         fail_document_version: bool = False,
         source_run_provenance_mismatch: bool = False,
+        source_run_lease_valid: bool = True,
     ) -> None:
         self.existing_url = existing_url
         self.same_version = same_version
         self.fail_document_version = fail_document_version
         self.source_run_provenance_mismatch = source_run_provenance_mismatch
+        self.source_run_lease_valid = source_run_lease_valid
         self.last_query = ""
         self.parameters: object = None
         self.rowcount = 1
@@ -88,6 +91,11 @@ class FakeCursor:
         return None
 
     def execute(self, query: str, parameters: object = None) -> None:
+        if (
+            "ops.require_active_source_job_lease" in query
+            and not self.source_run_lease_valid
+        ):
+            raise errors.SerializationFailure("source job lease is invalid")
         if self.fail_document_version and "INSERT INTO core.document_versions" in query:
             raise RuntimeError("injected document write failure")
         self.last_query = query
@@ -141,12 +149,14 @@ class FakeConnection:
         same_version: bool = False,
         fail_document_version: bool = False,
         source_run_provenance_mismatch: bool = False,
+        source_run_lease_valid: bool = True,
     ) -> None:
         self.cursor_value = FakeCursor(
             existing_url=existing_url,
             same_version=same_version,
             fail_document_version=fail_document_version,
             source_run_provenance_mismatch=source_run_provenance_mismatch,
+            source_run_lease_valid=source_run_lease_valid,
         )
         self.commits = 0
         self.rollbacks = 0
@@ -178,7 +188,13 @@ def test_store_links_source_run_to_artifact_and_document_versions() -> None:
     source_id = uuid.UUID("00000000-0000-7000-8000-000000000010")
     job_id = uuid.UUID("00000000-0000-7000-8000-000000000011")
     run_id = store.start_source_run(
-        source_id, job_id, "run-1", datetime.now(UTC), uuid.uuid4()
+        source_id,
+        job_id,
+        "run-1",
+        datetime.now(UTC),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
     )
 
     assert store.persist_items(source_id, run_id, (item(),), datetime.now(UTC)) == 1
@@ -205,8 +221,30 @@ def test_store_rejects_source_run_provenance_relabel() -> None:
             "retry-run",
             datetime.now(UTC),
             uuid.uuid4(),
+            uuid.uuid4(),
+            uuid.uuid4(),
         )
 
+    assert connection.commits == 0
+    assert connection.rollbacks == 1
+
+
+def test_store_rejects_source_run_checkpoint_without_current_lease() -> None:
+    connection = FakeConnection(source_run_lease_valid=False)
+    store = PostgresSourceRunStore(connection, FakeObjectClient())  # type: ignore[arg-type]
+
+    with pytest.raises(errors.SerializationFailure) as captured:
+        store.start_source_run(
+            uuid.uuid4(),
+            uuid.uuid4(),
+            "stale-run",
+            datetime.now(UTC),
+            uuid.uuid4(),
+            uuid.uuid4(),
+            uuid.uuid4(),
+        )
+
+    assert getattr(captured.value, "sqlstate", None) == "40001"
     assert connection.commits == 0
     assert connection.rollbacks == 1
 

@@ -21,6 +21,8 @@ class SourceRunStore(Protocol):
         run_key: str,
         started_at: datetime,
         source_config_version_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
     ) -> uuid.UUID: ...
 
     def persist_items(
@@ -91,6 +93,8 @@ class RssSourceRunRunner:
             run_key,
             started_at,
             source_config_version_id,
+            attempt_id,
+            lease_token,
         )
         collector = RssCollector(
             self._fetch,

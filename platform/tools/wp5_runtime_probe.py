@@ -198,6 +198,8 @@ def main() -> None:
         f"wp5-runtime-atomic-{probe_key}",
         datetime.now(UTC),
         config_id,
+        atomic_attempt_id,
+        atomic_lease_token,
     )
     time.sleep(1.2)
     try:
@@ -227,21 +229,8 @@ def main() -> None:
         raise RuntimeError(f"source run was not rolled back atomically: {atomic_run_state}")
 
     atomic_retry_claim = claim_expected(connection, atomic_job_id, 60)
-    atomic_retry_result = RssSourceRunRunner(
-        lambda _url, _headers: FetchResponse(200, b""),
-        store,
-    ).run(
-        source_id,
-        atomic_job_id,
-        f"wp5-runtime-atomic-retry-{probe_key}",
-        "https://wp5-runtime-a.example.test/feed",
-        attempt_id=uuid.UUID(str(atomic_retry_claim[1])),
-        lease_token=uuid.UUID(str(atomic_retry_claim[7])),
-        source_config_version_id=config_id,
-    )
-    if atomic_retry_result.classification.value != "empty":
-        raise RuntimeError("reclaimed source-run retry did not complete")
-
+    atomic_retry_attempt_id = uuid.UUID(str(atomic_retry_claim[1]))
+    atomic_retry_lease_token = uuid.UUID(str(atomic_retry_claim[7]))
     try:
         store.start_source_run(
             other_source_id,
@@ -249,6 +238,8 @@ def main() -> None:
             f"wp5-runtime-provenance-relabel-{probe_key}",
             datetime.now(UTC),
             other_config_id,
+            atomic_retry_attempt_id,
+            atomic_retry_lease_token,
         )
     except RuntimeError as error:
         if "provenance" not in str(error):
@@ -267,6 +258,62 @@ def main() -> None:
         provenance = cursor.fetchone()
     if provenance != (source_id, config_id):
         raise RuntimeError(f"source-run provenance was rewritten: {provenance}")
+
+    atomic_retry_result = RssSourceRunRunner(
+        lambda _url, _headers: FetchResponse(200, b""),
+        store,
+    ).run(
+        source_id,
+        atomic_job_id,
+        f"wp5-runtime-atomic-retry-{probe_key}",
+        "https://wp5-runtime-a.example.test/feed",
+        attempt_id=atomic_retry_attempt_id,
+        lease_token=atomic_retry_lease_token,
+        source_config_version_id=config_id,
+    )
+    if atomic_retry_result.classification.value != "empty":
+        raise RuntimeError("reclaimed source-run retry did not complete")
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT source_id, source_config_version_id, outcome, finished_at, run_key
+              FROM ingest.source_runs
+             WHERE id = %s
+            """,
+            (atomic_run_id,),
+        )
+        completed_run_state = cursor.fetchone()
+    try:
+        store.start_source_run(
+            source_id,
+            atomic_job_id,
+            f"wp5-runtime-stale-worker-{probe_key}",
+            datetime.now(UTC),
+            config_id,
+            atomic_attempt_id,
+            atomic_lease_token,
+        )
+    except psycopg.errors.SerializationFailure as error:
+        if error.sqlstate != "40001":
+            raise
+    else:
+        raise RuntimeError("stale worker changed a completed source run")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT source_id, source_config_version_id, outcome, finished_at, run_key
+              FROM ingest.source_runs
+             WHERE id = %s
+            """,
+            (atomic_run_id,),
+        )
+        state_after_stale_worker = cursor.fetchone()
+    if state_after_stale_worker != completed_run_state:
+        raise RuntimeError(
+            "stale worker changed the completed source run: "
+            f"{completed_run_state} -> {state_after_stale_worker}"
+        )
 
     cross_source_job = enqueue(connection, f"wp5-runtime-cross-source-{probe_key}")
     try:
@@ -295,6 +342,7 @@ def main() -> None:
             "retry_job_status": retry_status[0],
             "atomic_retry": "reclaimed and completed",
             "provenance_relabel": "rejected",
+            "stale_checkpoint_sqlstate": "40001",
             "cross_source_config_sqlstate": "23503",
         }
     )

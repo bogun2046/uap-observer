@@ -27,7 +27,7 @@
 
 ## 数据与迁移要求
 
-- 优先复用 G3 已验收表结构；只有发现无法表达 G5 冻结约束时，才追加单一线性 Alembic revision `0006_collectors`。
+- 优先复用 G3 已验收表结构；G5 仅追加线性 Alembic revisions：`0006_collectors` 表达采集追溯，`0007_source_run_lease_guard` 提供最小权限的 source-run 租约守卫。
 - 若新增字段或表，必须同时更新数据字典、权限矩阵、验证器、测试和证据清单。
 - 所有来源配置变更必须产生版本记录，当前配置只能有一个有效版本。
 
@@ -52,6 +52,7 @@
 - 已建立 `source_run → artifact_version → document_version` 追溯链；原始 RSS 条目通过对象登记表进入 raw 域。
 - 失败路径采用已提交的 source-run checkpoint、业务写入回滚和独立失败收口；canonical URL 冲突先复用已有 document。
 - 同一任务重试仅重置运行状态，不允许改写既有 source run 的来源或配置版本；source run 最终更新和 `ops.finish_job` 在同一事务提交。
+- source-run checkpoint 必须携带 attempt/token；`ops.require_active_source_job_lease` 在同一事务锁定 job/attempt，并用 `clock_timestamp()` 拒绝过期、已结束或已换主的租约，不扩大 `uap_worker` 的 ops 表写权限。
 - canonical URL 非空分支使用对应部分唯一索引的原子 `INSERT ... ON CONFLICT ... RETURNING`，已通过真实双连接首次并发复用验证。
 - raw 对象登记在任何 `stat/PUT/读取校验` 前取得同内容地址的事务级 advisory lock，并保持至数据库提交或回滚；已通过真实双事务失败/重试竞态验证。
 - 提供 `tools/reconcile_object_storage.py` 定期一致性扫描；清理失败不再只有日志路径，可由扫描重试未登记 raw 对象。

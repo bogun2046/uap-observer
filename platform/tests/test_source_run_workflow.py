@@ -28,8 +28,18 @@ class FakeStore:
         run_key: str,
         started_at: datetime,
         source_config_version_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
     ) -> uuid.UUID:
-        self.started = (source_id, job_id, run_key, started_at, source_config_version_id)
+        self.started = (
+            source_id,
+            job_id,
+            run_key,
+            started_at,
+            source_config_version_id,
+            attempt_id,
+            lease_token,
+        )
         return self.run_id
 
     def persist_items(
@@ -108,6 +118,8 @@ def test_runner_records_start_persist_and_finish_in_order() -> None:
         "source-run-1",
         datetime(2026, 8, 16, 1, 0, tzinfo=UTC),
         config_id,
+        attempt_id,
+        lease_token,
     )
     assert store.persisted is not None
     assert store.finished is not None

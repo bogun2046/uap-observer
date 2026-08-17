@@ -22,13 +22,13 @@
     },
     {
       "path": "docs/wp5/development-self-review.md",
-      "sha256": "d2dff0315151d820f62866fa6923b6a300aa9b8161fdf1b3f523fc609ffe7251",
-      "size": 2162
+      "sha256": "349a072b649652396779d7656c51ca8b3bf982fdec8292aa963581574dbab19e",
+      "size": 2558
     },
     {
       "path": "docs/wp5/implementation-ticket.md",
-      "sha256": "4bb93e4cbd1ea6dc2a01abbf91ab7b47300d7ea70b08e69970686350589dbdba",
-      "size": 4997
+      "sha256": "0dc3d4216e73f3f54995750489f8e1e2597892d9e571cb73d7d79a362a0855a4",
+      "size": 5297
     },
     {
       "path": "platform/.env.versions",
@@ -81,14 +81,19 @@
       "size": 2935
     },
     {
+      "path": "platform/alembic/versions/0007_source_run_lease_guard.py",
+      "sha256": "51f99eb1e887f518f5793f94f4a991275525709cff91dfff49d701b731591d3f",
+      "size": 2734
+    },
+    {
       "path": "platform/pyproject.toml",
       "sha256": "100be36741cb7fd6fe3e89a492fbae6c02d13876ffd16d8afe96dd3e5cc67310",
       "size": 1570
     },
     {
       "path": "platform/scripts/verify-migration-chain.sh",
-      "sha256": "1d24064273303ff2c97d0c69ab0e5de26689960852b8c1d7fafd52d93055a91f",
-      "size": 3691
+      "sha256": "3dcc2094dd53bfdc77d9a542838096b169a4a8b34a70f5d9effd6616dcb32bdd",
+      "size": 3711
     },
     {
       "path": "platform/src/uap_platform/collectors/__init__.py",
@@ -102,8 +107,8 @@
     },
     {
       "path": "platform/src/uap_platform/collectors/persistence.py",
-      "sha256": "2a65216a54a16e98627d0d00d249f3a8d46088e7daa30e4bf0579d162e610624",
-      "size": 20795
+      "sha256": "dc47aa07576e284354cba249ca238f1edd3433d13043ef186ff9fcfa5832da06",
+      "size": 21463
     },
     {
       "path": "platform/src/uap_platform/collectors/policy.py",
@@ -122,8 +127,8 @@
     },
     {
       "path": "platform/src/uap_platform/collectors/workflow.py",
-      "sha256": "b18564784223861173054e0eda8bf55c5f1b76fe463d8a9175f0efa803011e1b",
-      "size": 5450
+      "sha256": "c5430d730f04d3ed6a406acefa9ae244bab947014e27870ff02e294ab86478b1",
+      "size": 5562
     },
     {
       "path": "platform/src/uap_platform/object_registry.py",
@@ -157,18 +162,18 @@
     },
     {
       "path": "platform/tests/test_source_run_store.py",
-      "sha256": "ce5c5de91160b8cf369d0b9fa3581f0f8574e781325b1b5733c5dec738645907",
-      "size": 10035
+      "sha256": "10a4dcf100a53f5663904ba1e4abf69709da5816edb823d0c1ae43bf95afc456",
+      "size": 11275
     },
     {
       "path": "platform/tests/test_source_run_workflow.py",
-      "sha256": "3363061ccbb8fdaa34770b865e00b80b7f98e33af88758cedcd089da035d3010",
-      "size": 6095
+      "sha256": "1884806d5a6dd7873a4174e5f3d5e66dce2faa99f9227e92e57d83ffb598dac7",
+      "size": 6319
     },
     {
       "path": "platform/tools/build_wp5_evidence.py",
-      "sha256": "8720a3e36a28df4c5a15a5aef6b0ab4d36ec4e8bd905bf023a70662a2a28b47d",
-      "size": 3947
+      "sha256": "a7ba0037a7cd1984dc7a876b6b2f176fc8e52cf481ef55dd587992d13f91e26d",
+      "size": 4011
     },
     {
       "path": "platform/tools/reconcile_object_storage.py",
@@ -182,28 +187,28 @@
     },
     {
       "path": "platform/tools/validate_wp3.py",
-      "sha256": "804be719ef5c7473d384acbcf5858517ef6c07c2cb023eef6d8faf8af837fe1d",
-      "size": 8109
+      "sha256": "baae79a500e9efbe94be486314cdcced31fc645a3b3bfcad71948d3840f03e7e",
+      "size": 8766
     },
     {
       "path": "platform/tools/validate_wp4.py",
-      "sha256": "a4ea015199f7b9c48647cc04a56d954befaf586aaff7ae00ae9c93ae7bcd8834",
-      "size": 3523
+      "sha256": "fb6f38521d8dc70212a5b3ba5142821343aa30d3083fa30391f350960dfd9494",
+      "size": 3641
     },
     {
       "path": "platform/tools/validate_wp5.py",
-      "sha256": "c6279bd2033a4bf881d3e0e3d0e74bf473bc5628e8dcfc477118c617d82512de",
-      "size": 3965
+      "sha256": "f6f81ec91a6443455a51999011fc17dfbad130a24306acbaadb2daa91ea3873e",
+      "size": 4129
     },
     {
       "path": "platform/tools/wp3_runtime_probe.py",
-      "sha256": "aaf4160b65f05fef99cd462aaa7acce2e6dd0fbe9a82e5e7afb36ce2eb6b2cf6",
-      "size": 33010
+      "sha256": "a21c16f92a6a0891b5cf26ad49c97efd98342cc3258ebc720fe15063619422d1",
+      "size": 33120
     },
     {
       "path": "platform/tools/wp5_runtime_probe.py",
-      "sha256": "98752ddee251d82971cbc008c587c5244159531b1994b6bb11b42eb63161b798",
-      "size": 10673
+      "sha256": "6799ca693bf0052ec94ae1ffab4b491ff0759d8423bf9106b3eaab935b594a9c",
+      "size": 12332
     }
   ],
   "freeze": "G5-FROZEN-20260816-01"

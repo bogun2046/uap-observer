@@ -34,6 +34,7 @@ def evaluate(platform: Path) -> list[Check]:
         "docs/wp5/development-self-review.md",
         "docs/wp5/implementation-ticket.md",
         "platform/alembic/versions/0006_collectors.py",
+        "platform/alembic/versions/0007_source_run_lease_guard.py",
         "platform/scripts/verify-migration-chain.sh",
         "platform/tools/wp5_runtime_probe.py",
         "platform/src/uap_platform/collectors/contracts.py",
@@ -90,6 +91,8 @@ def evaluate(platform: Path) -> list[Check]:
                     "finish_job",
                     "attempt_id",
                     "lease_token",
+                    "require_active_source_job_lease",
+                    "clock_timestamp()",
                 )
             ),
             True,

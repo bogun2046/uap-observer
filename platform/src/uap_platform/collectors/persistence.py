@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from psycopg import Connection
+from psycopg import Connection, errors
 
 from uap_platform.object_registry import (
     ObjectClient,
@@ -35,6 +35,22 @@ class PostgresSourceRunStore:
         self._new_objects: list[RegisteredObject] = []
         self._run_sources: dict[uuid.UUID, uuid.UUID] = {}
 
+    def _require_active_source_job_lease(
+        self,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
+    ) -> None:
+        try:
+            with self._connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ops.require_active_source_job_lease(%s, %s, %s)",
+                    (job_id, attempt_id, lease_token),
+                )
+        except errors.SerializationFailure:
+            self._connection.rollback()
+            raise
+
     def start_source_run(
         self,
         source_id: uuid.UUID,
@@ -42,10 +58,13 @@ class PostgresSourceRunStore:
         run_key: str,
         started_at: datetime,
         source_config_version_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        lease_token: uuid.UUID,
     ) -> uuid.UUID:
-        """Checkpoint the run row before business writes can be rolled back."""
+        """Checkpoint the run only while the caller still owns the active lease."""
 
         run_id = uuid.uuid4()
+        self._require_active_source_job_lease(job_id, attempt_id, lease_token)
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """

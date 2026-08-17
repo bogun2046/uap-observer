@@ -24,6 +24,7 @@ EVIDENCE_REQUIRED = (
     "platform/alembic/versions/0004_g3_semantic_repairs.py",
     "platform/alembic/versions/0005_durable_jobs.py",
     "platform/alembic/versions/0006_collectors.py",
+    "platform/alembic/versions/0007_source_run_lease_guard.py",
     "platform/scripts/verify-migration-chain.sh",
     "platform/pyproject.toml",
     "platform/src/uap_platform/collectors/contracts.py",
