@@ -28,7 +28,7 @@ class UrlLibFetcher:
         request_headers = {"User-Agent": self._user_agent, **headers}
         request = Request(url, headers=request_headers, method="GET")  # noqa: S310
         try:
-            with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+            with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310  # nosec B310
                 return FetchResponse(
                     status_code=int(response.status),
                     body=response.read(),

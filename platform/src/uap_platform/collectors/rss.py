@@ -6,13 +6,10 @@ import re
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import TYPE_CHECKING
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from defusedxml import ElementTree
-
-if TYPE_CHECKING:
-    from xml.etree.ElementTree import Element
 
 from .contracts import (
     CollectionResult,
@@ -62,14 +59,14 @@ def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1].lower()
 
 
-def _text(element: Element | None) -> str | None:
+def _text(element: Any | None) -> str | None:
     if element is None:
         return None
     value = _WHITESPACE.sub(" ", " ".join(element.itertext())).strip()
     return value or None
 
 
-def _first_text(element: Element, *names: str) -> str | None:
+def _first_text(element: Any, *names: str) -> str | None:
     wanted = {name.lower() for name in names}
     for child in element.iter():
         if child is not element and _local_name(child.tag) in wanted:
@@ -91,12 +88,12 @@ def _parse_date(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def _item_elements(root: Element) -> tuple[Element, ...]:
+def _item_elements(root: Any) -> tuple[Any, ...]:
     names = {"item", "entry"}
     return tuple(element for element in root.iter() if _local_name(element.tag) in names)
 
 
-def _entry_link(element: Element) -> str | None:
+def _entry_link(element: Any) -> str | None:
     fallback: str | None = None
     for child in element:
         if _local_name(child.tag) != "link":
@@ -113,7 +110,7 @@ def _entry_link(element: Element) -> str | None:
     return fallback
 
 
-def _source_item_key(element: Element, canonical_url: str | None) -> str | None:
+def _source_item_key(element: Any, canonical_url: str | None) -> str | None:
     guid = _first_text(element, "guid", "id")
     return guid or canonical_url
 

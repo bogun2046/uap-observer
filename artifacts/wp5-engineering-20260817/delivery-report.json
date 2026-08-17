@@ -117,13 +117,13 @@
     },
     {
       "path": "platform/src/uap_platform/collectors/rss.py",
-      "sha256": "6f3a128117d879d29c11c416bfeb80dbf82b6dee7bb64b8554369382dd6719f8",
-      "size": 8650
+      "sha256": "c98a75ebab2686a22209e77ab26e848b1e673b00c21773477da6b31b0f9332da",
+      "size": 8551
     },
     {
       "path": "platform/src/uap_platform/collectors/transport.py",
-      "sha256": "1c850d35ad45d5240e1682fcd7249bccb7ed274d98290f489870a790f0b2b713",
-      "size": 2354
+      "sha256": "4b1e3d481c74487c1c5eac466836250e76b428c312fd59d0e651db1c90dd6a57",
+      "size": 2368
     },
     {
       "path": "platform/src/uap_platform/collectors/workflow.py",
