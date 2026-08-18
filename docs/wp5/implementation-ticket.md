@@ -5,7 +5,7 @@
 - 前置提交：`add1b9505012a0c7d40831bd31e1dea4a6dc6fef`
 - 前置门禁：G4 通过，WP5 已开启
 - 负责人：后端负责人 + 数据负责人
-- 当前状态：G5 实现完成，独立技术复验通过；PR #28 归档提交 required CI 复跑中，WP6 待最终 CI 全绿后开启
+- 当前状态：G5 实现及独立验收完成；PR #28 required CI 全绿，WP6 已开启
 
 ## 输入与边界
 
@@ -59,4 +59,4 @@
 - XML 解析使用 `defusedxml`，并将运行库与类型存根写入 `pyproject.toml`/`uv.lock`。
 - 固定快照 `platform/tests/fixtures/rss/g5-fixed-feed.xml` 的 SHA-256 为 `b3a998a48fecd9c18bfb75d294a60465aad12a55490b1c72e6629ebcf9dd73c8`，解析结果会重复计算并校验该哈希。
 - WP5 运行态探针自建独立 principal，并以最高优先级入队、逐次核对领取的 job ID；全新数据库直接执行及 `WP3 → WP4 → WP5` 顺序执行均通过。
-- 完成记录：G5-R4 独立技术复验通过；PR #28 已建立，归档提交将重新生成完整证据清单并取得 quality、security、integration、gate 全绿后正式开启 WP6。
+- 完成记录：G5-R4 独立技术复验通过；PR #28 归档提交 `7c3e2816bfaf8c21c5c91baf889c63f5746a4572` 对应 run `32086401130`，quality、security、integration、gate 全绿，WP6 已开启。

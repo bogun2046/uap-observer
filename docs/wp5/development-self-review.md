@@ -1,6 +1,6 @@
 # WP5 开发自检
 
-状态：WP5 实现自检通过；G5 独立技术复验通过，归档提交 required CI 复跑中
+状态：WP5 实现自检通过；G5 独立验收通过，required CI 全绿
 
 实现完成后必须记录：
 
@@ -26,4 +26,4 @@
 - WP5 探针自包含验证通过；全新数据库可直接运行。按 required CI 的实际顺序 `WP3 → WP4 → WP5` 执行时，每次领取均严格命中本探针新建任务，未领取 WP4 遗留任务。
 - source-run checkpoint 租约守卫通过：`0007_source_run_lease_guard` 以最小权限锁定并校验当前 fetch-source job/attempt；A 租约到期、B 重领完成后，A 迟到 checkpoint 返回 `40001`，B 的 source run 全字段保持不变。
 - PostgreSQL 迁移链 `0001 → 0007`、重复升级、降级至 `0002` 后回升均通过，迁移窗口结束后 migrator 保持禁用。
-- 限速、冷却、来源健康检查、版本化 payload、固定快照和扫描器幂等回归测试已完成；G5-R4 独立技术复验通过，PR #28 的归档提交将重新执行 required CI。
+- 限速、冷却、来源健康检查、版本化 payload、固定快照和扫描器幂等回归测试已完成；G5-R4 独立技术复验通过，PR #28 required CI run `32086401130` 的 quality、security、integration、gate 全部成功。

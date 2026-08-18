@@ -17,18 +17,18 @@
     },
     {
       "path": "docs/wp5/acceptance-ticket.md",
-      "sha256": "4d70f76f1faa491162b09b57d4eecd8c46c9c3dd0225732e86c577a5c9908ff1",
-      "size": 3292
+      "sha256": "5e492ff340be54e6629aaf8d6dbc27e0a2e01d926b0f77e64c5a44ee30b7e69b",
+      "size": 2969
     },
     {
       "path": "docs/wp5/development-self-review.md",
-      "sha256": "851297efe282ac69b498ed235e91c2c7c8ec6b08ca72add96960055dc4f35577",
-      "size": 2597
+      "sha256": "eb9ab49e34399accbdee9dea79a3392ae906b00d75654cc3e8e5e1ea250da161",
+      "size": 2619
     },
     {
       "path": "docs/wp5/implementation-ticket.md",
-      "sha256": "6e09db63e4d4dd9df17b748d78695934998bcf06bb5798578015aafc3b82edbe",
-      "size": 5315
+      "sha256": "fa52b0948729d9ed53ab356b82e8a86437f26560a34b0137c2ec1d60d072ae4a",
+      "size": 5281
     },
     {
       "path": "platform/.env.versions",
