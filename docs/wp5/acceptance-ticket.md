@@ -2,10 +2,10 @@
 
 - 验收编号：`WP5-ACCEPT-20260816-01`
 - 冻结标准：`G5-FROZEN-20260816-01`
-- 状态：待独立验收
+- 状态：G5 通过（技术复验通过，归档提交后 required CI 复跑中）
 - 验收责任：数据负责人 + QA
 - 前置门禁：G4 已通过
-- 门禁：WP6 关闭
+- 门禁：WP6 开启（以归档提交对应 required CI 全绿为最终生效条件）
 
 ## 独立性要求
 
@@ -33,4 +33,16 @@
 
 ## 最终记录字段
 
-验收编号、测试环境、代码提交、迁移版本、固定快照哈希、逐项操作、预期/实际结果、任务与 source run ID、日志、缺陷编号、清单哈希、验收人角色、时间和结论。
+## 独立复验与归档记录
+
+- 复验轮次：`G5-R4`，结论为技术复验通过，未发现新的代码或运行态阻断项。
+- 验收环境：全新 PostgreSQL、对象存储和业务角色；另按 required 顺序执行 `WP3 → WP4 → WP5`。
+- 验收基线：技术复验提交 `e4820b0f8e83398f6b69c4468138089febb2a941`；随后以 PR #28 的归档提交重新执行 required CI。
+- PR：[#28](https://github.com/bogun2046/uap-observer/pull/28)，保持 Draft 不影响冻结标准验收。
+- 迁移版本：`0001 → 0007_source_run_lease_guard`；重复升级、降级回升和失败收口均通过。
+- 固定快照：`platform/tests/fixtures/rss/g5-fixed-feed.xml`，SHA-256 为 `b3a998a48fecd9c18bfb75d294a60465aad12a55490b1c72e6629ebcf9dd73c8`。
+- 逐项结果：G5-01 至 G5-08 全部通过；59/59 测试通过，覆盖率 83.98%；Ruff、mypy、迁移、权限及 WP2/WP3/WP4/WP5 检查均通过。
+- 关键运行态结果：source run、artifact、document、job 追溯链成立；成功、空结果、304、403、429、超时和 5xx 分类及任务状态闭环成立；迟到 Worker checkpoint 返回 SQLSTATE `40001` 且不改变已完成 source run；对象登记锁和一致性扫描竞态验证通过。
+- 证据清单：42/42 项校验通过；当前归档前清单 SHA-256 为 `af7fb9565bc0643d999ad4cf8706f7adbf5c19a4560e6dd06c251bd2d578e426`。归档文档变更后已重新生成清单，最终哈希以本提交后的清单为准。
+- 验收责任：数据负责人 + QA；验收时间：2026-08-18；缺陷：G5-R1 至 G5-R3 已整改并关闭。
+- 阶段结论：`G5 通过，WP6 开启`；归档提交对应的 quality、security、integration、gate 必须全部成功后正式生效。

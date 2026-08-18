@@ -7,8 +7,8 @@
     },
     {
       "path": "docs/wp5/README.md",
-      "sha256": "85e668470356d5b8e48dd325433401706f5096935212c81f2bd050c81337d1cb",
-      "size": 1555
+      "sha256": "468cbfe6576d35d453430ad33f478ffd5f05d93c08ca5ac2f1b2ca9a32b8889a",
+      "size": 1521
     },
     {
       "path": "docs/wp5/acceptance-cases.md",
@@ -17,18 +17,18 @@
     },
     {
       "path": "docs/wp5/acceptance-ticket.md",
-      "sha256": "eb246faa1c5db45db26e600596825a68f0492e5d2be329cb997b2fcf22a9ec4f",
-      "size": 1658
+      "sha256": "4d70f76f1faa491162b09b57d4eecd8c46c9c3dd0225732e86c577a5c9908ff1",
+      "size": 3292
     },
     {
       "path": "docs/wp5/development-self-review.md",
-      "sha256": "349a072b649652396779d7656c51ca8b3bf982fdec8292aa963581574dbab19e",
-      "size": 2558
+      "sha256": "851297efe282ac69b498ed235e91c2c7c8ec6b08ca72add96960055dc4f35577",
+      "size": 2597
     },
     {
       "path": "docs/wp5/implementation-ticket.md",
-      "sha256": "0dc3d4216e73f3f54995750489f8e1e2597892d9e571cb73d7d79a362a0855a4",
-      "size": 5297
+      "sha256": "6e09db63e4d4dd9df17b748d78695934998bcf06bb5798578015aafc3b82edbe",
+      "size": 5315
     },
     {
       "path": "platform/.env.versions",
