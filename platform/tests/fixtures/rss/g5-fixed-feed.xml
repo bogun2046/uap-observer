@@ -1,0 +1,18 @@
+<rss version="2.0">
+  <channel>
+    <title>UAP G5 Fixed Feed</title>
+    <item>
+      <guid>g5-story-1</guid>
+      <title>First fixed story</title>
+      <link>HTTPS://Example.test/news?id=7&amp;utm_source=feed</link>
+      <pubDate>Sat, 15 Aug 2026 12:00:00 GMT</pubDate>
+      <description>Summary one</description>
+    </item>
+    <item>
+      <guid>g5-story-2</guid>
+      <title>Second fixed story</title>
+      <link>https://example.test/other?b=2&amp;a=1</link>
+      <description>Summary two</description>
+    </item>
+  </channel>
+</rss>

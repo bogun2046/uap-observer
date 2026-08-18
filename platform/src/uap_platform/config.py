@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     s3_access_key: SecretStr
     s3_secret_key: SecretStr
     s3_secure: bool = False
-    s3_buckets: str = "raw,derived,model-io,public-assets"
+    s3_buckets: str = "raw,derived,model-io,public-assets,backups"
     health_port: int = 8080
 
     @property
@@ -28,6 +28,14 @@ class Settings(BaseSettings):
         """Return normalized non-empty bucket names."""
 
         return tuple(name.strip() for name in self.s3_buckets.split(",") if name.strip())
+
+    @property
+    def psycopg_database_url(self) -> str:
+        """Return a libpq-compatible URL for direct psycopg connections."""
+
+        return self.database_url.get_secret_value().replace(
+            "postgresql+psycopg://", "postgresql://", 1
+        )
 
     def safe_summary(self) -> dict[str, object]:
         """Return only values that are safe to emit to logs."""

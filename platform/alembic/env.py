@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
 
+from alembic import context
 from uap_platform.config import Settings
 
 config = context.config
@@ -19,7 +21,16 @@ target_metadata = None
 def database_url() -> str:
     """Read the URL from secret-backed runtime settings, never from source control."""
 
-    return Settings().database_url.get_secret_value()
+    settings = Settings()  # type: ignore[call-arg]
+    url = settings.database_url.get_secret_value()
+    if context.get_x_argument(as_dictionary=True).get("role") == "migrator":
+        password = os.environ.get("UAP_MIGRATOR_PASSWORD")
+        if not password:
+            raise RuntimeError("UAP_MIGRATOR_PASSWORD is required for migrator mode")
+        return make_url(url).set(username="uap_migrator", password=password).render_as_string(
+            hide_password=False
+        )
+    return url
 
 
 def run_migrations_offline() -> None:
