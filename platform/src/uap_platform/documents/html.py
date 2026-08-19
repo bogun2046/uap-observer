@@ -15,7 +15,6 @@ from .contracts import (
     text_sha256,
 )
 
-
 _BLOCK_TAGS = frozenset(
     {
         "address",

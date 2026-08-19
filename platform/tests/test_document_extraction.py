@@ -12,7 +12,6 @@ from uap_platform.documents import (
     HtmlExtractor,
 )
 
-
 DOCUMENT_VERSION_ID = uuid.UUID("00000000-0000-7000-8000-000000000101")
 SOURCE_OBJECT_ID = uuid.UUID("00000000-0000-7000-8000-000000000102")
 

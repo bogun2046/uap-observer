@@ -23,6 +23,15 @@ from .contracts import ExtractionInput, ExtractionOutcome, ExtractionResult, Ext
 LOGGER = logging.getLogger(__name__)
 
 
+class _PersistenceWriteError(RuntimeError):
+    """Carry a newly created object through a failed database write."""
+
+    def __init__(self, registered: RegisteredObject | None, cause: Exception) -> None:
+        super().__init__(str(cause))
+        self.registered = registered
+        self.cause = cause
+
+
 class PostgresExtractionStore:
     """Read the G5 raw object and append one G6 extraction row atomically."""
 
@@ -74,6 +83,10 @@ class PostgresExtractionStore:
             extraction_id, registered = self._persist_uncommitted(job_attempt_id, result)
             self._connection.commit()
             return extraction_id
+        except _PersistenceWriteError as error:
+            self._connection.rollback()
+            self._cleanup_after_rollback(error.registered)
+            raise error.cause from error
         except Exception:
             self._connection.rollback()
             self._cleanup_after_rollback(registered)
@@ -114,6 +127,10 @@ class PostgresExtractionStore:
                     raise RuntimeError("finish_job did not return a status")
             self._connection.commit()
             return extraction_id
+        except _PersistenceWriteError as error:
+            self._connection.rollback()
+            self._cleanup_after_rollback(error.registered)
+            raise error.cause from error
         except Exception:
             self._connection.rollback()
             self._cleanup_after_rollback(registered)
@@ -135,64 +152,67 @@ class PostgresExtractionStore:
             )
             text_object_id = registered.id
 
-        with self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO core.extractions (
-                    id, document_version_id, job_attempt_id,
-                    extractor_name, extractor_version, outcome,
-                    text_object_id, storage_domain, output_sha256,
-                    title, author, language_code, source_date,
-                    location_map, error_code
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s::core.extraction_outcome,
-                    %s, 'derived'::core.storage_domain, %s,
-                    %s, %s, %s, %s, %s::jsonb, %s
-                )
-                ON CONFLICT (
-                    document_version_id, extractor_name,
-                    extractor_version, output_sha256
-                ) DO NOTHING
-                RETURNING id
-                """,
-                (
-                    uuid.uuid4(),
-                    result.request.document_version_id,
-                    job_attempt_id,
-                    result.request.extractor_name,
-                    result.request.extractor_version,
-                    result.outcome.value,
-                    text_object_id,
-                    result.output_sha256,
-                    result.title,
-                    result.author,
-                    result.language_code,
-                    result.source_date,
-                    json.dumps(list(result.location_map), sort_keys=True),
-                    result.error_code,
-                ),
-            )
-            row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-            if row is None:
+        try:
+            with self._connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT id
-                      FROM core.extractions
-                     WHERE document_version_id = %s
-                       AND extractor_name = %s
-                       AND extractor_version = %s
-                       AND output_sha256 = %s
+                    INSERT INTO core.extractions (
+                        id, document_version_id, job_attempt_id,
+                        extractor_name, extractor_version, outcome,
+                        text_object_id, storage_domain, output_sha256,
+                        title, author, language_code, source_date,
+                        location_map, error_code
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s::core.extraction_outcome,
+                        %s, 'derived'::core.storage_domain, %s,
+                        %s, %s, %s, %s, %s::jsonb, %s
+                    )
+                    ON CONFLICT (
+                        document_version_id, extractor_name,
+                        extractor_version, output_sha256
+                    ) DO NOTHING
+                    RETURNING id
                     """,
                     (
+                        uuid.uuid4(),
                         result.request.document_version_id,
+                        job_attempt_id,
                         result.request.extractor_name,
                         result.request.extractor_version,
+                        result.outcome.value,
+                        text_object_id,
                         result.output_sha256,
+                        result.title,
+                        result.author,
+                        result.language_code,
+                        result.source_date,
+                        json.dumps(list(result.location_map), sort_keys=True),
+                        result.error_code,
                     ),
                 )
                 row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
-            if row is None:
-                raise RuntimeError("extraction upsert did not return an id")
+                if row is None:
+                    cursor.execute(
+                        """
+                        SELECT id
+                          FROM core.extractions
+                         WHERE document_version_id = %s
+                           AND extractor_name = %s
+                           AND extractor_version = %s
+                           AND output_sha256 = %s
+                        """,
+                        (
+                            result.request.document_version_id,
+                            result.request.extractor_name,
+                            result.request.extractor_version,
+                            result.output_sha256,
+                        ),
+                    )
+                    row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
+                if row is None:
+                    raise RuntimeError("extraction upsert did not return an id")
+        except Exception as error:
+            raise _PersistenceWriteError(registered, error) from error
         return uuid.UUID(str(row[0])), registered
 
     def _cleanup_after_rollback(self, registered: RegisteredObject | None) -> None:

@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
-
 EXTRACTION_PAYLOAD_SCHEMA_VERSION = "extract.v1"
 _HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 

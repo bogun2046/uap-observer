@@ -3,7 +3,7 @@
 - 工作包编号：`WP6-IMPL-20260819-01`
 - 冻结标准：`G6-FROZEN-20260819-01`
 - 前置门禁：G5 已通过，WP6 已开启
-- 当前状态：实施准备中
+- 当前状态：实现自检完成，待 required CI 与独立验收
 - 后置门禁：WP7 关闭
 
 ## 目标
@@ -30,4 +30,3 @@
 - 实现单：`implementation-ticket.md`
 - 冻结用例：`acceptance-cases.md`
 - 独立验收单：`acceptance-ticket.md`
-
