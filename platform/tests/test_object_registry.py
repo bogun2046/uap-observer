@@ -11,6 +11,7 @@ from uap_platform.object_registry import (
     StorageDomain,
     object_key,
     put_verified,
+    read_verified_object,
     reconcile_unregistered_objects,
     register_object,
     sha256_bytes,
@@ -140,6 +141,31 @@ def test_read_after_write_corruption_is_removed() -> None:
         put_verified(client, StorageDomain.RAW, uuid.uuid4().bytes, "application/octet-stream")
 
     assert client.objects == {}
+
+
+def test_read_verified_object_rejects_corrupt_registered_content() -> None:
+    client = FakeClient()
+    payload = b"registered content"
+    digest = sha256_bytes(payload)
+    physical = put_verified(client, StorageDomain.RAW, payload, "text/plain")
+
+    assert read_verified_object(
+        client,
+        physical.bucket_name,
+        physical.object_key,
+        digest,
+        len(payload),
+    ) == payload
+
+    client.corrupt_reads = True
+    with pytest.raises(RuntimeError, match="read verification failed"):
+        read_verified_object(
+            client,
+            physical.bucket_name,
+            physical.object_key,
+            digest,
+            len(payload),
+        )
 
 
 class FakeCursor:

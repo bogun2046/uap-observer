@@ -113,6 +113,21 @@ def _response_bytes(response: object) -> bytes:
         typed.release_conn()
 
 
+def read_verified_object(
+    client: ObjectClient,
+    bucket_name: str,
+    object_name: str,
+    content_sha256: str,
+    byte_length: int,
+) -> bytes:
+    """Read one registered object and verify its immutable metadata."""
+
+    data = _response_bytes(client.get_object(bucket_name, object_name))
+    if len(data) != byte_length or not secrets.compare_digest(sha256_bytes(data), content_sha256):
+        raise RuntimeError("object storage read verification failed")
+    return data
+
+
 def _lock_content_address(
     connection: Connection[object], domain: StorageDomain, digest: str
 ) -> None:
