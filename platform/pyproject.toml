@@ -9,8 +9,10 @@ description = "Target UAP platform engineering foundation."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "alembic>=1.16,<2",
-  "minio>=7.2,<8",
+    "alembic>=1.16,<2",
+    "defusedxml>=0.7,<1",
+    "minio>=7.2,<8",
+    "pypdf>=6,<7",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.10,<3",
 ]
@@ -30,6 +32,7 @@ dev = [
   "pyyaml>=6.0,<7",
   "ruff>=0.12,<1",
   "types-pyyaml>=6.0,<7",
+  "types-defusedxml>=0.7,<1",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -49,6 +52,7 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S104", "S105"]
+"alembic/versions/**" = ["E501", "S608"]
 
 [tool.mypy]
 python_version = "3.12"
