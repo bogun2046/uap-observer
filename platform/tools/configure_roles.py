@@ -17,6 +17,7 @@ ROLE_PASSWORDS = {
     "uap_worker": "UAP_WORKER_PASSWORD",
     "uap_scheduler": "UAP_SCHEDULER_PASSWORD",
     "uap_publisher": "UAP_PUBLISHER_PASSWORD",
+    "uap_model_governance": "UAP_MODEL_GOVERNANCE_PASSWORD",
     "uap_public_reader": "UAP_PUBLIC_READER_PASSWORD",
     "uap_audit_reader": "UAP_AUDIT_READER_PASSWORD",
     "uap_backup": "UAP_BACKUP_PASSWORD",

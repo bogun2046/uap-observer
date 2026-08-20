@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -68,6 +69,8 @@ class FakeStore:
         self.finished: list[tuple[object, ...]] = []
         self.executions: list[ModelExecution] = []
         self.existing: tuple[uuid.UUID, ModelRunStatus] | None = None
+        self.call_count = 0
+        self.cost_minor_units = 0
 
     def load_document_input(self, document_version_id: uuid.UUID) -> str:
         assert document_version_id == DOCUMENT_ID
@@ -83,6 +86,20 @@ class FakeStore:
         del idempotency_key
         return self.existing
 
+    def acquire_semantic_request(
+        self, semantic_idempotency_key: str
+    ) -> tuple[uuid.UUID, ModelRunStatus] | None:
+        del semantic_idempotency_key
+        return self.existing
+
+    def model_call_count(self, semantic_idempotency_key: str) -> int:
+        del semantic_idempotency_key
+        return self.call_count
+
+    def accumulated_cost_minor_units(self, semantic_idempotency_key: str) -> int:
+        del semantic_idempotency_key
+        return self.cost_minor_units
+
     def persist_and_finish_job(
         self,
         job_id: uuid.UUID,
@@ -92,7 +109,10 @@ class FakeStore:
     ) -> uuid.UUID:
         self.finished.append((job_id, attempt_id, token))
         self.executions.append(execution)
-        return uuid.UUID("00000000-0000-7000-8000-000000000706")
+        run_id = uuid.UUID("00000000-0000-7000-8000-000000000706")
+        if execution.status is ModelRunStatus.SUCCEEDED:
+            self.existing = (run_id, ModelRunStatus.SUCCEEDED)
+        return run_id
 
     def finish_job_only(self, *args: object, **kwargs: object) -> None:
         self.finished.append((*args, kwargs))
@@ -118,6 +138,30 @@ def test_build_model_request_is_strict_and_does_not_hash_prompt_text() -> None:
             job_attempt_id=ATTEMPT_ID,
             input_text="source text",
         )
+
+
+def test_semantic_idempotency_ignores_job_and_attempt_but_tracks_versions() -> None:
+    first = build_model_request(
+        model_payload(),
+        job_id=JOB_ID,
+        job_attempt_id=ATTEMPT_ID,
+        input_text="source text",
+    )
+    second = build_model_request(
+        model_payload(),
+        job_id=uuid.uuid4(),
+        job_attempt_id=uuid.uuid4(),
+        input_text="source text",
+    )
+    changed_model = build_model_request(
+        {**model_payload(), "model": "another-model"},
+        job_id=JOB_ID,
+        job_attempt_id=ATTEMPT_ID,
+        input_text="source text",
+    )
+    assert first.semantic_idempotency_key == second.semantic_idempotency_key
+    assert first.idempotency_key != second.idempotency_key
+    assert first.semantic_idempotency_key != changed_model.semantic_idempotency_key
 
 
 def test_claim_output_requires_evidence_and_rejects_extra_fields() -> None:
@@ -200,6 +244,21 @@ class FailingProvider:
         )
 
 
+class SequenceProvider:
+    name = "sequence"
+
+    def __init__(self, outcomes: list[object]) -> None:
+        self.outcomes = outcomes
+        self.calls = 0
+
+    def complete(self, *_args: object) -> ProviderResponse:
+        outcome = self.outcomes[self.calls]
+        self.calls += 1
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome  # type: ignore[return-value]
+
+
 def test_provider_rate_limit_maps_to_retryable_failure() -> None:
     store = FakeStore()
     handler = ModelJobHandler(
@@ -214,6 +273,86 @@ def test_provider_rate_limit_maps_to_retryable_failure() -> None:
     assert execution.retryable is True
     assert execution.error_code == "rate_limited"
     assert execution.http_status == 429
+
+
+def test_retryable_failure_is_not_reused_and_next_attempt_calls_provider_again() -> None:
+    store = FakeStore()
+    ModelJobHandler(
+        cast(Any, store), ProviderRegistry({"static": FailingProvider()})
+    ).handle(JOB_ID, ATTEMPT_ID, TOKEN, {**model_payload(), "provider": "static"})
+    ModelJobHandler(
+        cast(Any, store),
+        ProviderRegistry(
+            {
+                "static": StaticProvider({"summary": "ok", "bullets": ["one"]})
+            }
+        ),
+    ).handle(
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        {**model_payload(), "provider": "static"},
+    )
+    assert [item.status for item in store.executions] == [
+        ModelRunStatus.FAILED,
+        ModelRunStatus.SUCCEEDED,
+    ]
+    assert store.executions[0].response is not None
+    assert store.executions[0].response.provider_response_id == "error:rate_limited:429"
+    assert store.executions[1].response is not None
+    assert store.executions[1].response.provider_response_id == "static-response"
+
+
+def test_authentication_errors_are_always_terminal() -> None:
+    class AuthProvider:
+        name = "auth"
+
+        def complete(self, *_args: object) -> ProviderResponse:
+            raise ProviderError("auth", "secret body", http_status=401, retryable=True)
+
+    store = FakeStore()
+    handler = ModelJobHandler(cast(Any, store), ProviderRegistry({"static": AuthProvider()}))
+    handler.handle(JOB_ID, ATTEMPT_ID, TOKEN, model_payload())
+    assert store.executions[0].retryable is False
+    assert store.executions[0].error_summary == "model provider authentication failed"
+
+
+def test_timeout_is_retryable_and_does_not_escape(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SlowProvider:
+        name = "slow"
+
+        def complete(self, *_args: object) -> ProviderResponse:
+            time.sleep(0.5)
+            return ProviderResponse(
+                structured={"summary": "ok", "bullets": ["one"]},
+                raw_response=b"{}",
+                provider_response_id="late",
+                input_tokens=1,
+                output_tokens=1,
+                cost_minor_units=1,
+                currency="USD",
+            )
+
+    from uap_platform.model_governance import workflow as workflow_module
+
+    monkeypatch.setattr(workflow_module, "MODEL_PROVIDER_TIMEOUT_SECONDS", 0.001)
+    store = FakeStore()
+    handler = ModelJobHandler(cast(Any, store), ProviderRegistry({"static": SlowProvider()}))
+    started = time.monotonic()
+    handler.handle(JOB_ID, ATTEMPT_ID, TOKEN, model_payload())
+    assert time.monotonic() - started < 0.25
+    assert store.executions[0].error_code == "timeout"
+    assert store.executions[0].retryable is True
+
+
+def test_call_budget_is_checked_before_provider() -> None:
+    provider = SequenceProvider([])
+    store = FakeStore()
+    store.call_count = 3
+    handler = ModelJobHandler(cast(Any, store), ProviderRegistry({"static": provider}))
+    handler.handle(JOB_ID, ATTEMPT_ID, TOKEN, model_payload())
+    assert provider.calls == 0
+    assert store.executions[0].error_code == "model_call_budget_exceeded"
 
 
 def test_contract_boundaries_reject_unsafe_values() -> None:
@@ -350,7 +489,7 @@ def test_handler_maps_unknown_provider_and_unexpected_provider_failure() -> None
         {**model_payload(), "provider": "broken"},
     )
     assert store.executions[0].error_code == "provider_error"
-    assert store.executions[0].error_summary == "model provider failed"
+    assert store.executions[0].error_summary == "model provider upstream failure"
 
 
 def test_payload_claim_and_provider_error_preserve_safe_metadata() -> None:
@@ -382,7 +521,17 @@ def test_payload_claim_and_provider_error_preserve_safe_metadata() -> None:
         error,
     )
     assert execution.response is not None
-    assert execution.error_summary == "provider returned 502 with secret body"
+    assert execution.error_summary == "model provider upstream failure"
+    assert "secret body" not in (execution.error_summary or "")
+
+    oversized_error = ProviderError(
+        "bad_gateway",
+        "ignored",
+        http_status=502,
+        raw_response=b"x" * 100_000,
+    )
+    assert oversized_error.raw_response is not None
+    assert len(oversized_error.raw_response) == 64_000
 
 
 def _request() -> Any:

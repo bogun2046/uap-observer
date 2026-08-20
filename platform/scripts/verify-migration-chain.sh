@@ -54,17 +54,22 @@ query "INSERT INTO audit.principals (id, principal_type, service_name, display_n
 
 alembic_step -x role=migrator upgrade head
 alembic_step -x role=migrator upgrade head
-test "$(query "SELECT version_num FROM public.alembic_version")" = "0008_ai_model_governance"
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0009_model_governance_boundaries"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "49"
 test "$(query "SELECT count(*) FROM audit.principals WHERE id='00000000-0000-7000-8000-000000000777'")" = "1"
 
 alembic_step -x role=migrator downgrade 0002_authoritative_schema
 test "$(query "SELECT version_num FROM public.alembic_version")" = "0002_authoritative_schema"
 test "$(query "SELECT count(*) FROM audit.principals WHERE id='00000000-0000-7000-8000-000000000777'")" = "1"
+test "$(query "SELECT NOT EXISTS (SELECT 1 FROM pg_database AS d CROSS JOIN LATERAL aclexplode(COALESCE(d.datacl, '{}'::aclitem[])) AS acl JOIN pg_roles AS r ON r.oid=acl.grantee WHERE d.datname=current_database() AND r.rolname='uap_model_governance' AND acl.privilege_type='CONNECT')")" = "t"
+test "$(query "SELECT has_schema_privilege('uap_model_governance', 'core', 'USAGE')")" = "f"
+test "$(query "SELECT has_schema_privilege('uap_model_governance', 'ops', 'USAGE')")" = "f"
+test "$(query "SELECT has_table_privilege('uap_model_governance', 'core.stored_objects', 'INSERT')")" = "f"
+test "$(query "SELECT has_table_privilege('uap_model_governance', 'core.extractions', 'SELECT')")" = "f"
 alembic_step -x role=migrator upgrade head
 
 $compose run --rm --no-deps --env "UAP_DATABASE_URL=$database_url" \
     object-store-init python tools/configure_roles.py disable-migrator
 test "$(query "SELECT rolcanlogin::text FROM pg_roles WHERE rolname='uap_migrator'")" = "false"
 
-echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004 -> 0005 -> 0006 -> 0007 -> 0008, idempotent head, downgrade smoke."
+echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004 -> 0005 -> 0006 -> 0007 -> 0008 -> 0009, idempotent head, downgrade smoke."

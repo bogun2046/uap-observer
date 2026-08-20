@@ -21,6 +21,7 @@ LOGIN_ROLES = (
     "uap_worker",
     "uap_scheduler",
     "uap_publisher",
+    "uap_model_governance",
     "uap_public_reader",
     "uap_audit_reader",
     "uap_backup",

@@ -18,6 +18,7 @@ ROLES = {
     "uap_worker",
     "uap_scheduler",
     "uap_publisher",
+    "uap_model_governance",
     "uap_public_reader",
     "uap_audit_reader",
     "uap_backup",
@@ -125,6 +126,7 @@ def evaluate(platform: Path) -> list[Check]:
                 "0006_collectors",
                 "0007_source_run_lease_guard",
                 "0008_ai_model_governance",
+                "0009_model_governance_boundaries",
             },
             heads,
             [
@@ -138,6 +140,17 @@ def evaluate(platform: Path) -> list[Check]:
             "linear_revision_chain",
             [revision.revision for revision in revisions]
             in (
+                [
+                    "0009_model_governance_boundaries",
+                    "0008_ai_model_governance",
+                    "0007_source_run_lease_guard",
+                    "0006_collectors",
+                    "0005_durable_jobs",
+                    "0004_g3_semantic_repairs",
+                    "0003_permissions_and_guards",
+                    "0002_authoritative_schema",
+                    "0001_roles_and_schemas",
+                ],
                 [
                     "0008_ai_model_governance",
                     "0007_source_run_lease_guard",
@@ -177,6 +190,7 @@ def evaluate(platform: Path) -> list[Check]:
                 "0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
                 " or 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
                 " or 0008 -> 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
+                " or 0009 -> 0008 -> 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
             ),
         ),
         result(

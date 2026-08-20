@@ -488,6 +488,7 @@ def probe() -> dict[str, object]:
                 "0006_collectors",
                 "0007_source_run_lease_guard",
                 "0008_ai_model_governance",
+                "0009_model_governance_boundaries",
             }
             or table_count != EXPECTED_TABLE_COUNT
         ):

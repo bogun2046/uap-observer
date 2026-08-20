@@ -30,6 +30,17 @@ from .contracts import (
 
 LOGGER = logging.getLogger(__name__)
 
+_NON_RETRYABLE_ERROR_CODES = frozenset(
+    {
+        "invalid_model_input",
+        "model_input_too_large",
+        "model_output_too_large",
+        "model_call_budget_exceeded",
+        "model_cost_budget_exceeded",
+        "schema_validation_failed",
+    }
+)
+
 
 class _PersistenceWriteError(RuntimeError):
     def __init__(self, registered: tuple[RegisteredObject, ...], cause: Exception) -> None:
@@ -160,6 +171,54 @@ class PostgresModelGovernanceStore:
             return None
         return uuid.UUID(str(row[0])), ModelRunStatus(str(row[1]))
 
+    def acquire_semantic_request(
+        self, semantic_idempotency_key: str
+    ) -> tuple[uuid.UUID, ModelRunStatus] | None:
+        """Serialize one semantic request and return an existing valid result."""
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"model-semantic:{semantic_idempotency_key}",),
+            )
+            cursor.execute(
+                """
+                SELECT id, status
+                  FROM ops.model_runs
+                 WHERE semantic_idempotency_key = %s
+                   AND status = 'succeeded'::ops.model_run_status
+                 ORDER BY finished_at, id
+                 LIMIT 1
+                """,
+                (semantic_idempotency_key,),
+            )
+            row = cast(tuple[Any, ...] | None, cursor.fetchone())
+        if row is None:
+            return None
+        return uuid.UUID(str(row[0])), ModelRunStatus(str(row[1]))
+
+    def model_call_count(self, semantic_idempotency_key: str) -> int:
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT count(*) FROM ops.model_runs WHERE semantic_idempotency_key = %s",
+                (semantic_idempotency_key,),
+            )
+            row = cast(tuple[int] | None, cursor.fetchone())
+        return int(row[0]) if row is not None else 0
+
+    def accumulated_cost_minor_units(self, semantic_idempotency_key: str) -> int:
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT coalesce(sum(cost_minor_units), 0)
+                  FROM ops.model_runs
+                 WHERE semantic_idempotency_key = %s
+                """,
+                (semantic_idempotency_key,),
+            )
+            row = cast(tuple[int] | None, cursor.fetchone())
+        return int(row[0]) if row is not None else 0
+
     def persist_and_finish_job(
         self,
         job_id: uuid.UUID,
@@ -254,16 +313,16 @@ class PostgresModelGovernanceStore:
             with self._connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                    (f"model-run:{execution.request.idempotency_key}",),
+                    (f"model-semantic:{execution.request.semantic_idempotency_key}",),
                 )
                 cursor.execute(
                     """
                     SELECT id
                       FROM ops.model_runs
-                     WHERE idempotency_key = %s
-                     FOR SHARE
+                     WHERE semantic_idempotency_key = %s
+                       AND status = 'succeeded'::ops.model_run_status
                     """,
-                    (execution.request.idempotency_key,),
+                    (execution.request.semantic_idempotency_key,),
                 )
                 existing = cast(tuple[Any, ...] | None, cursor.fetchone())
             if existing is not None:
@@ -293,7 +352,10 @@ class PostgresModelGovernanceStore:
                 registered.append(response_object)
                 response_object_id = response_object.id
 
-            now = datetime.now(UTC)
+            finished_at = execution.finished_at or datetime.now(UTC)
+            started_at = execution.started_at or finished_at
+            if finished_at < started_at:
+                raise ValueError("model run finished_at cannot precede started_at")
             status = execution.status.value
             response_id = response.provider_response_id if response is not None else None
             input_tokens = response.input_tokens if response is not None else None
@@ -307,12 +369,13 @@ class PostgresModelGovernanceStore:
                 INSERT INTO ops.model_runs (
                     id, job_attempt_id, prompt_version_id, document_version_id,
                     task_type, provider, model, input_sha256, idempotency_key,
+                    semantic_idempotency_key,
                     request_object_id, response_object_id, storage_domain,
                     provider_response_id, status, input_tokens, output_tokens,
                     cost_minor_units, currency, error_code, started_at, finished_at
                 ) VALUES (
                     %s, %s, %s, %s, %s::ops.model_task_type, %s, %s, %s, %s,
-                    %s, %s, 'model_io'::core.storage_domain, %s,
+                    %s, %s, %s, 'model_io'::core.storage_domain, %s,
                     %s::ops.model_run_status, %s, %s, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO NOTHING
@@ -328,6 +391,7 @@ class PostgresModelGovernanceStore:
                         execution.request.model,
                         execution.request.input_sha256,
                         execution.request.idempotency_key,
+                        execution.request.semantic_idempotency_key,
                         request_object.id,
                         response_object_id,
                         response_id,
@@ -337,8 +401,8 @@ class PostgresModelGovernanceStore:
                         cost_minor_units,
                         currency,
                         execution.error_code,
-                        now,
-                        now,
+                        started_at,
+                        finished_at,
                     ),
                 )
                 row = cast(tuple[uuid.UUID] | None, cursor.fetchone())
@@ -391,7 +455,7 @@ class PostgresModelGovernanceStore:
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT ops.finish_job(
+                SELECT ops.finish_model_job(
                     %s, %s, %s, %s::ops.attempt_outcome,
                     %s, %s, %s, %s
                 )
@@ -427,7 +491,10 @@ class PostgresModelGovernanceStore:
     ) -> tuple[str, int | None, str | None, str | None, int | None]:
         if execution.status is ModelRunStatus.SUCCEEDED:
             return "succeeded", None, None, None, None
-        if execution.retryable:
+        if (
+            execution.error_code not in _NON_RETRYABLE_ERROR_CODES
+            and _retryable_http_status(execution.http_status, execution.error_code)
+        ):
             return (
                 "retryable_failure",
                 execution.http_status,
@@ -442,3 +509,11 @@ class PostgresModelGovernanceStore:
             execution.error_summary,
             None,
         )
+
+
+def _retryable_http_status(http_status: int | None, error_code: str | None) -> bool:
+    if http_status in (401, 403):
+        return False
+    return http_status in (408, 429, 504) or (http_status is not None and http_status >= 500) or (
+        error_code in {"timeout", "deadline_exceeded", "connection_reset"}
+    )

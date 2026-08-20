@@ -25,7 +25,10 @@ def evaluate(platform: Path) -> list[Check]:
     required = (
         "docs/wp7/implementation-ticket.md",
         "docs/wp7/acceptance-ticket.md",
+        "docs/wp7/development-self-review.md",
+        "platform/alembic/versions/0001_roles_and_schemas.py",
         "platform/alembic/versions/0008_ai_model_governance.py",
+        "platform/alembic/versions/0009_model_governance_boundaries.py",
         "platform/src/uap_platform/model_governance/__init__.py",
         "platform/src/uap_platform/model_governance/contracts.py",
         "platform/src/uap_platform/model_governance/providers.py",
@@ -35,6 +38,13 @@ def evaluate(platform: Path) -> list[Check]:
         "platform/tests/test_model_governance.py",
         "platform/tools/wp7_runtime_probe.py",
         "platform/tools/build_wp7_evidence.py",
+        "platform/tools/configure_roles.py",
+        "platform/tools/ensure_model_governance_role.py",
+        "platform/scripts/bootstrap-env.sh",
+        "platform/.env.example",
+        "platform/scripts/migrate-platform.sh",
+        "platform/compose.yaml",
+        "platform/Dockerfile",
     )
     missing = [path for path in required if not (repository / path).is_file()]
     source = "\n".join(
@@ -44,8 +54,13 @@ def evaluate(platform: Path) -> list[Check]:
     )
     acceptance_path = repository / "docs/wp7/acceptance-ticket.md"
     acceptance = acceptance_path.read_text(encoding="utf-8") if acceptance_path.is_file() else ""
-    migration = repository / "platform/alembic/versions/0008_ai_model_governance.py"
-    migration_source = migration.read_text(encoding="utf-8") if migration.is_file() else ""
+    migration_sources = (
+        repository / "platform/alembic/versions/0008_ai_model_governance.py",
+        repository / "platform/alembic/versions/0009_model_governance_boundaries.py",
+    )
+    migration_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in migration_sources if path.is_file()
+    )
     return [
         check("required_files", not missing, missing, []),
         check(
@@ -85,6 +100,13 @@ def evaluate(platform: Path) -> list[Check]:
                     "core.analysis_results",
                     "StorageDomain.MODEL_IO",
                     "idempotency_key",
+                    "semantic_idempotency_key",
+                    "acquire_semantic_request",
+                    "MODEL_MAX_INPUT_BYTES",
+                    "MODEL_MAX_OUTPUT_BYTES",
+                    "MODEL_MAX_CALLS_PER_SEMANTIC_KEY",
+                    "MODEL_MAX_COST_MINOR_UNITS",
+                    "finish_model_job",
                     "ON CONFLICT",
                 )
             ),
@@ -100,6 +122,9 @@ def evaluate(platform: Path) -> list[Check]:
                     "terminal_failure",
                     "finish_job_only",
                     "ProviderError",
+                    "401",
+                    "403",
+                    "model provider upstream failure",
                 )
             ),
             True,
@@ -110,10 +135,17 @@ def evaluate(platform: Path) -> list[Check]:
                 token in migration_source
                 for token in (
                     "0008_ai_model_governance",
+                    "0009_model_governance_boundaries",
                     "uq_prompt_versions_active_task",
                     "fk_model_run_prompt_same_task",
                     "ck_model_run_lifecycle",
                     "ck_model_run_currency",
+                    "uq_model_runs_semantic_success",
+                    "finish_model_job",
+                    "guard_model_governance_object_domain",
+                    "uap_model_governance",
+                    "REVOKE CONNECT",
+                    "REVOKE USAGE ON SCHEMA core, ops",
                 )
             ),
             True,

@@ -6,6 +6,7 @@ close_migrator() {
 }
 
 trap close_migrator EXIT HUP INT TERM
+python tools/ensure_model_governance_role.py
 if python tools/configure_roles.py database-bootstrapped; then
     :
 else

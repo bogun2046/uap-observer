@@ -19,6 +19,7 @@ api_password=$(openssl rand -hex 24)
 worker_password=$(openssl rand -hex 24)
 scheduler_password=$(openssl rand -hex 24)
 publisher_password=$(openssl rand -hex 24)
+model_governance_password=$(openssl rand -hex 24)
 public_reader_password=$(openssl rand -hex 24)
 audit_reader_password=$(openssl rand -hex 24)
 backup_password=$(openssl rand -hex 24)
@@ -45,6 +46,7 @@ s3_secret_key=$(openssl rand -hex 24)
     grep -q '^UAP_WORKER_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_WORKER_PASSWORD=%s\n' "$worker_password"
     grep -q '^UAP_SCHEDULER_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_SCHEDULER_PASSWORD=%s\n' "$scheduler_password"
     grep -q '^UAP_PUBLISHER_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_PUBLISHER_PASSWORD=%s\n' "$publisher_password"
+    grep -q '^UAP_MODEL_GOVERNANCE_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_MODEL_GOVERNANCE_PASSWORD=%s\n' "$model_governance_password"
     grep -q '^UAP_PUBLIC_READER_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_PUBLIC_READER_PASSWORD=%s\n' "$public_reader_password"
     grep -q '^UAP_AUDIT_READER_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_AUDIT_READER_PASSWORD=%s\n' "$audit_reader_password"
     grep -q '^UAP_BACKUP_PASSWORD=' "$env_file" 2>/dev/null || printf 'UAP_BACKUP_PASSWORD=%s\n' "$backup_password"
