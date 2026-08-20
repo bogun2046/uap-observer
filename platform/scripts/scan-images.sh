@@ -21,7 +21,7 @@ scan_image() {
     report_name=$1
     image_ref=$2
     echo "Scanning $report_name for HIGH and CRITICAL vulnerabilities"
-    docker run --rm \
+    if docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v uap-trivy-cache:/root/.cache/trivy \
         -v "$report_dir:/reports" \
@@ -33,6 +33,22 @@ scan_image() {
         --format json \
         --output "/reports/$report_name.json" \
         "$image_ref"
+    then
+        return 0
+    fi
+
+    echo "High/Critical findings for $report_name:"
+    docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v uap-trivy-cache:/root/.cache/trivy \
+        "$UAP_TRIVY_IMAGE" image \
+        --scanners vuln \
+        --skip-version-check \
+        --severity HIGH,CRITICAL \
+        --exit-code 0 \
+        --format table \
+        "$image_ref" || true
+    return 1
 }
 
 scan_image app "$app_image"

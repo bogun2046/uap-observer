@@ -32,12 +32,12 @@ class FakeClient:
 
 def test_ensure_buckets_is_idempotent() -> None:
     client = FakeClient()
-    names = ("raw", "derived", "model-io", "public-assets")
+    names = ("raw", "derived", "model-io", "public-assets", "backups")
 
     first = object_store_init.ensure_buckets(client, names)  # type: ignore[arg-type]
     second = object_store_init.ensure_buckets(client, names)  # type: ignore[arg-type]
 
-    assert first["created"] == ["derived", "model-io", "public-assets"]
+    assert first["created"] == ["derived", "model-io", "public-assets", "backups"]
     assert second["created"] == []
     assert first["buckets"] == list(names)
     FakeClient.existing = {"raw"}
