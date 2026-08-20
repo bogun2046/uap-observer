@@ -124,6 +124,7 @@ def evaluate(platform: Path) -> list[Check]:
                 "0005_durable_jobs",
                 "0006_collectors",
                 "0007_source_run_lease_guard",
+                "0008_ai_model_governance",
             },
             heads,
             [
@@ -138,6 +139,7 @@ def evaluate(platform: Path) -> list[Check]:
             [revision.revision for revision in revisions]
             in (
                 [
+                    "0008_ai_model_governance",
                     "0007_source_run_lease_guard",
                     "0006_collectors",
                     "0005_durable_jobs",
@@ -174,6 +176,7 @@ def evaluate(platform: Path) -> list[Check]:
                 "0005 -> 0004 -> 0003 -> 0002 -> 0001 or "
                 "0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
                 " or 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
+                " or 0008 -> 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
             ),
         ),
         result(

@@ -54,7 +54,7 @@ query "INSERT INTO audit.principals (id, principal_type, service_name, display_n
 
 alembic_step -x role=migrator upgrade head
 alembic_step -x role=migrator upgrade head
-test "$(query "SELECT version_num FROM public.alembic_version")" = "0007_source_run_lease_guard"
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0008_ai_model_governance"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "49"
 test "$(query "SELECT count(*) FROM audit.principals WHERE id='00000000-0000-7000-8000-000000000777'")" = "1"
 
@@ -67,4 +67,4 @@ $compose run --rm --no-deps --env "UAP_DATABASE_URL=$database_url" \
     object-store-init python tools/configure_roles.py disable-migrator
 test "$(query "SELECT rolcanlogin::text FROM pg_roles WHERE rolname='uap_migrator'")" = "false"
 
-echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004 -> 0005 -> 0006 -> 0007, idempotent head, downgrade smoke."
+echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004 -> 0005 -> 0006 -> 0007 -> 0008, idempotent head, downgrade smoke."

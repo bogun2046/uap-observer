@@ -10,6 +10,7 @@ on:
       - "docs/wp4/**"
       - "docs/wp5/**"
       - "docs/wp6/**"
+      - "docs/wp7/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   push:
@@ -22,6 +23,7 @@ on:
       - "docs/wp4/**"
       - "docs/wp5/**"
       - "docs/wp6/**"
+      - "docs/wp7/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   workflow_dispatch:
@@ -139,6 +141,20 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/build_wp6_evidence.py --output /tmp/wp6-evidence
+      - name: WP7 model governance contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp7.py
+      - name: WP7 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp7_evidence.py --output /tmp/wp7-evidence
 
   security:
     runs-on: ubuntu-latest
@@ -212,6 +228,9 @@ jobs:
       - name: Run WP6 extraction and object-consistency probe
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp6_runtime_probe.py
+      - name: Run WP7 model-governance probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp7_runtime_probe.py
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json
