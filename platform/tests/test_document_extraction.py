@@ -70,6 +70,24 @@ def test_html_extraction_is_deterministic_and_excludes_noise() -> None:
     assert first.location_map[1]["tag"] == "p"
 
 
+def test_html_accepts_media_type_parameters() -> None:
+    result = HtmlExtractor().extract(request("text/html; charset=utf-8"), HTML_FIXTURE)
+
+    assert result.outcome is ExtractionOutcome.SUCCEEDED
+    assert result.source_date == "2026-08-19T10:00:00Z"
+
+
+def test_html_ignores_invalid_source_date() -> None:
+    payload = HTML_FIXTURE.replace(
+        b'content="2026-08-19T10:00:00Z"', b'content="not-a-date"'
+    )
+
+    result = HtmlExtractor().extract(request(), payload)
+
+    assert result.outcome is ExtractionOutcome.SUCCEEDED
+    assert result.source_date is None
+
+
 def test_html_result_record_is_json_safe_and_versioned() -> None:
     result = HtmlExtractor().extract(request(), HTML_FIXTURE)
 

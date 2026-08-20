@@ -288,8 +288,16 @@ def main() -> None:
     try:
         source_id, _config_id, run_id = seed_source(administrator, worker, key)
         raw_client = cast(ObjectClient, object_client(settings))
+        html_payload = (FIXTURE_DIR / "sample.html").read_bytes().replace(
+            b'content="2026-08-19T10:00:00Z"', b'content="not-a-date"'
+        )
         fixtures = (
-            ("html", (FIXTURE_DIR / "sample.html").read_bytes(), "text/html", "html"),
+            (
+                "html",
+                html_payload,
+                "text/html; charset=utf-8",
+                "html",
+            ),
             ("pdf", (FIXTURE_DIR / "sample.pdf").read_bytes(), "application/pdf", "pdf"),
             ("vtt", (FIXTURE_DIR / "sample.vtt").read_bytes(), "text/vtt", "subtitle"),
             ("srt", (FIXTURE_DIR / "sample.srt").read_bytes(), "text/srt", "subtitle"),
@@ -425,6 +433,13 @@ def main() -> None:
                 row = cursor.fetchone()
                 if row is None or int(row[4]) == 0:
                     raise RuntimeError(f"missing extraction provenance for {fixture_key}")
+                if fixture_key == "html":
+                    cursor.execute(
+                        "SELECT source_date FROM core.extractions WHERE document_version_id = %s",
+                        (document_version_id,),
+                    )
+                    if cursor.fetchone() != (None,):
+                        raise RuntimeError("invalid HTML source date was not ignored")
                 data = read_verified_object(
                     raw_client,
                     str(row[1]),

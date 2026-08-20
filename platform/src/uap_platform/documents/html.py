@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 
 from .contracts import (
@@ -74,6 +75,23 @@ _NOISE_MARKERS = re.compile(
     r"(?:^|[-_ ])(?:advert|cookie|footer|header|menu|nav|promo|share|sidebar|social)(?:$|[-_ ])",
     re.IGNORECASE,
 )
+
+
+def _base_media_type(value: str) -> str:
+    return value.split(";", 1)[0].strip().casefold()
+
+
+def _normalize_source_date(value: str) -> str | None:
+    candidate = value.strip()
+    if candidate.endswith(("Z", "z")):
+        candidate = f"{candidate[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,7 +194,7 @@ class _HtmlParser(HTMLParser):
             self.author = normalize_text(content)
         elif key in {"article:published_time", "date", "datepublished", "pubdate"}:
             if self.source_date is None:
-                self.source_date = content
+                self.source_date = _normalize_source_date(content)
 
     def finish(self) -> tuple[str | None, str | None, str | None, tuple[_Block, ...]]:
         self._flush()
@@ -202,7 +220,10 @@ class HtmlExtractor:
         self.max_output_chars = max_output_chars
 
     def extract(self, request: ExtractionInput, payload: bytes) -> ExtractionResult:
-        if request.media_type.casefold() not in {"text/html", "application/xhtml+xml"}:
+        if _base_media_type(request.media_type) not in {
+            "text/html",
+            "application/xhtml+xml",
+        }:
             return self._failure(
                 request,
                 "unsupported_media_type",
