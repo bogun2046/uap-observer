@@ -125,6 +125,24 @@ def sqlerror(
     raise RuntimeError(f"probe accepted a forbidden statement: {statement.split()[0]}")
 
 
+def sqlerror_steps(
+    connection: psycopg.Connection[Any],
+    steps: list[tuple[str, tuple[object, ...]]],
+) -> tuple[str, str]:
+    try:
+        with connection.transaction():
+            with connection.cursor() as cursor:
+                for statement, params in steps:
+                    cursor.execute(statement, params)
+                cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+    except psycopg.Error as error:
+        primary = ""
+        if error.diag is not None and error.diag.message_primary:
+            primary = error.diag.message_primary
+        return str(error.sqlstate), primary
+    raise RuntimeError("probe accepted a forbidden multi-step statement")
+
+
 def require(name: str, actual: object, expected: object) -> None:
     if actual != expected:
         raise RuntimeError(f"{name}: expected {expected!r}, got {actual!r}")
@@ -1277,6 +1295,105 @@ def insert_span(
     return span_id
 
 
+def insert_supported_ai_claim(
+    admin: psycopg.Connection[Any],
+    origin_id: uuid.UUID,
+    document_version_id: uuid.UUID,
+    ordinal: int,
+    claim_text: str,
+    fingerprint: str,
+    span_id: uuid.UUID,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    claim_id = uuid.uuid4()
+    evidence_id = uuid.uuid4()
+    admin.autocommit = False
+    try:
+        execute(
+            admin,
+            """
+            INSERT INTO core.claims (
+                id, origin_analysis_result_id, document_version_id, ordinal, claim_text,
+                claim_fingerprint, claim_type, assertion_status
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'other', 'reported')
+            """,
+            claim_id,
+            origin_id,
+            document_version_id,
+            ordinal,
+            claim_text,
+            fingerprint,
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.claim_evidence (
+                id, claim_id, evidence_span_id, document_version_id, support_type
+            ) VALUES (%s, %s, %s, %s, 'supports')
+            """,
+            evidence_id,
+            claim_id,
+            span_id,
+            document_version_id,
+        )
+        admin.commit()
+    except Exception:
+        admin.rollback()
+        raise
+    finally:
+        admin.autocommit = True
+    return claim_id, evidence_id
+
+
+def insert_candidate_with_evidence(
+    admin: psycopg.Connection[Any],
+    analysis_id: uuid.UUID,
+    document_version_id: uuid.UUID,
+    ordinal: int,
+    name: str,
+    span_id: uuid.UUID,
+    evidence_ordinal: int = 0,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    candidate_id = uuid.uuid4()
+    link_id = uuid.uuid4()
+    admin.autocommit = False
+    try:
+        execute(
+            admin,
+            """
+            INSERT INTO core.entity_candidates (
+                id, analysis_result_id, document_version_id, ordinal, proposed_entity_type,
+                proposed_name, candidate_payload, evidence_span_id
+            ) VALUES (%s, %s, %s, %s, 'person', %s, '{}'::jsonb, NULL)
+            """,
+            candidate_id,
+            analysis_id,
+            document_version_id,
+            ordinal,
+            name,
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.entity_candidate_evidence (
+                id, entity_candidate_id, evidence_span_id, document_version_id,
+                evidence_ordinal
+            ) VALUES (%s, %s, %s, %s, %s)
+            """,
+            link_id,
+            candidate_id,
+            span_id,
+            document_version_id,
+            evidence_ordinal,
+        )
+        admin.commit()
+    except Exception:
+        admin.rollback()
+        raise
+    finally:
+        admin.autocommit = True
+    return candidate_id, link_id
+
+
 def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
     head = scalar(admin, "SELECT version_num FROM public.alembic_version")
     with admin.cursor() as cursor:
@@ -1522,6 +1639,209 @@ def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
         ),
         20,
     )
+    claim_src_span = insert_span(admin, document_version_id, sha256_text(f"xfer-src-{tag}"))
+    claim_dst_span = insert_span(admin, document_version_id, sha256_text(f"xfer-dst-{tag}"))
+    claim_src, claim_src_ev = insert_supported_ai_claim(
+        admin,
+        claim_analysis,
+        document_version_id,
+        1,
+        "xfer source",
+        sha256_text(f"fp-src-{tag}"),
+        claim_src_span,
+    )
+    claim_dst, _claim_dst_ev = insert_supported_ai_claim(
+        admin,
+        claim_analysis,
+        document_version_id,
+        2,
+        "xfer dest",
+        sha256_text(f"fp-dst-{tag}"),
+        claim_dst_span,
+    )
+    claim_xfer_state, claim_xfer_msg = sqlerror(
+        admin,
+        "UPDATE core.claim_evidence SET claim_id = %s WHERE id = %s",
+        claim_dst,
+        claim_src_ev,
+    )
+    require("claim evidence transfer sqlstate", claim_xfer_state, "23514")
+    require(
+        "claim evidence transfer message",
+        "at least one supports evidence" in claim_xfer_msg,
+        True,
+    )
+    require(
+        "source claim still supported after rejected transfer",
+        scalar(
+            admin,
+            """
+            SELECT count(*) FROM core.claim_evidence
+             WHERE claim_id=%s AND support_type='supports'
+            """,
+            claim_src,
+        ),
+        1,
+    )
+    new_claim = uuid.uuid4()
+    same_tx_claim_state, same_tx_claim_msg = sqlerror_steps(
+        admin,
+        [
+            (
+                """
+                INSERT INTO core.claims (
+                    id, origin_analysis_result_id, document_version_id, ordinal,
+                    claim_text, claim_fingerprint, claim_type, assertion_status
+                ) VALUES (%s, %s, %s, 5, 'same-tx dest', %s, 'other', 'reported')
+                """,
+                (
+                    new_claim,
+                    claim_analysis,
+                    document_version_id,
+                    sha256_text(f"fp-same-{tag}"),
+                ),
+            ),
+            (
+                "UPDATE core.claim_evidence SET claim_id = %s WHERE id = %s",
+                (new_claim, claim_src_ev),
+            ),
+        ],
+    )
+    require("same-tx claim transfer sqlstate", same_tx_claim_state, "23514")
+    require(
+        "same-tx claim transfer message",
+        "at least one supports evidence" in same_tx_claim_msg,
+        True,
+    )
+    extra_span = insert_span(admin, document_version_id, sha256_text(f"xfer-extra-{tag}"))
+    surplus_src, surplus_ev = insert_supported_ai_claim(
+        admin,
+        claim_analysis,
+        document_version_id,
+        3,
+        "xfer surplus",
+        sha256_text(f"fp-surplus-{tag}"),
+        extra_span,
+    )
+    second_span = insert_span(admin, document_version_id, sha256_text(f"xfer-second-{tag}"))
+    execute(
+        admin,
+        """
+        INSERT INTO core.claim_evidence (
+            id, claim_id, evidence_span_id, document_version_id, support_type
+        ) VALUES (%s, %s, %s, %s, 'supports')
+        """,
+        uuid.uuid4(),
+        surplus_src,
+        second_span,
+        document_version_id,
+    )
+    execute(
+        admin,
+        "UPDATE core.claim_evidence SET claim_id = %s WHERE id = %s",
+        claim_dst,
+        surplus_ev,
+    )
+    require(
+        "surplus claim transfer keeps source supported",
+        scalar(
+            admin,
+            """
+            SELECT count(*) FROM core.claim_evidence
+             WHERE claim_id=%s AND support_type='supports'
+            """,
+            surplus_src,
+        ),
+        1,
+    )
+    cand_src_span = insert_span(admin, document_version_id, sha256_text(f"cand-src-{tag}"))
+    cand_dst_span = insert_span(admin, document_version_id, sha256_text(f"cand-dst-{tag}"))
+    cand_src, cand_src_link = insert_candidate_with_evidence(
+        admin,
+        entity_analysis,
+        document_version_id,
+        2,
+        "xfer-src",
+        cand_src_span,
+    )
+    cand_dst, _cand_dst_link = insert_candidate_with_evidence(
+        admin,
+        entity_analysis,
+        document_version_id,
+        3,
+        "xfer-dst",
+        cand_dst_span,
+    )
+    cand_xfer_state, cand_xfer_msg = sqlerror(
+        admin,
+        """
+        UPDATE core.entity_candidate_evidence
+           SET entity_candidate_id = %s, evidence_ordinal = 1
+         WHERE id = %s
+        """,
+        cand_dst,
+        cand_src_link,
+    )
+    require("candidate evidence transfer sqlstate", cand_xfer_state, "23514")
+    require(
+        "candidate evidence transfer message",
+        "at least one evidence row" in cand_xfer_msg,
+        True,
+    )
+    require(
+        "source candidate still evidenced after rejected transfer",
+        scalar(
+            admin,
+            """
+            SELECT count(*) FROM core.entity_candidate_evidence
+             WHERE entity_candidate_id=%s
+            """,
+            cand_src,
+        ),
+        1,
+    )
+    new_dest = uuid.uuid4()
+    same_tx_state, same_tx_msg = sqlerror_steps(
+        admin,
+        [
+            (
+                """
+                INSERT INTO core.entity_candidates (
+                    id, analysis_result_id, document_version_id, ordinal,
+                    proposed_entity_type, proposed_name, candidate_payload,
+                    evidence_span_id
+                ) VALUES (%s, %s, %s, 4, 'person', 'same-tx', '{}'::jsonb, NULL)
+                """,
+                (new_dest, entity_analysis, document_version_id),
+            ),
+            (
+                """
+                UPDATE core.entity_candidate_evidence
+                   SET entity_candidate_id = %s
+                 WHERE id = %s
+                """,
+                (new_dest, cand_src_link),
+            ),
+        ],
+    )
+    require("same-tx candidate transfer sqlstate", same_tx_state, "23514")
+    require(
+        "same-tx candidate transfer message",
+        "at least one evidence row" in same_tx_msg,
+        True,
+    )
+    require(
+        "source candidate untouched after same-tx transfer reject",
+        scalar(
+            admin,
+            """
+            SELECT count(*) FROM core.entity_candidate_evidence
+             WHERE entity_candidate_id=%s
+            """,
+            cand_src,
+        ),
+        1,
+    )
     fingerprint = scalar(admin, "SELECT core.compute_claim_fingerprint(%s)", "  Hello   World  ")
     require("fingerprint length", len(str(fingerprint)), 64)
     envelope = {
@@ -1538,6 +1858,10 @@ def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
         "invalid_origin": invalid_origin,
         "cross_version": cross_version,
         "downgrade_blocked": downgrade_blocked,
+        "claim_evidence_transfer": claim_xfer_state,
+        "same_tx_claim_transfer": same_tx_claim_state,
+        "candidate_evidence_transfer": cand_xfer_state,
+        "same_tx_candidate_transfer": same_tx_state,
     }
 
 

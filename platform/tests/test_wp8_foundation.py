@@ -45,6 +45,10 @@ def test_wp8_1_does_not_implement_later_stages() -> None:
         encoding="utf-8"
     )
     assert "ON CONFLICT (idempotency_key) DO NOTHING" in source
+    assert "COALESCE(NEW.claim_id, OLD.claim_id)" not in source
+    assert "COALESCE(NEW.entity_candidate_id, OLD.entity_candidate_id)" not in source
+    assert "NEW.claim_id IS DISTINCT FROM OLD.claim_id" in source
+    assert "NEW.entity_candidate_id IS DISTINCT FROM OLD.entity_candidate_id" in source
     assert "materialize_claim_bundle" not in source
     assert "materialize_entity_bundle" not in source
     assert "merge_entities" not in source

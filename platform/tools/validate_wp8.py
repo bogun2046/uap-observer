@@ -188,6 +188,17 @@ def evaluate(platform: Path) -> list[Check]:
             True,
         ),
         check(
+            "deferred_evidence_checks_both_sides_of_update",
+            "COALESCE(NEW.claim_id, OLD.claim_id)" not in migration
+            and "COALESCE(NEW.entity_candidate_id, OLD.entity_candidate_id)" not in migration
+            and "NEW.claim_id IS DISTINCT FROM OLD.claim_id" in migration
+            and "NEW.entity_candidate_id IS DISTINCT FROM OLD.entity_candidate_id" in migration
+            and "ARRAY[NEW.claim_id, OLD.claim_id]" in migration
+            and "OLD.entity_candidate_id" in migration
+            and "TG_OP = 'DELETE'" in migration,
+            True,
+        ),
+        check(
             "wp8_not_wired_to_ci",
             "validate_wp8.py" not in makefile
             and "wp8_1_runtime_probe.py" not in makefile

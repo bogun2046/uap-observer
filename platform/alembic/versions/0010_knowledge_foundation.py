@@ -212,31 +212,39 @@ def upgrade() -> None:
         SET search_path = core, ops, pg_catalog
         AS $require_ai_claim_supports$
         DECLARE
+            targets uuid[];
             target uuid;
         BEGIN
             IF TG_TABLE_NAME = 'claims' THEN
                 IF NEW.origin_analysis_result_id IS NULL THEN
                     RETURN NULL;
                 END IF;
-                target := NEW.id;
+                targets := ARRAY[NEW.id];
+            ELSIF TG_OP = 'INSERT' THEN
+                targets := ARRAY[NEW.claim_id];
+            ELSIF TG_OP = 'DELETE' THEN
+                targets := ARRAY[OLD.claim_id];
+            ELSIF NEW.claim_id IS DISTINCT FROM OLD.claim_id THEN
+                targets := ARRAY[NEW.claim_id, OLD.claim_id];
             ELSE
-                SELECT claim.id INTO target
-                  FROM core.claims AS claim
-                 WHERE claim.id = COALESCE(NEW.claim_id, OLD.claim_id)
-                   AND claim.origin_analysis_result_id IS NOT NULL;
-                IF target IS NULL THEN
-                    RETURN NULL;
+                targets := ARRAY[NEW.claim_id];
+            END IF;
+            FOREACH target IN ARRAY targets LOOP
+                IF EXISTS (
+                    SELECT 1
+                      FROM core.claims AS claim
+                     WHERE claim.id = target
+                       AND claim.origin_analysis_result_id IS NOT NULL
+                ) AND NOT EXISTS (
+                    SELECT 1
+                      FROM core.claim_evidence
+                     WHERE claim_id = target
+                       AND support_type = 'supports'::core.support_type
+                ) THEN
+                    RAISE EXCEPTION 'AI claim requires at least one supports evidence'
+                        USING ERRCODE = '23514';
                 END IF;
-            END IF;
-            IF NOT EXISTS (
-                SELECT 1
-                  FROM core.claim_evidence
-                 WHERE claim_id = target
-                   AND support_type = 'supports'::core.support_type
-            ) THEN
-                RAISE EXCEPTION 'AI claim requires at least one supports evidence'
-                    USING ERRCODE = '23514';
-            END IF;
+            END LOOP;
             RETURN NULL;
         END
         $require_ai_claim_supports$;
@@ -276,22 +284,35 @@ def upgrade() -> None:
         SET search_path = core, pg_catalog
         AS $require_entity_candidate_evidence$
         DECLARE
+            targets uuid[];
             target uuid;
         BEGIN
             IF TG_TABLE_NAME = 'entity_candidates' THEN
-                target := NEW.id;
+                targets := ARRAY[NEW.id];
+            ELSIF TG_OP = 'INSERT' THEN
+                targets := ARRAY[NEW.entity_candidate_id];
+            ELSIF TG_OP = 'DELETE' THEN
+                targets := ARRAY[OLD.entity_candidate_id];
+            ELSIF NEW.entity_candidate_id IS DISTINCT FROM OLD.entity_candidate_id THEN
+                targets := ARRAY[
+                    NEW.entity_candidate_id,
+                    OLD.entity_candidate_id
+                ];
             ELSE
-                target := COALESCE(NEW.entity_candidate_id, OLD.entity_candidate_id);
+                targets := ARRAY[NEW.entity_candidate_id];
             END IF;
-            IF EXISTS (SELECT 1 FROM core.entity_candidates WHERE id = target)
-               AND NOT EXISTS (
+            FOREACH target IN ARRAY targets LOOP
+                IF EXISTS (
+                    SELECT 1 FROM core.entity_candidates WHERE id = target
+                ) AND NOT EXISTS (
                     SELECT 1
                       FROM core.entity_candidate_evidence
                      WHERE entity_candidate_id = target
-               ) THEN
-                RAISE EXCEPTION 'entity candidate requires at least one evidence row'
-                    USING ERRCODE = '23514';
-            END IF;
+                ) THEN
+                    RAISE EXCEPTION 'entity candidate requires at least one evidence row'
+                        USING ERRCODE = '23514';
+                END IF;
+            END LOOP;
             RETURN NULL;
         END
         $require_entity_candidate_evidence$;
