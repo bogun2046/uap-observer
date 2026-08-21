@@ -355,7 +355,7 @@ def test_g8_09_location_map_fail_closed() -> None:
     assert report((locator,), location_map=["not-a-row"]).reason_codes()[0] == (
         LOCATOR_LOCATION_MAP_INVALID
     )
-    mixed = pdf_map() + [{"kind": "html_block", "char_start": 0, "char_end": 9}]
+    mixed = [*pdf_map(), {"kind": "html_block", "char_start": 0, "char_end": 9}]
     assert report((locator,), location_map=mixed).classification is MappingClass.MATERIALIZABLE
     kindless = [{"page_start": 2, "page_end": 2, "char_start": 10, "char_end": 19}]
     assert report((locator,), location_map=kindless).classification is MappingClass.MATERIALIZABLE
