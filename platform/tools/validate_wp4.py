@@ -10,6 +10,14 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+WP4_SUBCHAIN = [
+    "0009_model_governance_boundaries",
+    "0008_ai_model_governance",
+    "0007_source_run_lease_guard",
+    "0006_collectors",
+    "0005_durable_jobs",
+]
+
 
 @dataclass(frozen=True)
 class Check:
@@ -23,6 +31,13 @@ def result(name: str, passed: bool, actual: object, expected: object) -> Check:
     return Check(name, passed, actual, expected)
 
 
+def contains_consecutive(haystack: list[str], needle: list[str]) -> bool:
+    size = len(needle)
+    return any(
+        haystack[index : index + size] == needle for index in range(len(haystack) - size + 1)
+    )
+
+
 def evaluate(platform: Path) -> list[Check]:
     platform = platform.resolve()
     repository = platform.parent
@@ -30,6 +45,7 @@ def evaluate(platform: Path) -> list[Check]:
     config.set_main_option("script_location", str(platform / "alembic"))
     script = ScriptDirectory.from_config(config)
     revisions = list(script.walk_revisions(base="base", head="heads"))
+    revision_ids = [revision.revision for revision in revisions]
     source = (platform / "alembic/versions/0005_durable_jobs.py").read_text(encoding="utf-8")
     required_docs = (
         "docs/wp4/README.md",
@@ -64,16 +80,9 @@ def evaluate(platform: Path) -> list[Check]:
         result("required_files", not missing, missing, []),
         result(
             "linear_revision_chain",
-            [revision.revision for revision in revisions][:5]
-            == [
-                "0009_model_governance_boundaries",
-                "0008_ai_model_governance",
-                "0007_source_run_lease_guard",
-                "0006_collectors",
-                "0005_durable_jobs",
-            ],
-            [revision.revision for revision in revisions],
-            "0009 -> 0008 -> 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001",
+            contains_consecutive(revision_ids, WP4_SUBCHAIN),
+            revision_ids,
+            "consecutive subchain 0009 -> 0008 -> 0007 -> 0006 -> 0005",
         ),
         result("migration_revision_id", 'revision = "0005_durable_jobs"' in source, True, True),
         result("durable_job_semantics", all(token in source for token in tokens), True, True),

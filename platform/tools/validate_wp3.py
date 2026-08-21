@@ -48,6 +48,12 @@ WP3_REQUIRED = (
     "platform/tools/configure_roles.py",
     "platform/tools/wp3_runtime_probe.py",
 )
+WP3_SUFFIX = [
+    "0004_g3_semantic_repairs",
+    "0003_permissions_and_guards",
+    "0002_authoritative_schema",
+    "0001_roles_and_schemas",
+]
 
 
 @dataclass(frozen=True)
@@ -67,8 +73,7 @@ def dictionary_tables(repository: Path) -> set[str]:
     names: set[str] = set()
     for heading in re.findall(r"^### (.+)$", text, flags=re.MULTILINE):
         names.update(
-            name
-            for name in re.findall(r"`((?:ingest|core|ops|audit|public)\.[a-z_]+)`", heading)
+            name for name in re.findall(r"`((?:ingest|core|ops|audit|public)\.[a-z_]+)`", heading)
         )
     return names
 
@@ -91,6 +96,7 @@ def evaluate(platform: Path) -> list[Check]:
     script = ScriptDirectory.from_config(config)
     revisions = list(script.walk_revisions(base="base", head="heads"))
     heads = script.get_heads()
+    revision_ids = [revision.revision for revision in revisions]
     migration = platform / "alembic/versions/0002_authoritative_schema.py"
     permissions = "\n".join(
         (platform / path).read_text(encoding="utf-8")
@@ -118,80 +124,15 @@ def evaluate(platform: Path) -> list[Check]:
         result("required_delivery_files", not missing_files, missing_files, []),
         result(
             "single_head",
-            len(heads) == 1
-            and heads[0]
-            in {
-                "0004_g3_semantic_repairs",
-                "0005_durable_jobs",
-                "0006_collectors",
-                "0007_source_run_lease_guard",
-                "0008_ai_model_governance",
-                "0009_model_governance_boundaries",
-            },
+            len(heads) == 1,
             heads,
-            [
-                "0004_g3_semantic_repairs",
-                "0005_durable_jobs",
-                "0006_collectors",
-                "0007_source_run_lease_guard",
-            ],
+            ["exactly one Alembic head"],
         ),
         result(
             "linear_revision_chain",
-            [revision.revision for revision in revisions]
-            in (
-                [
-                    "0009_model_governance_boundaries",
-                    "0008_ai_model_governance",
-                    "0007_source_run_lease_guard",
-                    "0006_collectors",
-                    "0005_durable_jobs",
-                    "0004_g3_semantic_repairs",
-                    "0003_permissions_and_guards",
-                    "0002_authoritative_schema",
-                    "0001_roles_and_schemas",
-                ],
-                [
-                    "0008_ai_model_governance",
-                    "0007_source_run_lease_guard",
-                    "0006_collectors",
-                    "0005_durable_jobs",
-                    "0004_g3_semantic_repairs",
-                    "0003_permissions_and_guards",
-                    "0002_authoritative_schema",
-                    "0001_roles_and_schemas",
-                ],
-                [
-                    "0004_g3_semantic_repairs",
-                    "0003_permissions_and_guards",
-                    "0002_authoritative_schema",
-                    "0001_roles_and_schemas",
-                ],
-                [
-                    "0006_collectors",
-                    "0005_durable_jobs",
-                    "0004_g3_semantic_repairs",
-                    "0003_permissions_and_guards",
-                    "0002_authoritative_schema",
-                    "0001_roles_and_schemas",
-                ],
-                [
-                    "0005_durable_jobs",
-                    "0004_g3_semantic_repairs",
-                    "0003_permissions_and_guards",
-                    "0002_authoritative_schema",
-                    "0001_roles_and_schemas",
-                ],
-            ),
-            [revision.revision for revision in revisions],
-            (
-                "0004 -> 0003 -> 0002 -> 0001 or "
-                "0005 -> 0004 -> 0003 -> 0002 -> 0001 or "
-                "0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
-                " or 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
-                " or 0008 -> 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
-                " or 0009 -> 0008 -> 0007 -> 0006 -> 0005 -> 0004 -> 0003 -> 0002 -> 0001"
-            ),
+            revision_ids[-len(WP3_SUFFIX) :] == WP3_SUFFIX,
+            revision_ids,
+            "historical suffix 0004 -> 0003 -> 0002 -> 0001",
         ),
         result(
             "frozen_49_tables",

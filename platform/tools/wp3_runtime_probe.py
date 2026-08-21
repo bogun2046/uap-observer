@@ -16,7 +16,10 @@ from uap_platform.config import load_settings
 from uap_platform.object_registry import ObjectClient, StorageDomain, store_and_register
 from uap_platform.object_store_init import build_client
 
-EXPECTED_TABLE_COUNT = 49
+EXPECTED_TABLE_COUNT = 50
+WP3_ORIGINAL_TABLE_COUNT = 49
+CURRENT_HEAD = "0010_knowledge_foundation"
+EXPECTED_FOREIGN_KEYS = 115
 ROLE_PASSWORDS = {
     "uap_migrator": "UAP_MIGRATOR_PASSWORD",
     "uap_public_reader": "UAP_PUBLIC_READER_PASSWORD",
@@ -120,12 +123,12 @@ def prepare_semantic_fixture(connection: psycopg.Connection[Any]) -> None:
             cursor.execute(
                 """
                 INSERT INTO core.claims
-                    (id, claim_text, claim_fingerprint, claim_type,
+                    (id, document_version_id, claim_text, claim_fingerprint, claim_type,
                      assertion_status, created_by)
-                VALUES (%s, %s, repeat(%s, 64), 'observation', 'reported', %s)
+                VALUES (%s, %s, %s, repeat(%s, 64), 'observation', 'reported', %s)
                 ON CONFLICT (id) DO NOTHING
                 """,
-                (claim_id, claim_text, fingerprint, principal),
+                (claim_id, document_version, claim_text, fingerprint, principal),
             )
         for relation_id, predicate in (
             (identifier(28), "supports"),
@@ -472,25 +475,20 @@ def probe() -> dict[str, object]:
             head = head_row[0]
             cursor.execute(
                 """
-                SELECT count(*) FROM pg_tables
+                SELECT schemaname || '.' || tablename
+                  FROM pg_tables
                  WHERE schemaname IN ('ingest','core','ops','audit','public')
                    AND tablename <> 'alembic_version'
                 """
             )
-            table_row = cursor.fetchone()
-            if table_row is None:
-                raise RuntimeError("missing table count")
-            table_count = table_row[0]
+            table_names = {row[0] for row in cursor.fetchall()}
+            table_count = len(table_names)
+        original_tables = {name for name in table_names if name != "core.entity_candidate_evidence"}
         if (
-            head not in {
-                "0004_g3_semantic_repairs",
-                "0005_durable_jobs",
-                "0006_collectors",
-                "0007_source_run_lease_guard",
-                "0008_ai_model_governance",
-                "0009_model_governance_boundaries",
-            }
+            head != CURRENT_HEAD
             or table_count != EXPECTED_TABLE_COUNT
+            or len(original_tables) != WP3_ORIGINAL_TABLE_COUNT
+            or "core.entity_candidate_evidence" not in table_names
         ):
             raise RuntimeError("runtime schema does not match the frozen WP3-compatible head")
 
@@ -708,13 +706,10 @@ def probe() -> dict[str, object]:
         foreign_keys = len(constraints)
         for schema, table, _constraint, parent_schema, parent_table, child, parent in constraints:
             not_null = sql.SQL(" AND ").join(
-                sql.SQL("child.{} IS NOT NULL").format(sql.Identifier(column))
-                for column in child
+                sql.SQL("child.{} IS NOT NULL").format(sql.Identifier(column)) for column in child
             )
             join = sql.SQL(" AND ").join(
-                sql.SQL("child.{} = parent.{}").format(
-                    sql.Identifier(left), sql.Identifier(right)
-                )
+                sql.SQL("child.{} = parent.{}").format(sql.Identifier(left), sql.Identifier(right))
                 for left, right in zip(child, parent, strict=True)
             )
             query = sql.SQL(
@@ -736,8 +731,10 @@ def probe() -> dict[str, object]:
             orphan_rows += int(orphan_row[0])
         if orphan_rows:
             raise RuntimeError(f"foreign key orphan rows found: {orphan_rows}")
-        if foreign_keys != 109:
-            raise RuntimeError(f"foreign key count changed: {foreign_keys}; expected 109")
+        if foreign_keys != EXPECTED_FOREIGN_KEYS:
+            raise RuntimeError(
+                f"foreign key count changed: {foreign_keys}; expected {EXPECTED_FOREIGN_KEYS}"
+            )
 
         for name, state, expected in (
             ("wrong storage domain", wrong_domain_state, "23514"),
