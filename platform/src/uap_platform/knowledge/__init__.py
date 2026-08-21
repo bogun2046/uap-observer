@@ -15,12 +15,7 @@ from .contracts import (
     SourceLocator,
     TypedAxes,
 )
-from .locators import (
-    build_envelope,
-    canonical_envelope_text,
-    canonical_locator_digest,
-    map_locator,
-)
+from .locators import build_envelope, map_locator
 from .mapping import map_knowledge_result
 from .reasons import FROZEN_REASON_CODES, LOCATOR_SCHEMA_VERSION, MAX_EVIDENCE_UTF8_BYTES
 
@@ -41,8 +36,6 @@ __all__ = [
     "SourceLocator",
     "TypedAxes",
     "build_envelope",
-    "canonical_envelope_text",
-    "canonical_locator_digest",
     "map_knowledge_result",
     "map_locator",
     "resolve_extraction_anchor",

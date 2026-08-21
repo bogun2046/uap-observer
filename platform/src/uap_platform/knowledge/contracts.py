@@ -13,10 +13,11 @@ DuplicatePolicy = Literal["claim", "entity"]
 
 
 class AnchorStatus(StrEnum):
+    """knowledge.v2 payload statuses. mismatch is a reason code, not a payload status."""
+
     MATCHED = "matched"
     MISSING = "missing"
     AMBIGUOUS = "ambiguous"
-    MISMATCH = "mismatch"
 
 
 class MappingClass(StrEnum):
@@ -44,6 +45,8 @@ class ExtractionRecord:
 
 @dataclass(frozen=True, slots=True)
 class ExtractionAnchor:
+    """Frozen knowledge.v2 extraction_anchor_status / extraction_id pair."""
+
     status: AnchorStatus
     extraction_id: uuid.UUID | None
 
@@ -109,7 +112,6 @@ class AcceptedLocator:
     locator_ordinal: int
     evidence_text: str
     envelope: dict[str, object]
-    digest: str
     axes: TypedAxes
 
 

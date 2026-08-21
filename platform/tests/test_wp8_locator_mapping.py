@@ -6,16 +6,18 @@ from collections.abc import Sequence
 
 import pytest
 
+from uap_platform import knowledge as knowledge_package
 from uap_platform.knowledge import (
     FROZEN_REASON_CODES,
     MAX_EVIDENCE_UTF8_BYTES,
+    AcceptedLocator,
     AnchorStatus,
+    ExtractionAnchor,
     ExtractionRecord,
     MappingClass,
     MappingReport,
     SourceCandidate,
     SourceLocator,
-    canonical_locator_digest,
     map_knowledge_result,
     map_locator,
     resolve_extraction_anchor,
@@ -27,6 +29,7 @@ from uap_platform.knowledge.reasons import (
     KNOWLEDGE_EXTRACTION_MISMATCH,
     KNOWLEDGE_EXTRACTION_MISSING,
     KNOWLEDGE_LOCATOR_UNMAPPABLE,
+    KNOWLEDGE_PAYLOAD_MISMATCH,
     LOCATOR_AXIS_CONFLICT,
     LOCATOR_CROSS_AXIS_MISMATCH,
     LOCATOR_DUPLICATE,
@@ -110,6 +113,18 @@ def matched_records() -> tuple[ExtractionRecord, ...]:
     return (record(EXT_A, HASH_A),)
 
 
+def frozen_matched() -> ExtractionAnchor:
+    return ExtractionAnchor(status=AnchorStatus.MATCHED, extraction_id=EXT_A)
+
+
+def frozen_missing() -> ExtractionAnchor:
+    return ExtractionAnchor(status=AnchorStatus.MISSING, extraction_id=None)
+
+
+def frozen_ambiguous() -> ExtractionAnchor:
+    return ExtractionAnchor(status=AnchorStatus.AMBIGUOUS, extraction_id=None)
+
+
 def candidate(*locators: SourceLocator, ordinal: int = 0) -> SourceCandidate:
     return SourceCandidate(ordinal=ordinal, locators=locators)
 
@@ -120,16 +135,19 @@ def report(
     text: str = TEXT,
     location_map: Sequence[dict[str, object]] | None = None,
     records: Sequence[ExtractionRecord] | None = None,
+    payload: ExtractionAnchor | None = None,
     policy: DuplicatePolicy = "claim",
     extra_candidates: Sequence[SourceCandidate] = (),
+    input_sha256: str = HASH_A,
 ) -> MappingReport:
     items = [candidate(*tuple(locators))]
     items.extend(extra_candidates)
     return map_knowledge_result(
         candidates=items,
+        payload_anchor=payload if payload is not None else frozen_matched(),
         records=records if records is not None else matched_records(),
         document_version_id=DOC,
-        input_sha256=HASH_A,
+        input_sha256=input_sha256,
         extracted_text=text,
         location_map=list(location_map or []),
         duplicate_policy=policy,
@@ -158,6 +176,7 @@ def test_g8_07_matched_missing_ambiguous_and_later_hash_does_not_change_anchor()
     assert matched.status is AnchorStatus.MATCHED and matched.extraction_id == EXT_A
     assert missing.status is AnchorStatus.MISSING and missing.extraction_id is None
     assert ambiguous.status is AnchorStatus.AMBIGUOUS and ambiguous.extraction_id is None
+    assert {item.value for item in AnchorStatus} == {"matched", "missing", "ambiguous"}
 
     after_new_hash = resolve_extraction_anchor(
         (record(EXT_A, HASH_A), record(EXT_B, HASH_B, name="html", version="9.9.9")),
@@ -176,12 +195,45 @@ def test_g8_07_does_not_break_ties_with_recency_or_extractor() -> None:
     assert anchor.status is AnchorStatus.AMBIGUOUS
 
 
+def test_g8_07_inconsistent_object_does_not_create_mismatch_status() -> None:
+    anchor = resolve_extraction_anchor(
+        (record(EXT_A, HASH_A, domain="raw"),),
+        document_version_id=DOC,
+        input_sha256=HASH_A,
+    )
+    assert anchor.status is AnchorStatus.MISSING
+    assert anchor.extraction_id is None
+
+
+def test_g8_07_mapper_uses_frozen_payload_not_current_rows() -> None:
+    locator = SourceLocator(locator_type="text", start=0, end=4)
+    later_same_hash = (record(EXT_A, HASH_A), record(EXT_B, HASH_A, name="later", version="9"))
+    recounted = resolve_extraction_anchor(
+        later_same_hash, document_version_id=DOC, input_sha256=HASH_A
+    )
+    assert recounted.status is AnchorStatus.AMBIGUOUS
+    assert recounted.extraction_id is None
+
+    frozen = report((locator,), records=later_same_hash, payload=frozen_matched())
+    assert frozen.classification is MappingClass.MATERIALIZABLE
+    assert frozen.anchor == frozen_matched()
+    assert frozen.accepted_candidates[0].accepted_locators[0].envelope["extraction_id"] == str(
+        EXT_A
+    )
+
+    still_missing = report((locator,), records=matched_records(), payload=frozen_missing())
+    assert still_missing.classification is MappingClass.TERMINAL_EXTRACTION_MISSING
+    assert still_missing.anchor == frozen_missing()
+    assert still_missing.reason_codes()[0] == KNOWLEDGE_EXTRACTION_MISSING
+
+
 def test_g8_07_nonempty_missing_and_ambiguous_are_terminal() -> None:
     locator = SourceLocator(locator_type="text", start=0, end=4)
-    missing = report((locator,), records=())
+    missing = report((locator,), records=(), payload=frozen_missing())
     ambiguous = report(
         (locator,),
         records=(record(EXT_A, HASH_A, name="a"), record(EXT_B, HASH_A, name="b")),
+        payload=frozen_ambiguous(),
     )
     mismatch = report((locator,), records=(record(EXT_A, HASH_A, domain="raw"),))
     assert missing.classification is MappingClass.TERMINAL_EXTRACTION_MISSING
@@ -190,6 +242,20 @@ def test_g8_07_nonempty_missing_and_ambiguous_are_terminal() -> None:
     assert ambiguous.reason_codes()[0] == KNOWLEDGE_EXTRACTION_AMBIGUOUS
     assert mismatch.classification is MappingClass.TERMINAL_EXTRACTION_MISMATCH
     assert mismatch.reason_codes()[0] == KNOWLEDGE_EXTRACTION_MISMATCH
+    assert mismatch.anchor.status is AnchorStatus.MATCHED
+    assert mismatch.anchor.extraction_id == EXT_A
+
+
+def test_g8_07_malformed_payload_is_payload_mismatch() -> None:
+    locator = SourceLocator(locator_type="text", start=0, end=4)
+    matched_without_id = ExtractionAnchor(status=AnchorStatus.MATCHED, extraction_id=None)
+    missing_with_id = ExtractionAnchor(status=AnchorStatus.MISSING, extraction_id=EXT_A)
+    assert report((locator,), payload=matched_without_id).reason_codes()[0] == (
+        KNOWLEDGE_PAYLOAD_MISMATCH
+    )
+    assert report((locator,), payload=missing_with_id).reason_codes()[0] == (
+        KNOWLEDGE_PAYLOAD_MISMATCH
+    )
 
 
 def test_g8_08_five_locator_types_and_envelope_identity() -> None:
@@ -207,7 +273,7 @@ def test_g8_08_five_locator_types_and_envelope_identity() -> None:
         "video": cue_map(),
         "audio": cue_map(),
     }
-    digests = []
+    envelopes: list[dict[str, object]] = []
     for locator in cases:
         mapped = map_locator(
             locator,
@@ -241,9 +307,8 @@ def test_g8_08_five_locator_types_and_envelope_identity() -> None:
             assert mapped.axes.char_start is None
             assert mapped.axes.page_start is None
             assert mapped.axes.time_start_ms == 1000
-        assert mapped.digest == canonical_locator_digest(envelope)
         assert mapped.evidence_text == TEXT[locator.start : locator.end]
-        digests.append(mapped.digest)
+        envelopes.append(envelope)
     other_extraction = map_locator(
         cases[0],
         extracted_text=TEXT,
@@ -262,9 +327,26 @@ def test_g8_08_five_locator_types_and_envelope_identity() -> None:
         input_sha256=HASH_B,
         locator_ordinal=0,
     )
-    assert other_extraction.digest != digests[0]
-    assert other_hash.digest != digests[0]
-    assert canonical_locator_digest(other_extraction.envelope) == other_extraction.digest
+    assert other_extraction.envelope != envelopes[0]
+    assert other_hash.envelope != envelopes[0]
+    assert other_extraction.envelope["extraction_id"] == str(EXT_B)
+    assert other_hash.envelope["input_sha256"] == HASH_B
+
+
+def test_g8_08_python_does_not_emit_span_hash() -> None:
+    mapped = map_locator(
+        SourceLocator(locator_type="text", start=0, end=4),
+        extracted_text=TEXT,
+        location_map=[],
+        document_version_id=DOC,
+        extraction_id=EXT_A,
+        input_sha256=HASH_A,
+        locator_ordinal=0,
+    )
+    assert "digest" not in AcceptedLocator.__dataclass_fields__
+    assert not hasattr(mapped, "digest")
+    assert not hasattr(knowledge_package, "canonical_locator_digest")
+    assert not hasattr(knowledge_package, "canonical_envelope_text")
 
 
 def test_g8_08_claim_duplicate_keeps_first_ordinal() -> None:
@@ -433,6 +515,7 @@ def test_g8_10_axis_conflicts_empty_candidate_and_invalid_hash() -> None:
 
     empty = map_knowledge_result(
         candidates=(SourceCandidate(ordinal=0, locators=()),),
+        payload_anchor=frozen_matched(),
         records=matched_records(),
         document_version_id=DOC,
         input_sha256=HASH_A,
@@ -454,11 +537,21 @@ def test_g8_10_axis_conflicts_empty_candidate_and_invalid_hash() -> None:
         stored_sha256=HASH_A,
     )
     locator = SourceLocator(locator_type="text", start=0, end=4)
-    assert report((locator,), records=(failed, wrong_doc)).classification is (
-        MappingClass.TERMINAL_EXTRACTION_MISSING
+    assert (
+        resolve_extraction_anchor(
+            (failed, wrong_doc), document_version_id=DOC, input_sha256=HASH_A
+        ).status
+        is AnchorStatus.MISSING
+    )
+    assert report((locator,), records=(failed,)).classification is (
+        MappingClass.TERMINAL_EXTRACTION_MISMATCH
+    )
+    assert report((locator,), records=(wrong_doc,)).classification is (
+        MappingClass.TERMINAL_EXTRACTION_MISMATCH
     )
     invalid_hash = map_knowledge_result(
         candidates=(candidate(locator),),
+        payload_anchor=frozen_matched(),
         records=matched_records(),
         document_version_id=DOC,
         input_sha256="not-a-sha256",
@@ -466,12 +559,20 @@ def test_g8_10_axis_conflicts_empty_candidate_and_invalid_hash() -> None:
         location_map=[],
         duplicate_policy="claim",
     )
-    assert invalid_hash.classification is MappingClass.TERMINAL_EXTRACTION_MISSING
+    assert invalid_hash.classification is MappingClass.TERMINAL_EXTRACTION_MISMATCH
+    assert invalid_hash.anchor.status is AnchorStatus.MATCHED
+    assert (
+        resolve_extraction_anchor(
+            matched_records(), document_version_id=DOC, input_sha256="not-a-sha256"
+        ).status
+        is AnchorStatus.MISSING
+    )
 
 
 def test_g8_10_result_classes_and_boundary_rejections() -> None:
     empty = map_knowledge_result(
         candidates=(),
+        payload_anchor=frozen_missing(),
         records=(),
         document_version_id=DOC,
         input_sha256=HASH_A,
@@ -480,6 +581,7 @@ def test_g8_10_result_classes_and_boundary_rejections() -> None:
         duplicate_policy="claim",
     )
     assert empty.classification is MappingClass.EMPTY_VALID
+    assert empty.anchor == frozen_missing()
 
     good = SourceLocator(locator_type="text", start=0, end=4)
     bad = SourceLocator(locator_type="text", start=0, end=4, page_start=1, page_end=1)
@@ -572,6 +674,8 @@ def test_g8_10_excerpt_utf8_limit_does_not_truncate() -> None:
 def test_frozen_reason_codes_are_complete() -> None:
     assert LOCATOR_DUPLICATE in FROZEN_REASON_CODES
     assert KNOWLEDGE_LOCATOR_UNMAPPABLE in FROZEN_REASON_CODES
+    assert KNOWLEDGE_EXTRACTION_MISMATCH in FROZEN_REASON_CODES
+    assert KNOWLEDGE_PAYLOAD_MISMATCH in FROZEN_REASON_CODES
     assert len(FROZEN_REASON_CODES) == 19
 
 

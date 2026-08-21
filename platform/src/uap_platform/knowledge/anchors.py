@@ -47,20 +47,44 @@ def object_consistent(record: ExtractionRecord) -> bool:
     )
 
 
+def lookup_extraction(
+    records: Sequence[ExtractionRecord], extraction_id: uuid.UUID
+) -> ExtractionRecord | None:
+    for record in records:
+        if record.extraction_id == extraction_id:
+            return record
+    return None
+
+
+def specified_extraction_usable(
+    record: ExtractionRecord,
+    *,
+    document_version_id: uuid.UUID,
+    input_sha256: str,
+) -> bool:
+    """True when the payload-named extraction still matches the frozen snapshot rules."""
+
+    if record.document_version_id != document_version_id:
+        return False
+    if record.outcome != _SUCCEEDED:
+        return False
+    if record.output_sha256 != input_sha256:
+        return False
+    return object_consistent(record) and _is_sha256(input_sha256)
+
+
 def resolve_extraction_anchor(
     records: Sequence[ExtractionRecord],
     *,
     document_version_id: uuid.UUID,
     input_sha256: str,
 ) -> ExtractionAnchor:
-    """Count matching extractions. Never break ties with recency or extractor identity."""
+    """Enqueue-time 0/1/>1 count. Never break ties. Inconsistent objects do not count."""
 
     hashed = hash_matched_rows(
         records, document_version_id=document_version_id, input_sha256=input_sha256
     )
     consistent = tuple(record for record in hashed if object_consistent(record))
-    if hashed and not consistent:
-        return ExtractionAnchor(status=AnchorStatus.MISMATCH, extraction_id=None)
     if len(consistent) == 0:
         return ExtractionAnchor(status=AnchorStatus.MISSING, extraction_id=None)
     if len(consistent) == 1:

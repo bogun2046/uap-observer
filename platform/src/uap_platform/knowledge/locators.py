@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import uuid
 from collections.abc import Mapping, Sequence
 from typing import Literal
@@ -34,18 +32,6 @@ class LocatorRejected(Exception):
         self.reason_code = reason_code
 
 
-def canonical_envelope_text(envelope: Mapping[str, object]) -> str:
-    """PostgreSQL-16-shaped jsonb text: sorted keys, compact separators, UTF-8 JSON."""
-
-    return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-
-
-def canonical_locator_digest(envelope: Mapping[str, object]) -> str:
-    """Python digest of the frozen envelope algorithm. Production hash stays in PostgreSQL."""
-
-    return hashlib.sha256(canonical_envelope_text(envelope).encode("utf-8")).hexdigest()
-
-
 def build_envelope(
     locator: SourceLocator,
     *,
@@ -53,6 +39,8 @@ def build_envelope(
     extraction_id: uuid.UUID,
     input_sha256: str,
 ) -> dict[str, object]:
+    """Envelope stored on evidence_spans.locator. SHA-256 is computed in PostgreSQL."""
+
     return {
         "locator_schema_version": LOCATOR_SCHEMA_VERSION,
         "document_version_id": str(document_version_id),
@@ -228,16 +216,14 @@ def map_locator(
     excerpt = extracted_text[locator.start : locator.end]
     if len(excerpt.encode("utf-8")) > MAX_EVIDENCE_UTF8_BYTES:
         raise LocatorRejected(LOCATOR_EXCERPT_TOO_LARGE)
-    envelope = build_envelope(
-        locator,
-        document_version_id=document_version_id,
-        extraction_id=extraction_id,
-        input_sha256=input_sha256,
-    )
     return AcceptedLocator(
         locator_ordinal=locator_ordinal,
         evidence_text=excerpt,
-        envelope=envelope,
-        digest=canonical_locator_digest(envelope),
+        envelope=build_envelope(
+            locator,
+            document_version_id=document_version_id,
+            extraction_id=extraction_id,
+            input_sha256=input_sha256,
+        ),
         axes=typed_axes(locator),
     )

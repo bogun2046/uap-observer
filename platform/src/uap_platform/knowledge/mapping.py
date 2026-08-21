@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 
-from .anchors import resolve_extraction_anchor
+from .anchors import lookup_extraction, specified_extraction_usable
 from .contracts import (
     AcceptedCandidate,
     AnchorStatus,
@@ -25,6 +25,7 @@ from .reasons import (
     KNOWLEDGE_EXTRACTION_MISMATCH,
     KNOWLEDGE_EXTRACTION_MISSING,
     KNOWLEDGE_LOCATOR_UNMAPPABLE,
+    KNOWLEDGE_PAYLOAD_MISMATCH,
     LOCATOR_DUPLICATE,
 )
 
@@ -52,6 +53,41 @@ def _reject_all(
         accepted_candidates=(),
         rejected_candidates=rejected,
     )
+
+
+def _terminal_class(reason_code: str) -> MappingClass:
+    if reason_code == KNOWLEDGE_EXTRACTION_MISSING:
+        return MappingClass.TERMINAL_EXTRACTION_MISSING
+    if reason_code == KNOWLEDGE_EXTRACTION_AMBIGUOUS:
+        return MappingClass.TERMINAL_EXTRACTION_AMBIGUOUS
+    return MappingClass.TERMINAL_EXTRACTION_MISMATCH
+
+
+def frozen_payload_reason(
+    payload_anchor: ExtractionAnchor,
+    records: Sequence[ExtractionRecord],
+    *,
+    document_version_id: uuid.UUID,
+    input_sha256: str,
+) -> str | None:
+    """Validate the immutable job payload. Never recount current hash matches."""
+
+    matched = payload_anchor.status is AnchorStatus.MATCHED
+    if matched != (payload_anchor.extraction_id is not None):
+        return KNOWLEDGE_PAYLOAD_MISMATCH
+    if payload_anchor.status is AnchorStatus.MISSING:
+        return KNOWLEDGE_EXTRACTION_MISSING
+    if payload_anchor.status is AnchorStatus.AMBIGUOUS:
+        return KNOWLEDGE_EXTRACTION_AMBIGUOUS
+    extraction_id = payload_anchor.extraction_id
+    if extraction_id is None:
+        return KNOWLEDGE_PAYLOAD_MISMATCH
+    row = lookup_extraction(records, extraction_id)
+    if row is None or not specified_extraction_usable(
+        row, document_version_id=document_version_id, input_sha256=input_sha256
+    ):
+        return KNOWLEDGE_EXTRACTION_MISMATCH
+    return None
 
 
 def _map_candidate(
@@ -106,6 +142,7 @@ def _map_candidate(
 def map_knowledge_result(
     *,
     candidates: Sequence[SourceCandidate],
+    payload_anchor: ExtractionAnchor,
     records: Sequence[ExtractionRecord],
     document_version_id: uuid.UUID,
     input_sha256: str,
@@ -113,39 +150,31 @@ def map_knowledge_result(
     location_map: LocationMap,
     duplicate_policy: DuplicatePolicy,
 ) -> MappingReport:
-    """Pure mapping used by G8-07-G8-10. Does not claim jobs or write rows."""
+    """Map using the frozen knowledge.v2 payload. Does not recount extractions."""
 
     ordered = tuple(sorted(candidates, key=lambda item: item.ordinal))
-    anchor = resolve_extraction_anchor(
-        records, document_version_id=document_version_id, input_sha256=input_sha256
-    )
     if not ordered:
         return MappingReport(
             classification=MappingClass.EMPTY_VALID,
-            anchor=anchor,
+            anchor=payload_anchor,
             accepted_candidates=(),
             rejected_candidates=(),
         )
-    if anchor.status is AnchorStatus.MISSING:
+    terminal = frozen_payload_reason(
+        payload_anchor,
+        records,
+        document_version_id=document_version_id,
+        input_sha256=input_sha256,
+    )
+    if terminal is not None:
+        return _reject_all(ordered, terminal, _terminal_class(terminal), payload_anchor)
+    extraction_id = payload_anchor.extraction_id
+    if extraction_id is None:
         return _reject_all(
             ordered,
-            KNOWLEDGE_EXTRACTION_MISSING,
-            MappingClass.TERMINAL_EXTRACTION_MISSING,
-            anchor,
-        )
-    if anchor.status is AnchorStatus.AMBIGUOUS:
-        return _reject_all(
-            ordered,
-            KNOWLEDGE_EXTRACTION_AMBIGUOUS,
-            MappingClass.TERMINAL_EXTRACTION_AMBIGUOUS,
-            anchor,
-        )
-    if anchor.status is AnchorStatus.MISMATCH or anchor.extraction_id is None:
-        return _reject_all(
-            ordered,
-            KNOWLEDGE_EXTRACTION_MISMATCH,
+            KNOWLEDGE_PAYLOAD_MISMATCH,
             MappingClass.TERMINAL_EXTRACTION_MISMATCH,
-            anchor,
+            payload_anchor,
         )
     accepted: list[AcceptedCandidate] = []
     rejected: list[RejectedCandidate] = []
@@ -155,7 +184,7 @@ def map_knowledge_result(
             extracted_text=extracted_text,
             location_map=location_map,
             document_version_id=document_version_id,
-            extraction_id=anchor.extraction_id,
+            extraction_id=extraction_id,
             input_sha256=input_sha256,
             duplicate_policy=duplicate_policy,
         )
@@ -169,7 +198,7 @@ def map_knowledge_result(
         classification = MappingClass.TERMINAL_UNMAPPABLE
     return MappingReport(
         classification=classification,
-        anchor=anchor,
+        anchor=payload_anchor,
         accepted_candidates=tuple(accepted),
         rejected_candidates=tuple(rejected),
     )

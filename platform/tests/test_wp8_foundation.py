@@ -58,3 +58,6 @@ def test_wp8_1_does_not_implement_later_stages() -> None:
     assert "materialize_claim_bundle" not in package
     assert "def resolve_claims" not in package
     assert "ORDER BY" not in package
+    assert "canonical_locator_digest" not in package
+    assert 'MISMATCH = "mismatch"' not in package
+    assert "payload_anchor" in package

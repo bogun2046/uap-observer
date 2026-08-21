@@ -243,6 +243,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "matched" in knowledge_sources
             and "missing" in knowledge_sources
             and "ambiguous" in knowledge_sources
+            and "payload_anchor" in knowledge_sources
+            and 'MISMATCH = "mismatch"' not in knowledge_sources
+            and "canonical_locator_digest" not in knowledge_sources
+            and "canonical_envelope_text" not in knowledge_sources
             and "locator_cross_axis_mismatch" in reasons
             and "locator_excerpt_too_large" in reasons
             and "MAX_EVIDENCE_UTF8_BYTES" in reasons
@@ -254,7 +258,9 @@ def evaluate(platform: Path) -> list[Check]:
         check(
             "wp8_2_gate_tests",
             "test_g8_07_matched_missing_ambiguous" in locator_tests
+            and "test_g8_07_mapper_uses_frozen_payload" in locator_tests
             and "test_g8_08_five_locator_types" in locator_tests
+            and "test_g8_08_python_does_not_emit_span_hash" in locator_tests
             and "test_g8_09_pdf_and_media_cross_axis" in locator_tests
             and "test_g8_10_result_classes" in locator_tests
             and "test_g8_10_excerpt_utf8_limit" in locator_tests
