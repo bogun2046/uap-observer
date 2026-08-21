@@ -352,17 +352,29 @@ def test_g8_09_location_map_fail_closed() -> None:
     assert report((locator,), location_map=zero_page).reason_codes()[0] == (
         LOCATOR_LOCATION_MAP_INVALID
     )
-    assert report((locator,), location_map=["not-a-row"]).reason_codes()[0] == (
-        LOCATOR_LOCATION_MAP_INVALID
-    )
+    with pytest.raises(LocatorRejected) as bad_row:
+        map_locator(
+            locator,
+            extracted_text=TEXT,
+            location_map=["not-a-row"],  # type: ignore[list-item]
+            document_version_id=DOC,
+            extraction_id=EXT_A,
+            input_sha256=HASH_A,
+            locator_ordinal=0,
+        )
+    assert bad_row.value.reason_code == LOCATOR_LOCATION_MAP_INVALID
     mixed = [*pdf_map(), {"kind": "html_block", "char_start": 0, "char_end": 9}]
     assert report((locator,), location_map=mixed).classification is MappingClass.MATERIALIZABLE
-    kindless = [{"page_start": 2, "page_end": 2, "char_start": 10, "char_end": 19}]
+    kindless: list[dict[str, object]] = [
+        {"page_start": 2, "page_end": 2, "char_start": 10, "char_end": 19}
+    ]
     assert report((locator,), location_map=kindless).classification is MappingClass.MATERIALIZABLE
     assert report((locator,), location_map=cue_map()).reason_codes()[0] == (
         LOCATOR_LOCATION_MAP_INVALID
     )
-    cue_kindless = [{"time_start_ms": 1000, "time_end_ms": 2000, "char_start": 10, "char_end": 19}]
+    cue_kindless: list[dict[str, object]] = [
+        {"time_start_ms": 1000, "time_end_ms": 2000, "char_start": 10, "char_end": 19}
+    ]
     media = SourceLocator(
         locator_type="video", start=10, end=19, time_start_ms=1000, time_end_ms=2000
     )
