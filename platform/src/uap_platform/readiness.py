@@ -15,10 +15,7 @@ from uap_platform.config import Settings, load_settings
 def check_postgres(settings: Settings) -> dict[str, object]:
     """Verify that PostgreSQL accepts a query and report no credentials."""
 
-    database_url = settings.database_url.get_secret_value().replace(
-        "postgresql+psycopg://", "postgresql://", 1
-    )
-    with psycopg.connect(database_url, connect_timeout=5) as connection:
+    with psycopg.connect(settings.psycopg_database_url, connect_timeout=5) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT current_database(), current_user")
             row = cursor.fetchone()

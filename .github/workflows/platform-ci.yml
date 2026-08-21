@@ -6,6 +6,11 @@ on:
       - "platform/**"
       - "docs/wp1/**"
       - "docs/wp2/**"
+      - "docs/wp3/**"
+      - "docs/wp4/**"
+      - "docs/wp5/**"
+      - "docs/wp6/**"
+      - "docs/wp7/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   push:
@@ -14,6 +19,11 @@ on:
       - "platform/**"
       - "docs/wp1/**"
       - "docs/wp2/**"
+      - "docs/wp3/**"
+      - "docs/wp4/**"
+      - "docs/wp5/**"
+      - "docs/wp6/**"
+      - "docs/wp7/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   workflow_dispatch:
@@ -59,7 +69,7 @@ jobs:
           --workdir /repo/platform
           --env RUFF_CACHE_DIR=/tmp/ruff-cache
           "$UAP_APP_IMAGE"
-          ruff check src tests tools
+          ruff check src tests tools alembic
       - name: Type check
         run: >-
           docker run --rm
@@ -82,6 +92,69 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/validate_platform.py
+      - name: WP3 migration contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp3.py
+      - name: WP4 durable-jobs contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp4.py
+      - name: WP4 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp4_evidence.py --output /tmp/wp4-evidence
+      - name: WP5 collector contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp5.py
+      - name: WP5 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp5_evidence.py --output /tmp/wp5-evidence
+      - name: WP6 extraction contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp6.py
+      - name: WP6 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp6_evidence.py --output /tmp/wp6-evidence
+      - name: WP7 model governance contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp7.py
+      - name: WP7 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp7_evidence.py --output /tmp/wp7-evidence
 
   security:
     runs-on: ubuntu-latest
@@ -96,9 +169,9 @@ jobs:
           fetch-depth: 0
       - name: Create ephemeral CI credentials
         run: platform/scripts/bootstrap-env.sh
-      - name: Build deployable application and hardened PostgreSQL images
+      - name: Build deployable application, hardened PostgreSQL, and object storage images
         working-directory: platform
-        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml -f compose.staging.yaml build app postgres
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml -f compose.staging.yaml build app postgres object-store
       - name: Build isolated security tools image
         working-directory: platform
         run: |
@@ -136,11 +209,32 @@ jobs:
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml up --build --detach --wait
       - name: Run migration smoke test
         working-directory: platform
-        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm app alembic upgrade head
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init scripts/migrate-platform.sh
+      - name: Verify every migration revision in sequence
+        working-directory: platform
+        run: scripts/verify-migration-chain.sh
+      - name: Prove failed migrations close the privileged login
+        working-directory: platform
+        run: scripts/verify-migrator-failure-close.sh
+      - name: Run WP3 database and object-storage probes
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp3_runtime_probe.py
+      - name: Run WP4 durable-jobs and Outbox probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp4_runtime_probe.py
+      - name: Run WP5 provenance and job-lifecycle probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp5_runtime_probe.py
+      - name: Run WP6 extraction and object-consistency probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp6_runtime_probe.py
+      - name: Run WP7 model-governance probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp7_runtime_probe.py
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json
-          python3 -c 'import json; data=json.load(open("/tmp/health.json")); assert data["status"] == "ready"; assert set(data["checks"]["object_storage"]["buckets"]) == {"raw", "derived", "model-io", "public-assets"}'
+          python3 -c 'import json; data=json.load(open("/tmp/health.json")); assert data["status"] == "ready"; assert set(data["checks"]["object_storage"]["buckets"]) == {"raw", "derived", "model-io", "public-assets", "backups"}'
       - name: Prove bucket initialization is idempotent
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init
