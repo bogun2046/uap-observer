@@ -13,8 +13,19 @@ from typing import Any
 import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-from tools.configure_roles import ROLE_PASSWORDS
 from uap_platform.config import load_settings
+
+ROLE_PASSWORDS = {
+    "uap_migrator": "UAP_MIGRATOR_PASSWORD",
+    "uap_api": "UAP_API_PASSWORD",
+    "uap_worker": "UAP_WORKER_PASSWORD",
+    "uap_scheduler": "UAP_SCHEDULER_PASSWORD",
+    "uap_publisher": "UAP_PUBLISHER_PASSWORD",
+    "uap_model_governance": "UAP_MODEL_GOVERNANCE_PASSWORD",
+    "uap_public_reader": "UAP_PUBLIC_READER_PASSWORD",
+    "uap_audit_reader": "UAP_AUDIT_READER_PASSWORD",
+    "uap_backup": "UAP_BACKUP_PASSWORD",
+}
 
 CURRENT_HEAD = "0010_knowledge_foundation"
 EXPECTED_TABLE_COUNT = 50
@@ -756,7 +767,7 @@ def g8_03(
         admin,
         """
         UPDATE ops.jobs
-           SET payload = payload || jsonb_build_object('analysis_result_id', %s)
+           SET payload = payload || jsonb_build_object('analysis_result_id', %s::text)
          WHERE id = %s
         """,
         str(conflict_analysis),
@@ -775,7 +786,7 @@ def g8_03(
         admin,
         """
         UPDATE ops.jobs
-           SET payload = payload || jsonb_build_object('analysis_result_id', %s)
+           SET payload = payload || jsonb_build_object('analysis_result_id', %s::text)
          WHERE id = %s
         """,
         str(analysis_id),

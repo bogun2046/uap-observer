@@ -374,7 +374,10 @@ def upgrade() -> None:
                 RAISE EXCEPTION 'knowledge_payload_mismatch' USING ERRCODE = '23514';
             END IF;
 
-            SELECT count(*), min(extraction.id)
+            SELECT count(*),
+                   CASE
+                       WHEN count(*) = 1 THEN (array_agg(extraction.id))[1]
+                   END
               INTO match_count, match_id
               FROM core.extractions AS extraction
               JOIN core.stored_objects AS stored
@@ -822,9 +825,9 @@ def upgrade() -> None:
         DECLARE
             current_job ops.jobs%ROWTYPE;
             payload jsonb;
-            analysis_id uuid;
-            result_type text;
-            array_length integer;
+            v_analysis_id uuid;
+            v_result_type text;
+            v_array_length integer;
             materialized_candidates integer;
             materialized_locators integer;
             payload_parsed boolean := FALSE;
@@ -852,12 +855,12 @@ def upgrade() -> None:
                    OR payload ->> 'payload_schema_version' IS DISTINCT FROM 'knowledge.v2' THEN
                     RAISE EXCEPTION 'knowledge_schema_unsupported' USING ERRCODE = '22023';
                 END IF;
-                analysis_id := (payload ->> 'analysis_result_id')::uuid;
-                result_type := payload ->> 'result_type';
+                v_analysis_id := (payload ->> 'analysis_result_id')::uuid;
+                v_result_type := payload ->> 'result_type';
                 IF (current_job.job_type = 'resolve_claims'
-                    AND result_type IS DISTINCT FROM 'claim_extraction')
+                    AND v_result_type IS DISTINCT FROM 'claim_extraction')
                    OR (current_job.job_type = 'resolve_entities'
-                    AND result_type IS DISTINCT FROM 'entity_extraction') THEN
+                    AND v_result_type IS DISTINCT FROM 'entity_extraction') THEN
                     RAISE EXCEPTION 'knowledge_payload_mismatch' USING ERRCODE = '22023';
                 END IF;
                 IF NOT EXISTS (
@@ -865,10 +868,10 @@ def upgrade() -> None:
                       FROM core.analysis_results AS analysis
                       JOIN ops.model_runs AS model_run
                         ON model_run.id = analysis.model_run_id
-                     WHERE analysis.id = analysis_id
+                     WHERE analysis.id = v_analysis_id
                        AND analysis.document_version_id::text
                            = payload ->> 'document_version_id'
-                       AND analysis.result_type::text = result_type
+                       AND analysis.result_type::text = v_result_type
                        AND analysis.model_run_id::text = payload ->> 'model_run_id'
                        AND analysis.result_sha256 = payload ->> 'analysis_result_sha256'
                        AND analysis.schema_version = payload ->> 'analysis_schema_version'
@@ -877,27 +880,27 @@ def upgrade() -> None:
                        AND model_run.status = 'succeeded'::ops.model_run_status
                        AND model_run.input_sha256 = payload ->> 'input_sha256'
                        AND model_run.document_version_id = analysis.document_version_id
-                       AND model_run.task_type::text = result_type
+                       AND model_run.task_type::text = v_result_type
                 ) THEN
                     RAISE EXCEPTION 'knowledge_payload_mismatch' USING ERRCODE = '22023';
                 END IF;
                 SELECT CASE
-                           WHEN result_type = 'claim_extraction'
+                           WHEN v_result_type = 'claim_extraction'
                                THEN jsonb_array_length(analysis.result -> 'claims')
                            ELSE jsonb_array_length(analysis.result -> 'entities')
                        END
-                  INTO array_length
+                  INTO v_array_length
                   FROM core.analysis_results AS analysis
-                 WHERE analysis.id = analysis_id;
-                IF array_length IS NULL THEN
+                 WHERE analysis.id = v_analysis_id;
+                IF v_array_length IS NULL THEN
                     RAISE EXCEPTION 'knowledge_payload_mismatch' USING ERRCODE = '22023';
                 END IF;
                 IF (p_metrics ->> 'empty_valid_result')::boolean
-                   AND array_length <> 0 THEN
+                   AND v_array_length <> 0 THEN
                     RAISE EXCEPTION 'knowledge_payload_mismatch' USING ERRCODE = '22023';
                 END IF;
                 payload_parsed := TRUE;
-                IF array_length > 0
+                IF v_array_length > 0
                    AND p_outcome = 'succeeded'
                    AND payload ->> 'extraction_anchor_status' IS DISTINCT FROM 'matched' THEN
                     RAISE EXCEPTION 'knowledge_extraction_mismatch' USING ERRCODE = '22023';
@@ -905,21 +908,21 @@ def upgrade() -> None:
                 IF current_job.job_type = 'resolve_claims' THEN
                     SELECT count(*) INTO materialized_candidates
                       FROM core.claims
-                     WHERE origin_analysis_result_id = analysis_id;
+                     WHERE origin_analysis_result_id = v_analysis_id;
                     SELECT count(*) INTO materialized_locators
                       FROM core.claim_evidence AS evidence
                       JOIN core.claims AS claim
                         ON claim.id = evidence.claim_id
-                     WHERE claim.origin_analysis_result_id = analysis_id;
+                     WHERE claim.origin_analysis_result_id = v_analysis_id;
                 ELSE
                     SELECT count(*) INTO materialized_candidates
                       FROM core.entity_candidates
-                     WHERE analysis_result_id = analysis_id;
+                     WHERE analysis_result_id = v_analysis_id;
                     SELECT count(*) INTO materialized_locators
                       FROM core.entity_candidate_evidence AS evidence
                       JOIN core.entity_candidates AS candidate
                         ON candidate.id = evidence.entity_candidate_id
-                     WHERE candidate.analysis_result_id = analysis_id;
+                     WHERE candidate.analysis_result_id = v_analysis_id;
                 END IF;
                 IF p_outcome = 'succeeded'
                    AND (
