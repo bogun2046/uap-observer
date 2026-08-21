@@ -30,7 +30,15 @@ REQUIRED_FILES = (
     "docs/wp8/adr/0008-knowledge-job-handover.md",
     "docs/wp8/adr/0009-claim-document-evidence-constraints.md",
     "docs/wp8/adr/0011-knowledge-write-authority.md",
+    "docs/wp8/adr/0010-evidence-locator-mapping.md",
     "platform/alembic/versions/0010_knowledge_foundation.py",
+    "platform/src/uap_platform/knowledge/__init__.py",
+    "platform/src/uap_platform/knowledge/anchors.py",
+    "platform/src/uap_platform/knowledge/contracts.py",
+    "platform/src/uap_platform/knowledge/locators.py",
+    "platform/src/uap_platform/knowledge/mapping.py",
+    "platform/src/uap_platform/knowledge/reasons.py",
+    "platform/tests/test_wp8_locator_mapping.py",
     "platform/tools/validate_wp8.py",
     "platform/tools/wp8_1_runtime_probe.py",
     "platform/scripts/verify-migration-chain.sh",
@@ -79,6 +87,21 @@ def evaluate(platform: Path) -> list[Check]:
     ci = (repository / ".github/workflows/platform-ci.yml").read_text(encoding="utf-8")
     missing = [path for path in REQUIRED_FILES if not (repository / path).is_file()]
     knowledge_package = repository / "platform/src/uap_platform/knowledge"
+    knowledge_sources = ""
+    if knowledge_package.is_dir():
+        knowledge_sources = "\n".join(
+            path.read_text(encoding="utf-8") for path in sorted(knowledge_package.glob("*.py"))
+        )
+    locator_tests = (
+        (platform / "tests/test_wp8_locator_mapping.py").read_text(encoding="utf-8")
+        if (platform / "tests/test_wp8_locator_mapping.py").is_file()
+        else ""
+    )
+    reasons = (
+        (platform / "src/uap_platform/knowledge/reasons.py").read_text(encoding="utf-8")
+        if (platform / "src/uap_platform/knowledge/reasons.py").is_file()
+        else ""
+    )
     return [
         check("required_files", not missing, missing, []),
         check(
@@ -149,14 +172,20 @@ def evaluate(platform: Path) -> list[Check]:
         check(
             "stage_boundary",
             all(token not in migration for token in FORBIDDEN_STAGE_TOKENS)
-            and not knowledge_package.exists(),
+            and all(token not in knowledge_sources for token in FORBIDDEN_STAGE_TOKENS)
+            and "def materialize_claim_bundle" not in knowledge_sources
+            and "resolve_claims" not in knowledge_sources
+            and "resolve_entities" not in knowledge_sources
+            and knowledge_package.is_dir(),
             {
                 "materialize_present": [
-                    token for token in FORBIDDEN_STAGE_TOKENS if token in migration
+                    token
+                    for token in FORBIDDEN_STAGE_TOKENS
+                    if token in migration or token in knowledge_sources
                 ],
-                "knowledge_package": knowledge_package.exists(),
+                "knowledge_package": knowledge_package.is_dir(),
             },
-            {"materialize_present": [], "knowledge_package": False},
+            {"materialize_present": [], "knowledge_package": True},
         ),
         check(
             "historical_validators_use_suffix",
@@ -205,6 +234,31 @@ def evaluate(platform: Path) -> list[Check]:
             and "validate_wp8.py" not in ci
             and "wp8_runtime_probe.py" not in ci
             and "wp8_1_runtime_probe.py" not in ci,
+            True,
+        ),
+        check(
+            "wp8_2_locator_mapping",
+            knowledge_package.is_dir()
+            and "evidence-locator.v2" in knowledge_sources
+            and "matched" in knowledge_sources
+            and "missing" in knowledge_sources
+            and "ambiguous" in knowledge_sources
+            and "locator_cross_axis_mismatch" in reasons
+            and "locator_excerpt_too_large" in reasons
+            and "MAX_EVIDENCE_UTF8_BYTES" in reasons
+            and "8192" in reasons
+            and "ORDER BY" not in knowledge_sources
+            and "LIMIT 1" not in knowledge_sources,
+            True,
+        ),
+        check(
+            "wp8_2_gate_tests",
+            "test_g8_07_matched_missing_ambiguous" in locator_tests
+            and "test_g8_08_five_locator_types" in locator_tests
+            and "test_g8_09_pdf_and_media_cross_axis" in locator_tests
+            and "test_g8_10_result_classes" in locator_tests
+            and "test_g8_10_excerpt_utf8_limit" in locator_tests
+            and "locator_duplicate" in locator_tests,
             True,
         ),
     ]

@@ -52,4 +52,9 @@ def test_wp8_1_does_not_implement_later_stages() -> None:
     assert "materialize_claim_bundle" not in source
     assert "materialize_entity_bundle" not in source
     assert "merge_entities" not in source
-    assert not (platform_root() / "src/uap_platform/knowledge").exists()
+    knowledge = platform_root() / "src/uap_platform/knowledge"
+    assert knowledge.is_dir()
+    package = "\n".join(path.read_text(encoding="utf-8") for path in knowledge.glob("*.py"))
+    assert "materialize_claim_bundle" not in package
+    assert "def resolve_claims" not in package
+    assert "ORDER BY" not in package
