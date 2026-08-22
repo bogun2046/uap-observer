@@ -1,0 +1,29 @@
+{
+  "files": 21,
+  "frozen_standard": "G7-FROZEN-20260820-01",
+  "manifest_sha256": "2b670b30b35760f9d4ef1e597bc657c972b6d0fd1642d8a1822e8b841c4d433f",
+  "paths": [
+    "docs/wp7/implementation-ticket.md",
+    "docs/wp7/acceptance-ticket.md",
+    "platform/alembic/versions/0008_ai_model_governance.py",
+    "platform/src/uap_platform/model_governance/__init__.py",
+    "platform/src/uap_platform/model_governance/contracts.py",
+    "platform/src/uap_platform/model_governance/providers.py",
+    "platform/src/uap_platform/model_governance/persistence.py",
+    "platform/src/uap_platform/model_governance/schemas.py",
+    "platform/src/uap_platform/model_governance/workflow.py",
+    "platform/tests/test_model_governance.py",
+    "platform/tools/validate_wp7.py",
+    "platform/tools/wp7_runtime_probe.py",
+    "platform/tools/build_wp7_evidence.py",
+    ".github/workflows/platform-ci.yml",
+    "platform/Makefile",
+    "platform/scripts/verify-migration-chain.sh",
+    "platform/tools/validate_wp3.py",
+    "platform/tools/validate_wp4.py",
+    "platform/tools/wp3_runtime_probe.py",
+    "platform/pyproject.toml",
+    "platform/uv.lock"
+  ],
+  "work_package": "WP7"
+}

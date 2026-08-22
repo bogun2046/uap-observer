@@ -17,10 +17,15 @@ dev-reset:
 
 check:
 	uv lock --check
-	uv run --frozen ruff check src tests tools
+	uv run --frozen ruff check src tests tools alembic
 	uv run --frozen mypy src tests tools
 	uv run --frozen pytest --cov --cov-report=term-missing
 	uv run --frozen python tools/validate_platform.py
+	uv run --frozen python tools/validate_wp3.py
+	uv run --frozen python tools/validate_wp4.py
+	uv run --frozen python tools/validate_wp5.py
+	uv run --frozen python tools/validate_wp6.py
+	uv run --frozen python tools/validate_wp7.py
 
 lock:
 	uv lock
