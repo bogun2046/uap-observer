@@ -1,4 +1,4 @@
-"""Validate the WP8.1 knowledge handover and write-authority contract."""
+"""Validate the WP8.1-WP8.3 knowledge handover, mapping, and claim materialization contract."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-WP8_HEAD = "0010_knowledge_foundation"
-WP8_PARENT = "0009_model_governance_boundaries"
+WP8_HEAD = "0011_claim_materialization"
+WP8_PARENT = "0010_knowledge_foundation"
+WP8_1_HEAD = "0010_knowledge_foundation"
+WP8_1_PARENT = "0009_model_governance_boundaries"
 KNOWLEDGE_V2_KEYS = (
     "payload_schema_version",
     "analysis_result_id",
@@ -32,7 +34,14 @@ REQUIRED_FILES = (
     "docs/wp8/adr/0011-knowledge-write-authority.md",
     "docs/wp8/adr/0010-evidence-locator-mapping.md",
     "platform/alembic/versions/0010_knowledge_foundation.py",
+    "platform/alembic/versions/0011_claim_materialization.py",
     "platform/src/uap_platform/knowledge/__init__.py",
+    "platform/src/uap_platform/knowledge/bundle.py",
+    "platform/src/uap_platform/knowledge/handler.py",
+    "platform/src/uap_platform/knowledge/job_types.py",
+    "platform/src/uap_platform/knowledge/metrics.py",
+    "platform/src/uap_platform/knowledge/payload.py",
+    "platform/tools/wp8_3_runtime_probe.py",
     "platform/src/uap_platform/knowledge/anchors.py",
     "platform/src/uap_platform/knowledge/contracts.py",
     "platform/src/uap_platform/knowledge/locators.py",
@@ -47,7 +56,6 @@ REQUIRED_FILES = (
     "platform/tools/wp3_runtime_probe.py",
 )
 FORBIDDEN_STAGE_TOKENS = (
-    "CREATE FUNCTION core.materialize_claim_bundle",
     "CREATE FUNCTION core.materialize_entity_bundle",
     "CREATE FUNCTION core.merge_entities",
     "CREATE FUNCTION core.reverse_entity_merge",
@@ -79,6 +87,25 @@ def evaluate(platform: Path) -> list[Check]:
     ]
     migration_path = platform / "alembic/versions/0010_knowledge_foundation.py"
     migration = migration_path.read_text(encoding="utf-8") if migration_path.is_file() else ""
+    migration_11_path = platform / "alembic/versions/0011_claim_materialization.py"
+    migration_11 = (
+        migration_11_path.read_text(encoding="utf-8") if migration_11_path.is_file() else ""
+    )
+    foundation_tests = (
+        (platform / "tests/test_wp8_foundation.py").read_text(encoding="utf-8")
+        if (platform / "tests/test_wp8_foundation.py").is_file()
+        else ""
+    )
+    handler_tests = (
+        (platform / "tests/test_wp8_claim_handler.py").read_text(encoding="utf-8")
+        if (platform / "tests/test_wp8_claim_handler.py").is_file()
+        else ""
+    )
+    probe3 = (
+        (platform / "tools/wp8_3_runtime_probe.py").read_text(encoding="utf-8")
+        if (platform / "tools/wp8_3_runtime_probe.py").is_file()
+        else ""
+    )
     chain = (platform / "scripts/verify-migration-chain.sh").read_text(encoding="utf-8")
     wp3_validator = (platform / "tools/validate_wp3.py").read_text(encoding="utf-8")
     wp4_validator = (platform / "tools/validate_wp4.py").read_text(encoding="utf-8")
@@ -105,15 +132,17 @@ def evaluate(platform: Path) -> list[Check]:
     return [
         check("required_files", not missing, missing, []),
         check(
-            "unique_wp8_1_head",
+            "unique_wp8_3_head",
             heads == [WP8_HEAD] and revision_ids[:2] == [WP8_HEAD, WP8_PARENT],
             {"heads": heads, "prefix": revision_ids[:2]},
             {"heads": [WP8_HEAD], "prefix": [WP8_HEAD, WP8_PARENT]},
         ),
         check(
             "migration_revision_id",
-            f'revision = "{WP8_HEAD}"' in migration
-            and f'down_revision = "{WP8_PARENT}"' in migration,
+            f'revision = "{WP8_1_HEAD}"' in migration
+            and f'down_revision = "{WP8_1_PARENT}"' in migration
+            and f'revision = "{WP8_HEAD}"' in migration_11
+            and f'down_revision = "{WP8_PARENT}"' in migration_11,
             True,
         ),
         check(
@@ -172,20 +201,25 @@ def evaluate(platform: Path) -> list[Check]:
         check(
             "stage_boundary",
             all(token not in migration for token in FORBIDDEN_STAGE_TOKENS)
+            and all(token not in migration_11 for token in FORBIDDEN_STAGE_TOKENS)
             and all(token not in knowledge_sources for token in FORBIDDEN_STAGE_TOKENS)
-            and "def materialize_claim_bundle" not in knowledge_sources
-            and "resolve_claims" not in knowledge_sources
-            and "resolve_entities" not in knowledge_sources
+            and "CREATE FUNCTION core.materialize_claim_bundle" in migration_11
+            and "GRANT EXECUTE ON FUNCTION core.materialize_claim_bundle" in migration_11
+            and "TO uap_worker" in migration_11
+            and "materialize_entity_bundle" not in knowledge_sources
+            and "def resolve_entities" not in knowledge_sources
             and knowledge_package.is_dir(),
             {
-                "materialize_present": [
+                "materialize_claim": "CREATE FUNCTION core.materialize_claim_bundle"
+                in migration_11,
+                "forbidden": [
                     token
                     for token in FORBIDDEN_STAGE_TOKENS
-                    if token in migration or token in knowledge_sources
+                    if token in migration or token in migration_11 or token in knowledge_sources
                 ],
                 "knowledge_package": knowledge_package.is_dir(),
             },
-            {"materialize_present": [], "knowledge_package": True},
+            {"materialize_claim": True, "forbidden": [], "knowledge_package": True},
         ),
         check(
             "historical_validators_use_suffix",
@@ -204,13 +238,13 @@ def evaluate(platform: Path) -> list[Check]:
             and "len(actual_tables) == 49" in wp3_validator
             and "WP3_ORIGINAL_TABLE_COUNT = 49" in wp3_probe
             and "EXPECTED_TABLE_COUNT = 50" in wp3_probe
-            and 'CURRENT_HEAD = "0010_knowledge_foundation"' in wp3_probe
+            and 'CURRENT_HEAD = "0011_claim_materialization"' in wp3_probe
             and "document_version_id" in wp3_probe,
             True,
         ),
         check(
             "migration_chain_head",
-            "0010_knowledge_foundation" in chain
+            "0011_claim_materialization" in chain
             and '= "50"' in chain
             and "knowledge_claim_backfill_required" in chain
             and "entity_candidate_evidence" in chain,
@@ -231,9 +265,11 @@ def evaluate(platform: Path) -> list[Check]:
             "wp8_not_wired_to_ci",
             "validate_wp8.py" not in makefile
             and "wp8_1_runtime_probe.py" not in makefile
+            and "wp8_3_runtime_probe.py" not in makefile
             and "validate_wp8.py" not in ci
             and "wp8_runtime_probe.py" not in ci
-            and "wp8_1_runtime_probe.py" not in ci,
+            and "wp8_1_runtime_probe.py" not in ci
+            and "wp8_3_runtime_probe.py" not in ci,
             True,
         ),
         check(
@@ -266,6 +302,33 @@ def evaluate(platform: Path) -> list[Check]:
             and "test_g8_10_empty_illegal_payload_fail_closed" in locator_tests
             and "test_g8_10_excerpt_utf8_limit" in locator_tests
             and "locator_duplicate" in locator_tests,
+            True,
+        ),
+        check(
+            "wp8_3_claim_materialization",
+            "CREATE FUNCTION core.materialize_claim_bundle" in migration_11
+            and "core.compute_claim_fingerprint" in migration_11
+            and "knowledge-bundle.v2" in migration_11
+            and "knowledge_locator_hash_conflict" in migration_11
+            and "ResolveClaimsHandler" in knowledge_sources
+            and "parse_knowledge_payload" in knowledge_sources
+            and "_finish_unmapped_failure" in knowledge_sources
+            and "claimable_job_types" in knowledge_sources
+            and "PRE_CLAIM_HANDLER_JOB_TYPES" in knowledge_sources
+            and "materialize_entity_bundle" not in migration_11
+            and "def resolve_entities" not in knowledge_sources,
+            True,
+        ),
+        check(
+            "wp8_3_runtime_and_fail_closed_tests",
+            "test_g8_16a_claimable_job_types_activation" in foundation_tests
+            and "test_parse_knowledge_payload_missing_key" in handler_tests
+            and "test_handler_missing_key_finishes_attempt" in handler_tests
+            and "def g8_11" in probe3
+            and "def g8_12" in probe3
+            and "def g8_13" in probe3
+            and "def g8_16a" in probe3
+            and "uap_worker" in probe3,
             True,
         ),
     ]

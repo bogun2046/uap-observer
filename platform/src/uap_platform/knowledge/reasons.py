@@ -1,4 +1,4 @@
-"""Frozen WP8.2 reason codes. Logs and metrics may only use these tokens."""
+"""Frozen WP8 reason codes. Logs and metrics may only use these tokens."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ KNOWLEDGE_INVALID_ORIGIN: Final = "knowledge_invalid_origin"
 KNOWLEDGE_SCHEMA_UNSUPPORTED: Final = "knowledge_schema_unsupported"
 KNOWLEDGE_PAYLOAD_MISMATCH: Final = "knowledge_payload_mismatch"
 KNOWLEDGE_BUNDLE_MISMATCH: Final = "knowledge_bundle_mismatch"
+KNOWLEDGE_LOCATOR_HASH_CONFLICT: Final = "knowledge_locator_hash_conflict"
 
 FROZEN_REASON_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -45,6 +46,7 @@ FROZEN_REASON_CODES: Final[frozenset[str]] = frozenset(
         KNOWLEDGE_SCHEMA_UNSUPPORTED,
         KNOWLEDGE_PAYLOAD_MISMATCH,
         KNOWLEDGE_BUNDLE_MISMATCH,
+        KNOWLEDGE_LOCATOR_HASH_CONFLICT,
     }
 )
 
