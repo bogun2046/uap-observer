@@ -52,6 +52,7 @@ def _reject_all(
         anchor=anchor,
         accepted_candidates=(),
         rejected_candidates=rejected,
+        terminal_reason=reason_code,
     )
 
 
@@ -63,6 +64,15 @@ def _terminal_class(reason_code: str) -> MappingClass:
     return MappingClass.TERMINAL_EXTRACTION_MISMATCH
 
 
+def payload_shape_reason(payload_anchor: ExtractionAnchor) -> str | None:
+    """Illegal knowledge.v2 status/id pairing is fail-closed even for empty arrays."""
+
+    matched = payload_anchor.status is AnchorStatus.MATCHED
+    if matched != (payload_anchor.extraction_id is not None):
+        return KNOWLEDGE_PAYLOAD_MISMATCH
+    return None
+
+
 def frozen_payload_reason(
     payload_anchor: ExtractionAnchor,
     records: Sequence[ExtractionRecord],
@@ -72,6 +82,9 @@ def frozen_payload_reason(
 ) -> str | None:
     """Validate the immutable job payload. Never recount current hash matches."""
 
+    shape = payload_shape_reason(payload_anchor)
+    if shape is not None:
+        return shape
     matched = payload_anchor.status is AnchorStatus.MATCHED
     if matched != (payload_anchor.extraction_id is not None):
         return KNOWLEDGE_PAYLOAD_MISMATCH
@@ -153,6 +166,9 @@ def map_knowledge_result(
     """Map using the frozen knowledge.v2 payload. Does not recount extractions."""
 
     ordered = tuple(sorted(candidates, key=lambda item: item.ordinal))
+    shape = payload_shape_reason(payload_anchor)
+    if shape is not None:
+        return _reject_all(ordered, shape, _terminal_class(shape), payload_anchor)
     if not ordered:
         return MappingReport(
             classification=MappingClass.EMPTY_VALID,

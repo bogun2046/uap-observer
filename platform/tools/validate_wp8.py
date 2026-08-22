@@ -263,6 +263,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "test_g8_08_python_does_not_emit_span_hash" in locator_tests
             and "test_g8_09_pdf_and_media_cross_axis" in locator_tests
             and "test_g8_10_result_classes" in locator_tests
+            and "test_g8_10_empty_illegal_payload_fail_closed" in locator_tests
             and "test_g8_10_excerpt_utf8_limit" in locator_tests
             and "locator_duplicate" in locator_tests,
             True,

@@ -141,6 +141,7 @@ class MappingReport:
     anchor: ExtractionAnchor
     accepted_candidates: tuple[AcceptedCandidate, ...]
     rejected_candidates: tuple[RejectedCandidate, ...]
+    terminal_reason: str | None = None
 
     @property
     def rejected_locator_count(self) -> int:
@@ -150,6 +151,8 @@ class MappingReport:
 
     def reason_codes(self) -> tuple[str, ...]:
         codes: list[str] = []
+        if self.terminal_reason is not None:
+            codes.append(self.terminal_reason)
         for accepted in self.accepted_candidates:
             codes.extend(item.reason_code for item in accepted.rejected_locators)
         for rejected in self.rejected_candidates:

@@ -250,12 +250,49 @@ def test_g8_07_malformed_payload_is_payload_mismatch() -> None:
     locator = SourceLocator(locator_type="text", start=0, end=4)
     matched_without_id = ExtractionAnchor(status=AnchorStatus.MATCHED, extraction_id=None)
     missing_with_id = ExtractionAnchor(status=AnchorStatus.MISSING, extraction_id=EXT_A)
+    ambiguous_with_id = ExtractionAnchor(status=AnchorStatus.AMBIGUOUS, extraction_id=EXT_A)
     assert report((locator,), payload=matched_without_id).reason_codes()[0] == (
         KNOWLEDGE_PAYLOAD_MISMATCH
     )
     assert report((locator,), payload=missing_with_id).reason_codes()[0] == (
         KNOWLEDGE_PAYLOAD_MISMATCH
     )
+    assert report((locator,), payload=ambiguous_with_id).reason_codes()[0] == (
+        KNOWLEDGE_PAYLOAD_MISMATCH
+    )
+
+
+def test_g8_10_empty_illegal_payload_fail_closed() -> None:
+    matched_without_id = ExtractionAnchor(status=AnchorStatus.MATCHED, extraction_id=None)
+    missing_with_id = ExtractionAnchor(status=AnchorStatus.MISSING, extraction_id=EXT_A)
+    ambiguous_with_id = ExtractionAnchor(status=AnchorStatus.AMBIGUOUS, extraction_id=EXT_A)
+
+    def empty_report(payload: ExtractionAnchor) -> MappingReport:
+        return map_knowledge_result(
+            candidates=(),
+            payload_anchor=payload,
+            records=matched_records(),
+            document_version_id=DOC,
+            input_sha256=HASH_A,
+            extracted_text=TEXT,
+            location_map=[],
+            duplicate_policy="claim",
+        )
+
+    for illegal in (matched_without_id, missing_with_id, ambiguous_with_id):
+        result = empty_report(illegal)
+        assert result.classification is MappingClass.TERMINAL_EXTRACTION_MISMATCH
+        assert result.accepted_candidates == ()
+        assert result.rejected_candidates == ()
+        assert result.terminal_reason == KNOWLEDGE_PAYLOAD_MISMATCH
+        assert result.reason_codes() == (KNOWLEDGE_PAYLOAD_MISMATCH,)
+        assert result.anchor == illegal
+
+    for legal in (frozen_missing(), frozen_ambiguous(), frozen_matched()):
+        result = empty_report(legal)
+        assert result.classification is MappingClass.EMPTY_VALID
+        assert result.reason_codes() == ()
+        assert result.anchor == legal
 
 
 def test_g8_08_five_locator_types_and_envelope_identity() -> None:
