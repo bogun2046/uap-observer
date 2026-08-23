@@ -326,3 +326,11 @@ def test_worker_claim_one_none_and_dispatch_rejects_other_types() -> None:
         worker.dispatch(
             (uuid.uuid4(), uuid.uuid4(), "resolve_claims", "not-mapping", uuid.uuid4())
         )
+
+
+def test_production_worker_from_settings_uses_active_default() -> None:
+    assert "from_settings" in ResolveClaimsWorker.__dict__
+    assert ResolveClaimsWorker.from_settings.__kwdefaults__ == {
+        "claims_handler_active": True,
+        "lease_seconds": 60,
+    }

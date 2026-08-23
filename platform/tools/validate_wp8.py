@@ -323,6 +323,7 @@ def evaluate(platform: Path) -> list[Check]:
             in migration_11.split("def downgrade", 1)[-1]
             and "ResolveClaimsHandler" in knowledge_sources
             and "ResolveClaimsWorker" in knowledge_sources
+            and "from_settings" in knowledge_sources
             and "claim_job_types" in knowledge_sources
             and "read_verified_object" in knowledge_sources
             and "parse_knowledge_payload" in knowledge_sources
@@ -348,7 +349,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "def g8_16a" in probe3
             and "def g8_live_definitions" in probe3
             and "ResolveClaimsWorker" in probe3
+            and "from_settings" in probe3
+            and "put_verified" in probe3
             and "read_verified_object" in probe3
+            and "ProbeObjectClient" not in probe3
             and "uap_worker" in probe3
             and "fixture_extraction_text" not in probe3,
             True,

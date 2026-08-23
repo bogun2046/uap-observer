@@ -69,6 +69,7 @@ def test_wp8_3_claim_materialization_present() -> None:
     assert "parse_knowledge_payload" in package
     assert "_finish_unmapped_failure" in package
     assert "ResolveClaimsWorker" in package
+    assert "from_settings" in package
     assert "read_verified_object" in package
     assert "ORDER BY" not in package
     assert "canonical_locator_digest" not in package

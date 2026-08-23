@@ -414,16 +414,16 @@ class ResolveClaimsHandler:
             row = cast(tuple[Any, ...] | None, cursor.fetchone())
         if row is None:
             raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
-        data = read_verified_object(
-            self._object_client,
-            str(row[0]),
-            str(row[1]),
-            str(row[2]),
-            int(row[3]),
-        )
         try:
+            data = read_verified_object(
+                self._object_client,
+                str(row[0]),
+                str(row[1]),
+                str(row[2]),
+                int(row[3]),
+            )
             return data.decode("utf-8")
-        except UnicodeDecodeError as error:
+        except (RuntimeError, UnicodeDecodeError, LookupError) as error:
             raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH) from error
 
 def _optional_int(item: Mapping[str, Any], key: str) -> int | None:

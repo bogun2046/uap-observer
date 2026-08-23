@@ -8,7 +8,9 @@ from typing import Any, cast
 
 from psycopg import Connection
 
+from uap_platform.config import load_settings
 from uap_platform.object_registry import ObjectClient
+from uap_platform.object_store_init import build_client
 
 from .handler import ResolveClaimsHandler
 from .job_types import claimable_job_types
@@ -41,6 +43,25 @@ class ResolveClaimsWorker:
             job_type
             for job_type in self._activated_types
             if job_type in _DISPATCHABLE_JOB_TYPES
+        )
+
+    @classmethod
+    def from_settings(
+        cls,
+        connection: Connection[object],
+        *,
+        worker_id: str,
+        claims_handler_active: bool = True,
+        lease_seconds: int = 60,
+    ) -> ResolveClaimsWorker:
+        """Production constructor: MinIO client from process settings, handler active."""
+
+        return cls(
+            connection,
+            cast(ObjectClient, build_client(load_settings())),
+            worker_id=worker_id,
+            claims_handler_active=claims_handler_active,
+            lease_seconds=lease_seconds,
         )
 
     @property

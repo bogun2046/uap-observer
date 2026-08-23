@@ -6,7 +6,7 @@ import json
 import sys
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 _PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 _SRC = _PLATFORM_ROOT / "src"
@@ -32,11 +32,18 @@ from tools.wp8_1_runtime_probe import (  # noqa: E402
     sha256_text,
     sqlstate,
 )
+from uap_platform.config import load_settings  # noqa: E402
 from uap_platform.knowledge.handler import ResolveClaimsHandler  # noqa: E402
 from uap_platform.knowledge.metrics import failure_metrics  # noqa: E402
 from uap_platform.knowledge.payload import parse_knowledge_payload  # noqa: E402
 from uap_platform.knowledge.worker import ResolveClaimsWorker  # noqa: E402
-from uap_platform.object_registry import read_verified_object  # noqa: E402
+from uap_platform.object_registry import (  # noqa: E402
+    ObjectClient,
+    StorageDomain,
+    put_verified,
+    read_verified_object,
+)
+from uap_platform.object_store_init import build_client  # noqa: E402
 
 CURRENT_HEAD = "0011_claim_materialization"
 FIXTURE_TEXT = "The craft hovered over the hangar at dawn."
@@ -47,71 +54,13 @@ _FROZEN_G8_13_CODES = {
     "knowledge_extraction_mismatch",
     "knowledge_bundle_mismatch",
 }
+OBJECTS: ObjectClient | None = None
 
 
-class _BytesResponse:
-    def __init__(self, payload: bytes) -> None:
-        self._payload = payload
-
-    def read(self) -> bytes:
-        return self._payload
-
-    def close(self) -> None:
-        return None
-
-    def release_conn(self) -> None:
-        return None
-
-
-class ProbeObjectClient:
-    """In-process object client that still goes through read_verified_object."""
-
-    def __init__(self) -> None:
-        self._objects: dict[tuple[str, str], bytes] = {}
-
-    def put(self, bucket_name: str, object_name: str, payload: bytes) -> None:
-        self._objects[(bucket_name, object_name)] = payload
-
-    def get_object(self, bucket_name: str, object_name: str) -> _BytesResponse:
-        try:
-            return _BytesResponse(self._objects[(bucket_name, object_name)])
-        except KeyError as error:
-            raise LookupError("derived object is missing") from error
-
-    def bucket_exists(self, bucket_name: str) -> bool:
-        return True
-
-    def make_bucket(self, bucket_name: str) -> None:
-        return None
-
-    def put_object(
-        self,
-        bucket_name: str,
-        object_name: str,
-        data: object,
-        length: int,
-        content_type: str,
-        metadata: dict[str, str],
-    ) -> object:
-        del content_type, metadata
-        reader = getattr(data, "read", None)
-        payload = reader() if callable(reader) else data
-        if not isinstance(payload, (bytes, bytearray)):
-            raise TypeError("probe object payload must be bytes")
-        self.put(bucket_name, object_name, bytes(payload)[:length])
-        return object()
-
-    def stat_object(self, bucket_name: str, object_name: str) -> object:
-        class _Stat:
-            size = len(self._objects[(bucket_name, object_name)])
-
-        return _Stat()
-
-    def remove_object(self, bucket_name: str, object_name: str) -> None:
-        self._objects.pop((bucket_name, object_name), None)
-
-
-OBJECTS = ProbeObjectClient()
+def _client() -> ObjectClient:
+    if OBJECTS is None:
+        raise RuntimeError("object client is not initialized")
+    return OBJECTS
 
 
 def _claims_result(*claims: dict[str, object]) -> dict[str, object]:
@@ -126,30 +75,40 @@ def _bind_derived_object(
     admin: psycopg.Connection[Any], extraction_id: uuid.UUID, text: str
 ) -> None:
     payload = text.encode("utf-8")
-    row = one(
-        admin,
-        """
-        SELECT stored.bucket_name, stored.object_key, stored.content_sha256
-          FROM core.extractions AS extraction
-          JOIN core.stored_objects AS stored ON stored.id = extraction.text_object_id
-         WHERE extraction.id = %s
-        """,
-        extraction_id,
+    digest = sha256_text(text)
+    physical = put_verified(
+        _client(),
+        StorageDomain.DERIVED,
+        payload,
+        "text/plain",
+        expected_sha256=digest,
     )
-    require("derived object hash", str(row[2]), sha256_text(text))
+    require("derived object hash", physical.content_sha256, digest)
     execute(
         admin,
         """
-        UPDATE core.stored_objects
-           SET byte_length = %s
-         WHERE object_key = %s AND content_sha256 = %s
+        UPDATE core.stored_objects AS stored
+           SET bucket_name = %s,
+               object_key = %s,
+               byte_length = %s
+          FROM core.extractions AS extraction
+         WHERE extraction.id = %s
+           AND stored.id = extraction.text_object_id
+           AND stored.content_sha256 = %s
         """,
-        len(payload),
-        row[1],
-        row[2],
+        physical.bucket_name,
+        physical.object_key,
+        physical.byte_length,
+        extraction_id,
+        digest,
     )
-    OBJECTS.put(str(row[0]), str(row[1]), payload)
-    verified = read_verified_object(OBJECTS, str(row[0]), str(row[1]), str(row[2]), len(payload))
+    verified = read_verified_object(
+        _client(),
+        physical.bucket_name,
+        physical.object_key,
+        physical.content_sha256,
+        physical.byte_length,
+    )
     require("verified derived bytes", verified, payload)
 
 
@@ -161,7 +120,7 @@ def _seed_claim_world(
     extractor: str = "text",
 ) -> dict[str, Any]:
     _principal, document_version_id, _source = seed_document(admin, tag)
-    body = FIXTURE_TEXT
+    body = f"{FIXTURE_TEXT} [{tag}]"
     input_sha = sha256_text(body)
     extraction_id = insert_extraction(admin, document_version_id, tag, input_sha, extractor)
     _bind_derived_object(admin, extraction_id, body)
@@ -237,7 +196,7 @@ def _run_handler(
     token: uuid.UUID,
     payload: dict[str, object],
 ) -> str:
-    handler = ResolveClaimsHandler(worker, OBJECTS)
+    handler = ResolveClaimsHandler(worker, _client())
     return handler.handle(job_id, attempt_id, token, payload)
 
 
@@ -773,9 +732,8 @@ def g8_16a(
     )
     require("g8-16a queued", queued, "queued")
 
-    inactive = ResolveClaimsWorker(
+    inactive = ResolveClaimsWorker.from_settings(
         worker,
-        OBJECTS,
         worker_id=f"wp8-3-pre-{tag}",
         claims_handler_active=False,
         lease_seconds=30,
@@ -793,9 +751,8 @@ def g8_16a(
     pre_claim = inactive.claim_one()
     require("g8-16a not claimed before activation", pre_claim is None, True)
 
-    active = ResolveClaimsWorker(
+    active = ResolveClaimsWorker.from_settings(
         worker,
-        OBJECTS,
         worker_id=f"wp8-3-post-{tag}",
         claims_handler_active=True,
         lease_seconds=60,
@@ -824,9 +781,8 @@ def g8_16a(
     consumed: tuple[Any, ...] | None = None
     status = None
     for index in range(16):
-        claimed = ResolveClaimsWorker(
+        claimed = ResolveClaimsWorker.from_settings(
             worker,
-            OBJECTS,
             worker_id=f"wp8-3-post-{tag}-{index}",
             claims_handler_active=True,
             lease_seconds=60,
@@ -871,7 +827,9 @@ def g8_permissions(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
 
 
 def main() -> None:
+    global OBJECTS
     tag = uuid.uuid4().hex[:10]
+    OBJECTS = cast(ObjectClient, build_client(load_settings()))
     admin = connect()
     worker = connect("uap_worker")
     worker.autocommit = False
