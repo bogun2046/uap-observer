@@ -21,6 +21,7 @@ from uap_platform.knowledge.reasons import (
     KNOWLEDGE_PAYLOAD_MISMATCH,
     KNOWLEDGE_SCHEMA_UNSUPPORTED,
 )
+from uap_platform.knowledge.worker import ResolveClaimsWorker
 
 
 def _valid_payload(**overrides: object) -> dict[str, object]:
@@ -166,9 +167,13 @@ class _Conn:
         self.committed += 1
 
 
+def _handler(conn: object) -> ResolveClaimsHandler:
+    return ResolveClaimsHandler(conn, MagicMock())  # type: ignore[arg-type]
+
+
 def test_handler_missing_key_finishes_attempt() -> None:
     conn = _Conn()
-    handler = ResolveClaimsHandler(conn)  # type: ignore[arg-type]
+    handler = _handler(conn)
     payload = _valid_payload()
     del payload["input_sha256"]
     status = handler.handle(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), payload)
@@ -181,7 +186,7 @@ def test_handler_missing_key_finishes_attempt() -> None:
 
 def test_handler_illegal_uuid_finishes_attempt() -> None:
     conn = _Conn()
-    handler = ResolveClaimsHandler(conn)  # type: ignore[arg-type]
+    handler = _handler(conn)
     status = handler.handle(
         uuid.uuid4(),
         uuid.uuid4(),
@@ -194,7 +199,7 @@ def test_handler_illegal_uuid_finishes_attempt() -> None:
 
 def test_handler_schema_unsupported_finishes_attempt() -> None:
     conn = _Conn()
-    handler = ResolveClaimsHandler(conn)  # type: ignore[arg-type]
+    handler = _handler(conn)
     status = handler.handle(
         uuid.uuid4(),
         uuid.uuid4(),
@@ -207,7 +212,7 @@ def test_handler_schema_unsupported_finishes_attempt() -> None:
 
 def test_handler_analysis_mismatch_finishes_attempt() -> None:
     conn = _Conn()
-    handler = ResolveClaimsHandler(conn)  # type: ignore[arg-type]
+    handler = _handler(conn)
     status = handler.handle(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), _valid_payload())
     assert status == "failed"
     assert conn.finished is True
@@ -223,7 +228,7 @@ def test_handler_unclassified_exception_finishes_attempt() -> None:
         raise RuntimeError("unexpected mapper crash")
 
     conn.execute_hook = boom
-    handler = ResolveClaimsHandler(conn)  # type: ignore[arg-type]
+    handler = _handler(conn)
     status = handler.handle(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), _valid_payload())
     assert status == "failed"
     assert conn.finished is True
@@ -243,7 +248,7 @@ def test_handler_40001_does_not_finish() -> None:
         raise error
 
     cursor.execute.side_effect = explode
-    handler = ResolveClaimsHandler(conn)
+    handler = ResolveClaimsHandler(conn, MagicMock())
     with pytest.raises(SerializationFailure):
         handler.handle(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), _valid_payload())
     finish_calls = [
@@ -271,7 +276,7 @@ def test_handler_deterministic_sql_before_savepoint_finishes() -> None:
         raise error
 
     cursor.execute.side_effect = explode
-    handler = ResolveClaimsHandler(conn)
+    handler = ResolveClaimsHandler(conn, MagicMock())
     status = handler.handle(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), _valid_payload())
     assert status == "failed"
     assert any("finish_knowledge_job" in str(call) for call in cursor.execute.call_args_list)
@@ -281,3 +286,43 @@ def test_claimable_types_never_include_entities() -> None:
     assert "resolve_entities" not in CLAIMABLE_JOB_TYPES
     assert "resolve_claims" not in PRE_CLAIM_HANDLER_JOB_TYPES
     assert "resolve_claims" in CLAIMABLE_JOB_TYPES
+
+
+def test_production_worker_activates_resolve_claims() -> None:
+    inactive = ResolveClaimsWorker(
+        MagicMock(), MagicMock(), worker_id="pre", claims_handler_active=False
+    )
+    assert "resolve_claims" not in inactive.job_types
+    assert inactive.job_types == PRE_CLAIM_HANDLER_JOB_TYPES
+    assert inactive.claim_job_types == ()
+    production = ResolveClaimsWorker(MagicMock(), MagicMock(), worker_id="prod")
+    assert production.job_types == CLAIMABLE_JOB_TYPES
+    assert "resolve_claims" in production.job_types
+    assert production.claim_job_types == ("resolve_claims",)
+    assert "resolve_entities" not in production.job_types
+    assert "resolve_relations" not in production.job_types
+
+
+def test_worker_claim_one_none_and_dispatch_rejects_other_types() -> None:
+    conn = MagicMock()
+    cursor = MagicMock()
+    cursor.__enter__.return_value = cursor
+    cursor.__exit__.return_value = False
+    conn.cursor.return_value = cursor
+    cursor.fetchone.return_value = None
+    inactive = ResolveClaimsWorker(
+        conn, MagicMock(), worker_id="pre", claims_handler_active=False
+    )
+    assert inactive.claim_one() is None
+    conn.cursor.assert_not_called()
+    worker = ResolveClaimsWorker(conn, MagicMock(), worker_id="w")
+    assert worker.claim_one() is None
+    assert worker.run_once() is None
+    with pytest.raises(KnowledgePayloadError):
+        worker.dispatch((uuid.uuid4(), uuid.uuid4(), "fetch_source", {}, uuid.uuid4()))
+    with pytest.raises(KnowledgePayloadError):
+        worker.dispatch((uuid.uuid4(),))
+    with pytest.raises(KnowledgePayloadError):
+        worker.dispatch(
+            (uuid.uuid4(), uuid.uuid4(), "resolve_claims", "not-mapping", uuid.uuid4())
+        )

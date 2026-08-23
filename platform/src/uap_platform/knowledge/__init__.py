@@ -28,6 +28,7 @@ from .mapping import map_knowledge_result
 from .metrics import build_attempt_metrics, failure_metrics
 from .payload import FrozenKnowledgePayload, KnowledgePayloadError, parse_knowledge_payload
 from .reasons import FROZEN_REASON_CODES, LOCATOR_SCHEMA_VERSION, MAX_EVIDENCE_UTF8_BYTES
+from .worker import ResolveClaimsWorker
 
 __all__ = [
     "CLAIMABLE_JOB_TYPES",
@@ -48,6 +49,7 @@ __all__ = [
     "RejectedCandidate",
     "RejectedLocator",
     "ResolveClaimsHandler",
+    "ResolveClaimsWorker",
     "SourceCandidate",
     "SourceLocator",
     "TypedAxes",

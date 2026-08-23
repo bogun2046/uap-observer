@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import json
+import sys
 import uuid
+from pathlib import Path
 from typing import Any
 
-import psycopg
-from psycopg.types.json import Jsonb
+_PLATFORM_ROOT = Path(__file__).resolve().parents[1]
+_SRC = _PLATFORM_ROOT / "src"
+for _path in (str(_PLATFORM_ROOT), str(_SRC)):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 
-from tools.wp8_1_runtime_probe import (
+import psycopg  # noqa: E402
+from psycopg.types.json import Jsonb  # noqa: E402
+
+from tools.wp8_1_runtime_probe import (  # noqa: E402
     connect,
     execute,
     grant_running_lease,
@@ -24,10 +32,11 @@ from tools.wp8_1_runtime_probe import (
     sha256_text,
     sqlstate,
 )
-from uap_platform.knowledge.handler import ResolveClaimsHandler
-from uap_platform.knowledge.job_types import claimable_job_types
-from uap_platform.knowledge.metrics import failure_metrics
-from uap_platform.knowledge.payload import parse_knowledge_payload
+from uap_platform.knowledge.handler import ResolveClaimsHandler  # noqa: E402
+from uap_platform.knowledge.metrics import failure_metrics  # noqa: E402
+from uap_platform.knowledge.payload import parse_knowledge_payload  # noqa: E402
+from uap_platform.knowledge.worker import ResolveClaimsWorker  # noqa: E402
+from uap_platform.object_registry import read_verified_object  # noqa: E402
 
 CURRENT_HEAD = "0011_claim_materialization"
 FIXTURE_TEXT = "The craft hovered over the hangar at dawn."
@@ -40,6 +49,71 @@ _FROZEN_G8_13_CODES = {
 }
 
 
+class _BytesResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def close(self) -> None:
+        return None
+
+    def release_conn(self) -> None:
+        return None
+
+
+class ProbeObjectClient:
+    """In-process object client that still goes through read_verified_object."""
+
+    def __init__(self) -> None:
+        self._objects: dict[tuple[str, str], bytes] = {}
+
+    def put(self, bucket_name: str, object_name: str, payload: bytes) -> None:
+        self._objects[(bucket_name, object_name)] = payload
+
+    def get_object(self, bucket_name: str, object_name: str) -> _BytesResponse:
+        try:
+            return _BytesResponse(self._objects[(bucket_name, object_name)])
+        except KeyError as error:
+            raise LookupError("derived object is missing") from error
+
+    def bucket_exists(self, bucket_name: str) -> bool:
+        return True
+
+    def make_bucket(self, bucket_name: str) -> None:
+        return None
+
+    def put_object(
+        self,
+        bucket_name: str,
+        object_name: str,
+        data: object,
+        length: int,
+        content_type: str,
+        metadata: dict[str, str],
+    ) -> object:
+        del content_type, metadata
+        reader = getattr(data, "read", None)
+        payload = reader() if callable(reader) else data
+        if not isinstance(payload, (bytes, bytearray)):
+            raise TypeError("probe object payload must be bytes")
+        self.put(bucket_name, object_name, bytes(payload)[:length])
+        return object()
+
+    def stat_object(self, bucket_name: str, object_name: str) -> object:
+        class _Stat:
+            size = len(self._objects[(bucket_name, object_name)])
+
+        return _Stat()
+
+    def remove_object(self, bucket_name: str, object_name: str) -> None:
+        self._objects.pop((bucket_name, object_name), None)
+
+
+OBJECTS = ProbeObjectClient()
+
+
 def _claims_result(*claims: dict[str, object]) -> dict[str, object]:
     return {"claims": list(claims)}
 
@@ -48,8 +122,35 @@ def _text_locator(start: int, end: int) -> dict[str, object]:
     return {"locator_type": "text", "start": start, "end": end}
 
 
-def _set_fixture_text(worker: psycopg.Connection[Any], text: str) -> None:
-    execute(worker, "SELECT set_config('uap.fixture_extraction_text', %s, false)", text)
+def _bind_derived_object(
+    admin: psycopg.Connection[Any], extraction_id: uuid.UUID, text: str
+) -> None:
+    payload = text.encode("utf-8")
+    row = one(
+        admin,
+        """
+        SELECT stored.bucket_name, stored.object_key, stored.content_sha256
+          FROM core.extractions AS extraction
+          JOIN core.stored_objects AS stored ON stored.id = extraction.text_object_id
+         WHERE extraction.id = %s
+        """,
+        extraction_id,
+    )
+    require("derived object hash", str(row[2]), sha256_text(text))
+    execute(
+        admin,
+        """
+        UPDATE core.stored_objects
+           SET byte_length = %s
+         WHERE object_key = %s AND content_sha256 = %s
+        """,
+        len(payload),
+        row[1],
+        row[2],
+    )
+    OBJECTS.put(str(row[0]), str(row[1]), payload)
+    verified = read_verified_object(OBJECTS, str(row[0]), str(row[1]), str(row[2]), len(payload))
+    require("verified derived bytes", verified, payload)
 
 
 def _seed_claim_world(
@@ -63,6 +164,7 @@ def _seed_claim_world(
     body = FIXTURE_TEXT
     input_sha = sha256_text(body)
     extraction_id = insert_extraction(admin, document_version_id, tag, input_sha, extractor)
+    _bind_derived_object(admin, extraction_id, body)
     model_run_id = insert_model_run(
         admin,
         document_version_id=document_version_id,
@@ -135,30 +237,8 @@ def _run_handler(
     token: uuid.UUID,
     payload: dict[str, object],
 ) -> str:
-    _set_fixture_text(worker, FIXTURE_TEXT)
-    handler = ResolveClaimsHandler(worker)
+    handler = ResolveClaimsHandler(worker, OBJECTS)
     return handler.handle(job_id, attempt_id, token, payload)
-
-
-def _claim_job(
-    worker: psycopg.Connection[Any],
-    worker_id: str,
-    job_types: tuple[str, ...] | list[str],
-    lease_seconds: int,
-) -> tuple[Any, ...] | None:
-    with worker.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT job_id, attempt_id, job_type, payload, lease_token
-              FROM ops.claim_job('worker', %s, %s::text[], %s)
-            """,
-            (worker_id, list(job_types), lease_seconds),
-        )
-        row = cursor.fetchone()
-    worker.commit()
-    if row is None:
-        return None
-    return tuple(row)
 
 
 def g8_11(
@@ -210,6 +290,34 @@ def g8_11(
     return {"passed": True, "job_status": job_status, "fingerprint": claim_row[7]}
 
 
+def g8_metrics_trunc(admin: psycopg.Connection[Any]) -> dict[str, Any]:
+    """Non-empty rejected_by_code must use trunc(numeric), not truncate()."""
+
+    ok_metrics = failure_metrics("knowledge_payload_mismatch")
+    execute(
+        admin,
+        """
+        SELECT ops.validate_knowledge_attempt_metrics(
+            %s::jsonb, 'terminal_failure'::ops.attempt_outcome
+        )
+        """,
+        json.dumps(ok_metrics),
+    )
+    bad = dict(ok_metrics)
+    bad["rejected_by_code"] = {"knowledge_payload_mismatch": 1.5}
+    fractional = sqlstate(
+        admin,
+        """
+        SELECT ops.validate_knowledge_attempt_metrics(
+            %s::jsonb, 'terminal_failure'::ops.attempt_outcome
+        )
+        """,
+        json.dumps(bad),
+    )
+    require("g8 metrics fractional rejected_by_code", fractional, "22023")
+    return {"passed": True}
+
+
 def g8_12(
     admin: psycopg.Connection[Any],
     worker: psycopg.Connection[Any],
@@ -217,9 +325,7 @@ def g8_12(
 ) -> dict[str, Any]:
     results: dict[str, object] = {}
 
-    empty_world = _seed_claim_world(
-        admin, f"{tag}-12-empty", claims=_claims_result()
-    )
+    empty_world = _seed_claim_world(admin, f"{tag}-12-empty", claims=_claims_result())
     empty_payload = _payload_for(admin, empty_world["job_id"])
     empty_attempt, empty_token = grant_running_lease(
         admin, empty_world["job_id"], f"wp8-3-empty-{tag}"
@@ -239,6 +345,60 @@ def g8_12(
     require("g8-12 empty claims", int(empty_claims), 0)
     require("g8-12 empty_valid_result", empty_metrics["empty_valid_result"], True)
     results["empty"] = True
+
+    empty_missing_world = _seed_claim_world(
+        admin, f"{tag}-12-empty-keys", claims=_claims_result()
+    )
+    empty_missing_payload = _payload_for(admin, empty_missing_world["job_id"])
+    empty_missing_attempt, empty_missing_token = grant_running_lease(
+        admin, empty_missing_world["job_id"], f"wp8-3-empty-keys-{tag}"
+    )
+    missing_keys_bundle = {
+        "bundle_schema_version": "knowledge-bundle.v2",
+        "analysis_result_id": empty_missing_payload["analysis_result_id"],
+        "analysis_result_sha256": empty_missing_payload["analysis_result_sha256"],
+    }
+    missing_keys_state = "ok"
+    with worker.cursor() as cursor:
+        cursor.execute("SAVEPOINT knowledge_materialize")
+        try:
+            cursor.execute(
+                "SELECT core.materialize_claim_bundle(%s, %s, %s, %s::jsonb)",
+                (
+                    empty_missing_world["job_id"],
+                    empty_missing_attempt,
+                    empty_missing_token,
+                    json.dumps(missing_keys_bundle),
+                ),
+            )
+        except psycopg.Error as error:
+            missing_keys_state = error.sqlstate or "none"
+            cursor.execute("ROLLBACK TO SAVEPOINT knowledge_materialize")
+        cursor.execute(
+            """
+            SELECT ops.finish_knowledge_job(
+                %s, %s, %s, 'terminal_failure'::ops.attempt_outcome,
+                NULL, %s, %s, NULL, %s
+            )
+            """,
+            (
+                empty_missing_world["job_id"],
+                empty_missing_attempt,
+                empty_missing_token,
+                "knowledge_bundle_mismatch",
+                "knowledge_bundle_mismatch",
+                Jsonb(failure_metrics("knowledge_bundle_mismatch")),
+            ),
+        )
+    worker.commit()
+    require("g8-12 empty missing keys sqlstate", missing_keys_state, "22023")
+    empty_missing_outcome = scalar(
+        admin,
+        "SELECT outcome::text FROM ops.job_attempts WHERE id=%s",
+        empty_missing_attempt,
+    )
+    require("g8-12 empty missing keys closed", empty_missing_outcome, "terminal_failure")
+    results["empty_missing_keys"] = True
 
     start = FIXTURE_TEXT.find("craft")
     end = start + len("craft hovered")
@@ -298,10 +458,11 @@ def g8_12(
         "bundle_schema_version": "knowledge-bundle.v2",
         "analysis_result_id": raise_payload["analysis_result_id"],
         "analysis_result_sha256": raise_payload["analysis_result_sha256"],
-        "accepted_candidates": [{"ordinal": 99, "accepted_locators": [], "rejected_locators": []}],
+        "accepted_candidates": [
+            {"ordinal": 99, "accepted_locators": [], "rejected_locators": []}
+        ],
         "rejected_candidates": [],
     }
-    _set_fixture_text(worker, FIXTURE_TEXT)
     with worker.cursor() as cursor:
         cursor.execute("SAVEPOINT knowledge_materialize")
         try:
@@ -353,7 +514,9 @@ def g8_12(
 
 
 def _g8_13_payload_cases(
-    admin: psycopg.Connection[Any], worker: psycopg.Connection[Any], tag: str
+    admin: psycopg.Connection[Any],
+    worker: psycopg.Connection[Any],
+    tag: str,
 ) -> dict[str, str]:
     cases = {
         "model_run_id": str(uuid.uuid4()),
@@ -396,7 +559,11 @@ def _g8_13_payload_cases(
             admin, "SELECT error_code FROM ops.job_attempts WHERE id=%s", attempt_id
         )
         require(f"g8-13 {name} no new claims", int(after), int(before))
-        require(f"g8-13 {name} closed", outcome in {"terminal_failure", "retryable_failure"}, True)
+        require(
+            f"g8-13 {name} closed",
+            outcome in {"terminal_failure", "retryable_failure"},
+            True,
+        )
         require(f"g8-13 {name} not succeeded", status != "succeeded", True)
         require(f"g8-13 {name} frozen code", error_code in _FROZEN_G8_13_CODES, True)
         outcomes[name] = str(error_code)
@@ -404,41 +571,44 @@ def _g8_13_payload_cases(
 
 
 def _g8_13_bundle_tamper(
-    admin: psycopg.Connection[Any], worker: psycopg.Connection[Any], tag: str
+    admin: psycopg.Connection[Any],
+    worker: psycopg.Connection[Any],
+    tag: str,
 ) -> dict[str, str]:
     outcomes: dict[str, str] = {}
-    start = FIXTURE_TEXT.find("craft")
-    end = start + len("craft hovered")
-    tampers: dict[str, dict[str, object]] = {
-        "bundle_hash": {},
-        "bad_ordinal": {},
-        "omitted_candidate": {},
+    tampers = {
+        "hash": "bundle hash",
+        "ordinal": "accepted ordinal",
+        "missing_candidate": "omitted candidate",
+        "missing_keys": "missing accepted/rejected keys",
     }
     for name in tampers:
         world = _seed_claim_world(admin, f"{tag}-13b-{name[:8]}")
         payload = _payload_for(admin, world["job_id"])
-        bundle = _valid_bundle(payload, start, end)
-        if name == "bundle_hash":
-            bundle["analysis_result_sha256"] = "e" * 64
-        elif name == "bad_ordinal":
-            accepted_raw = bundle["accepted_candidates"]
-            if not isinstance(accepted_raw, list) or not accepted_raw:
-                raise RuntimeError("g8-13 valid bundle missing accepted candidate")
-            first = dict(accepted_raw[0])
-            first["ordinal"] = 99
-            bundle["accepted_candidates"] = [first]
-        else:
-            bundle["accepted_candidates"] = []
-            bundle["rejected_candidates"] = []
         attempt_id, token = grant_running_lease(
             admin, world["job_id"], f"wp8-3-13b-{name}-{tag}"
         )
+        bundle = _valid_bundle(payload, world["start"], world["end"])
+        if name == "hash":
+            bundle["analysis_result_sha256"] = "e" * 64
+        elif name == "ordinal":
+            accepted_raw = bundle["accepted_candidates"]
+            if not isinstance(accepted_raw, list) or not accepted_raw:
+                raise RuntimeError("valid bundle missing accepted candidate")
+            first = dict(accepted_raw[0])
+            first["ordinal"] = 99
+            bundle["accepted_candidates"] = [first]
+        elif name == "missing_candidate":
+            bundle["accepted_candidates"] = []
+            bundle["rejected_candidates"] = []
+        else:
+            del bundle["accepted_candidates"]
+            del bundle["rejected_candidates"]
         before = scalar(
             admin,
             "SELECT count(*) FROM core.claims WHERE origin_analysis_result_id=%s",
             world["analysis_id"],
         )
-        sqlstate_seen = "ok"
         with worker.cursor() as cursor:
             cursor.execute("SAVEPOINT knowledge_materialize")
             try:
@@ -446,24 +616,26 @@ def _g8_13_bundle_tamper(
                     "SELECT core.materialize_claim_bundle(%s, %s, %s, %s::jsonb)",
                     (world["job_id"], attempt_id, token, json.dumps(bundle)),
                 )
+                sqlstate_seen = "ok"
             except psycopg.Error as error:
                 sqlstate_seen = error.sqlstate or "none"
                 cursor.execute("ROLLBACK TO SAVEPOINT knowledge_materialize")
-                cursor.execute(
-                    """
-                    SELECT ops.finish_knowledge_job(
-                        %s, %s, %s, 'terminal_failure'::ops.attempt_outcome,
-                        NULL, 'knowledge_bundle_mismatch', 'knowledge_bundle_mismatch',
-                        NULL, %s
-                    )
-                    """,
-                    (
-                        world["job_id"],
-                        attempt_id,
-                        token,
-                        Jsonb(failure_metrics("knowledge_bundle_mismatch")),
-                    ),
+            cursor.execute(
+                """
+                SELECT ops.finish_knowledge_job(
+                    %s, %s, %s, 'terminal_failure'::ops.attempt_outcome,
+                    NULL, %s, %s, NULL, %s
                 )
+                """,
+                (
+                    world["job_id"],
+                    attempt_id,
+                    token,
+                    "knowledge_bundle_mismatch",
+                    "knowledge_bundle_mismatch",
+                    Jsonb(failure_metrics("knowledge_bundle_mismatch")),
+                ),
+            )
         worker.commit()
         after = scalar(
             admin,
@@ -542,6 +714,51 @@ def g8_13(
     return {"passed": True, "tamper": outcomes, "bundle": bundle_outcomes}
 
 
+def g8_live_definitions(admin: psycopg.Connection[Any]) -> dict[str, Any]:
+    """Assert the live 0011 function bodies, not just the migration source."""
+
+    validator = scalar(
+        admin,
+        """
+        SELECT pg_get_functiondef(
+            'ops.validate_knowledge_attempt_metrics(jsonb, ops.attempt_outcome)'::regprocedure
+        )
+        """,
+    )
+    materialize = scalar(
+        admin,
+        """
+        SELECT pg_get_functiondef(
+            'core.materialize_claim_bundle(uuid, uuid, uuid, jsonb)'::regprocedure
+        )
+        """,
+    )
+    keys_helper = scalar(
+        admin,
+        """
+        SELECT pg_get_functiondef(
+            'core._jsonb_keys_exact(jsonb, text[])'::regprocedure
+        )
+        """,
+    )
+    require("live validator uses trunc", "trunc(" in validator, True)
+    require("live validator not truncate", "truncate(" not in validator, True)
+    require(
+        "live validator has hash conflict",
+        "knowledge_locator_hash_conflict" in validator,
+        True,
+    )
+    require("live materialize uses v_claim_id", "v_claim_id" in materialize, True)
+    require(
+        "live materialize no ambiguous claim_id",
+        "WHERE claim_id = claim_id" not in materialize,
+        True,
+    )
+    require("live materialize exact keys", "_jsonb_keys_exact" in materialize, True)
+    require("live keys helper exists", "object_keys(key)" in keys_helper, True)
+    return {"passed": True}
+
+
 def g8_16a(
     admin: psycopg.Connection[Any],
     worker: psycopg.Connection[Any],
@@ -556,35 +773,79 @@ def g8_16a(
     )
     require("g8-16a queued", queued, "queued")
 
-    inactive = claimable_job_types(claims_handler_active=False)
-    require("g8-16a inactive excludes resolve_claims", "resolve_claims" not in inactive, True)
-    pre_claim = _claim_job(worker, f"wp8-3-pre-{tag}", inactive, 30)
+    inactive = ResolveClaimsWorker(
+        worker,
+        OBJECTS,
+        worker_id=f"wp8-3-pre-{tag}",
+        claims_handler_active=False,
+        lease_seconds=30,
+    )
+    require(
+        "g8-16a inactive types omit claims",
+        "resolve_claims" not in inactive.job_types,
+        True,
+    )
+    require(
+        "g8-16a inactive claim_job_types empty",
+        inactive.claim_job_types == (),
+        True,
+    )
+    pre_claim = inactive.claim_one()
     require("g8-16a not claimed before activation", pre_claim is None, True)
 
-    active = claimable_job_types(claims_handler_active=True)
-    require("g8-16a active contains resolve_claims", "resolve_claims" in active, True)
-    require("g8-16a active excludes entities", "resolve_entities" not in active, True)
-    require("g8-16a active excludes relations", "resolve_relations" not in active, True)
+    active = ResolveClaimsWorker(
+        worker,
+        OBJECTS,
+        worker_id=f"wp8-3-post-{tag}",
+        claims_handler_active=True,
+        lease_seconds=60,
+    )
+    require(
+        "g8-16a active contains resolve_claims",
+        "resolve_claims" in active.job_types,
+        True,
+    )
+    require(
+        "g8-16a production default claim_job_types",
+        active.claim_job_types == ("resolve_claims",),
+        True,
+    )
+    require(
+        "g8-16a active excludes entities",
+        "resolve_entities" not in active.job_types,
+        True,
+    )
+    require(
+        "g8-16a active excludes relations",
+        "resolve_relations" not in active.job_types,
+        True,
+    )
 
-    claimed: tuple[Any, ...] | None = None
+    consumed: tuple[Any, ...] | None = None
+    status = None
     for index in range(16):
-        row = _claim_job(worker, f"wp8-3-post-{tag}-{index}", active, 60)
-        if row is None:
+        claimed = ResolveClaimsWorker(
+            worker,
+            OBJECTS,
+            worker_id=f"wp8-3-post-{tag}-{index}",
+            claims_handler_active=True,
+            lease_seconds=60,
+        ).claim_one()
+        if claimed is None:
             break
-        if row[0] == job_id:
-            claimed = row
+        if claimed[0] == job_id:
+            consumed = claimed
+            status = active.dispatch(claimed)
             break
-    require("g8-16a claimed after activation", claimed is not None, True)
-    if claimed is None:
-        raise RuntimeError("g8-16a claimed after activation")
-    require("g8-16a claimed type", claimed[2], "resolve_claims")
-    payload = dict(claimed[3])
-    status = _run_handler(worker, claimed[0], claimed[1], claimed[4], payload)
+    if consumed is None:
+        raise RuntimeError("g8-16a did not claim the queued resolve_claims job")
+    require("g8-16a claimed type", consumed[2], "resolve_claims")
     require("g8-16a consume succeeded", status in {"succeeded", "success"}, True)
-    return {"passed": True, "claimed_job": str(claimed[0])}
+    return {"passed": True, "claimed_job": str(consumed[0])}
 
 
 def g8_permissions(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
+    del admin, tag
     states: dict[str, str] = {}
     for role in (
         "uap_api",
@@ -606,7 +867,7 @@ def g8_permissions(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
         except Exception as error:
             states[role] = getattr(error, "sqlstate", None) or "42501"
     require("api cannot materialize", states["uap_api"], "42501")
-    return {"passed": True, "states": states, "tag": tag}
+    return {"passed": True, "states": states}
 
 
 def main() -> None:
@@ -618,6 +879,8 @@ def main() -> None:
     require("alembic head", head, CURRENT_HEAD)
     results = {
         "head": head,
+        "live_definitions": g8_live_definitions(admin),
+        "metrics_trunc": g8_metrics_trunc(admin),
         "G8-11": g8_11(admin, worker, tag),
         "G8-12": g8_12(admin, worker, tag),
         "G8-13": g8_13(admin, worker, tag),

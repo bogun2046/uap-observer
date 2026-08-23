@@ -41,6 +41,7 @@ REQUIRED_FILES = (
     "platform/src/uap_platform/knowledge/job_types.py",
     "platform/src/uap_platform/knowledge/metrics.py",
     "platform/src/uap_platform/knowledge/payload.py",
+    "platform/src/uap_platform/knowledge/worker.py",
     "platform/tools/wp8_3_runtime_probe.py",
     "platform/src/uap_platform/knowledge/anchors.py",
     "platform/src/uap_platform/knowledge/contracts.py",
@@ -309,12 +310,27 @@ def evaluate(platform: Path) -> list[Check]:
             "CREATE FUNCTION core.materialize_claim_bundle" in migration_11
             and "core.compute_claim_fingerprint" in migration_11
             and "knowledge-bundle.v2" in migration_11
-            and "knowledge_locator_hash_conflict" in migration_11
+            and "knowledge_locator_hash_conflict" in migration_11.split("def downgrade", 1)[0]
+            and "knowledge_locator_hash_conflict"
+            not in migration_11.split("def downgrade", 1)[-1]
+            and "trunc((code_value" in migration_11.split("def downgrade", 1)[0]
+            and "truncate((code_value" not in migration_11.split("def downgrade", 1)[0]
+            and "WHERE claim_id = claim_id" not in migration_11
+            and "v_claim_id" in migration_11
+            and "core._jsonb_keys_exact" in migration_11
+            and "object_keys(key)" in migration_11
+            and "CREATE OR REPLACE FUNCTION ops.validate_knowledge_attempt_metrics"
+            in migration_11.split("def downgrade", 1)[-1]
             and "ResolveClaimsHandler" in knowledge_sources
+            and "ResolveClaimsWorker" in knowledge_sources
+            and "claim_job_types" in knowledge_sources
+            and "read_verified_object" in knowledge_sources
             and "parse_knowledge_payload" in knowledge_sources
             and "_finish_unmapped_failure" in knowledge_sources
             and "claimable_job_types" in knowledge_sources
             and "PRE_CLAIM_HANDLER_JOB_TYPES" in knowledge_sources
+            and "fixture_extraction_text" not in knowledge_sources
+            and "current_setting" not in knowledge_sources
             and "materialize_entity_bundle" not in migration_11
             and "def resolve_entities" not in knowledge_sources,
             True,
@@ -322,13 +338,19 @@ def evaluate(platform: Path) -> list[Check]:
         check(
             "wp8_3_runtime_and_fail_closed_tests",
             "test_g8_16a_claimable_job_types_activation" in foundation_tests
+            and "test_production_worker_activates_resolve_claims" in handler_tests
+            and "test_0011_downgrade_restores_frozen_0010_metrics_validator" in foundation_tests
             and "test_parse_knowledge_payload_missing_key" in handler_tests
             and "test_handler_missing_key_finishes_attempt" in handler_tests
             and "def g8_11" in probe3
             and "def g8_12" in probe3
             and "def g8_13" in probe3
             and "def g8_16a" in probe3
-            and "uap_worker" in probe3,
+            and "def g8_live_definitions" in probe3
+            and "ResolveClaimsWorker" in probe3
+            and "read_verified_object" in probe3
+            and "uap_worker" in probe3
+            and "fixture_extraction_text" not in probe3,
             True,
         ),
     ]

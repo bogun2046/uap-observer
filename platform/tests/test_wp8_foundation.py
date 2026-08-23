@@ -68,10 +68,48 @@ def test_wp8_3_claim_materialization_present() -> None:
     assert "ResolveClaimsHandler" in package
     assert "parse_knowledge_payload" in package
     assert "_finish_unmapped_failure" in package
+    assert "ResolveClaimsWorker" in package
+    assert "read_verified_object" in package
     assert "ORDER BY" not in package
     assert "canonical_locator_digest" not in package
     assert 'MISMATCH = "mismatch"' not in package
     assert "def resolve_entities" not in package
+    assert "WHERE claim_id = claim_id" not in source
+    assert "v_claim_id" in source
+    assert "trunc((code_value" in source.split("def downgrade", 1)[0]
+    assert "truncate((code_value" not in source.split("def downgrade", 1)[0]
+    assert "core._jsonb_keys_exact" in source
+    assert "object_keys(key)" in source
+    downgrade = source.split("def downgrade", 1)[1]
+    assert "CREATE OR REPLACE FUNCTION ops.validate_knowledge_attempt_metrics" in downgrade
+    assert "knowledge_locator_hash_conflict" not in downgrade
+    assert "fixture_extraction_text" not in package
+    assert "current_setting" not in package
+
+
+def _validator_bodies(source: str) -> list[str]:
+    marker = "$validate_knowledge_attempt_metrics$"
+    parts = source.split(marker)
+    return [parts[index] for index in range(1, len(parts), 2)]
+
+
+def test_0011_downgrade_restores_frozen_0010_metrics_validator() -> None:
+    source_10 = (platform_root() / "alembic/versions/0010_knowledge_foundation.py").read_text(
+        encoding="utf-8"
+    )
+    source_11 = (platform_root() / "alembic/versions/0011_claim_materialization.py").read_text(
+        encoding="utf-8"
+    )
+    bodies_10 = _validator_bodies(source_10)
+    bodies_11 = _validator_bodies(source_11)
+    assert len(bodies_10) == 1
+    assert len(bodies_11) == 2
+    upgrade_body, downgrade_body = bodies_11
+    assert "trunc(" in upgrade_body
+    assert "truncate(" not in upgrade_body
+    assert "knowledge_locator_hash_conflict" in upgrade_body
+    assert "truncate(" in downgrade_body
+    assert re.sub(r"\s+", " ", downgrade_body).strip() == re.sub(r"\s+", " ", bodies_10[0]).strip()
 
 
 def test_g8_16a_claimable_job_types_activation() -> None:

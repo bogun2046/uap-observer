@@ -48,6 +48,13 @@ def test_build_knowledge_bundle_empty() -> None:
     assert bundle["bundle_schema_version"] == "knowledge-bundle.v2"
     assert bundle["accepted_candidates"] == []
     assert bundle["rejected_candidates"] == []
+    assert set(bundle) == {
+        "accepted_candidates",
+        "analysis_result_id",
+        "analysis_result_sha256",
+        "bundle_schema_version",
+        "rejected_candidates",
+    }
     assert is_empty_valid(report)
     assert not is_terminal_mapping(report)
     assert "claim" not in bundle

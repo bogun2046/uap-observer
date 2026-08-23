@@ -128,7 +128,7 @@ def upgrade() -> None:
                 SELECT value FROM jsonb_each(p_metrics -> 'rejected_by_code')
             LOOP
                 IF jsonb_typeof(code_value) <> 'number'
-                   OR truncate((code_value #>> '{}')::numeric) <> (code_value #>> '{}')::numeric
+                   OR trunc((code_value #>> '{}')::numeric) <> (code_value #>> '{}')::numeric
                    OR (code_value #>> '{}')::integer < 0 THEN
                     RAISE EXCEPTION 'rejected_by_code counts must be non-negative integers'
                         USING ERRCODE = '22023';
@@ -327,6 +327,24 @@ def upgrade() -> None:
             RETURN c_set = a_set;
         END
         $_claim_cross_axis_ok$;
+
+        CREATE FUNCTION core._jsonb_keys_exact(p_obj jsonb, p_keys text[]) RETURNS boolean
+        LANGUAGE sql IMMUTABLE
+        SET search_path = pg_catalog
+        AS $_jsonb_keys_exact$
+            SELECT p_obj IS NOT NULL
+               AND jsonb_typeof(p_obj) = 'object'
+               AND NOT EXISTS (
+                    SELECT 1
+                      FROM jsonb_object_keys(p_obj) AS object_keys(key)
+                     WHERE object_keys.key <> ALL (p_keys)
+               )
+               AND NOT EXISTS (
+                    SELECT 1
+                      FROM unnest(p_keys) AS required_keys(key)
+                     WHERE NOT (p_obj ? required_keys.key)
+               );
+        $_jsonb_keys_exact$;
         """
     )
     op.execute(
@@ -360,10 +378,10 @@ def upgrade() -> None:
             locator_ordinal integer;
             claim_text text;
             fingerprint text;
-            claim_id uuid;
             existing_claim core.claims%ROWTYPE;
-            span_id uuid;
+            v_claim_id uuid;
             existing_span core.evidence_spans%ROWTYPE;
+            v_span_id uuid;
             envelope jsonb;
             locator_sha text;
             evidence_text text;
@@ -407,6 +425,16 @@ def upgrade() -> None:
             END IF;
 
             IF p_bundle IS NULL OR jsonb_typeof(p_bundle) <> 'object' THEN
+                RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
+            END IF;
+            IF NOT core._jsonb_keys_exact(
+                p_bundle,
+                ARRAY[
+                    'accepted_candidates', 'analysis_result_id',
+                    'analysis_result_sha256', 'bundle_schema_version',
+                    'rejected_candidates'
+                ]
+            ) THEN
                 RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
             END IF;
             IF p_bundle ->> 'bundle_schema_version' IS DISTINCT FROM 'knowledge-bundle.v2' THEN
@@ -457,8 +485,8 @@ def upgrade() -> None:
             END IF;
             claim_count := jsonb_array_length(claims_json);
 
-            accepted := coalesce(p_bundle -> 'accepted_candidates', '[]'::jsonb);
-            rejected := coalesce(p_bundle -> 'rejected_candidates', '[]'::jsonb);
+            accepted := p_bundle -> 'accepted_candidates';
+            rejected := p_bundle -> 'rejected_candidates';
             IF jsonb_typeof(accepted) <> 'array' OR jsonb_typeof(rejected) <> 'array' THEN
                 RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
             END IF;
@@ -512,6 +540,11 @@ def upgrade() -> None:
 
             FOR rej_item IN SELECT value FROM jsonb_array_elements(rejected)
             LOOP
+                IF NOT core._jsonb_keys_exact(
+                    rej_item, ARRAY['ordinal', 'reason_code', 'rejected_locators']
+                ) THEN
+                    RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
+                END IF;
                 claim_ordinal := (rej_item ->> 'ordinal')::integer;
                 IF claim_ordinal IS NULL OR claim_ordinal < 0 OR claim_ordinal >= claim_count THEN
                     RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
@@ -529,10 +562,13 @@ def upgrade() -> None:
                 );
                 seen_loc_ordinals := ARRAY[]::integer[];
                 FOR loc_item IN
-                    SELECT value FROM jsonb_array_elements(
-                        coalesce(rej_item -> 'rejected_locators', '[]'::jsonb)
-                    )
+                    SELECT value FROM jsonb_array_elements(rej_item -> 'rejected_locators')
                 LOOP
+                    IF NOT core._jsonb_keys_exact(
+                        loc_item, ARRAY['locator_ordinal', 'reason_code']
+                    ) THEN
+                        RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
+                    END IF;
                     locator_ordinal := (loc_item ->> 'locator_ordinal')::integer;
                     IF locator_ordinal IS NULL OR locator_ordinal < 0
                        OR locator_ordinal >= source_loc_count
@@ -548,6 +584,12 @@ def upgrade() -> None:
 
             FOR acc_item IN SELECT value FROM jsonb_array_elements(accepted)
             LOOP
+                IF NOT core._jsonb_keys_exact(
+                    acc_item,
+                    ARRAY['accepted_locators', 'ordinal', 'rejected_locators']
+                ) THEN
+                    RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
+                END IF;
                 claim_ordinal := (acc_item ->> 'ordinal')::integer;
                 IF claim_ordinal IS NULL OR claim_ordinal < 0 OR claim_ordinal >= claim_count THEN
                     RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
@@ -576,6 +618,15 @@ def upgrade() -> None:
                 FOR loc_item IN
                     SELECT value FROM jsonb_array_elements(acc_item -> 'accepted_locators')
                 LOOP
+                    IF NOT core._jsonb_keys_exact(
+                        loc_item,
+                        ARRAY[
+                            'char_end', 'char_start', 'evidence_text', 'locator_ordinal',
+                            'page_end', 'page_start', 'time_end_ms', 'time_start_ms'
+                        ]
+                    ) THEN
+                        RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
+                    END IF;
                     locator_ordinal := (loc_item ->> 'locator_ordinal')::integer;
                     IF locator_ordinal IS NULL OR locator_ordinal < 0
                        OR locator_ordinal >= source_loc_count
@@ -585,10 +636,13 @@ def upgrade() -> None:
                     seen_loc_ordinals := array_append(seen_loc_ordinals, locator_ordinal);
                 END LOOP;
                 FOR loc_item IN
-                    SELECT value FROM jsonb_array_elements(
-                        coalesce(acc_item -> 'rejected_locators', '[]'::jsonb)
-                    )
+                    SELECT value FROM jsonb_array_elements(acc_item -> 'rejected_locators')
                 LOOP
+                    IF NOT core._jsonb_keys_exact(
+                        loc_item, ARRAY['locator_ordinal', 'reason_code']
+                    ) THEN
+                        RAISE EXCEPTION 'knowledge_bundle_mismatch' USING ERRCODE = '22023';
+                    END IF;
                     locator_ordinal := (loc_item ->> 'locator_ordinal')::integer;
                     IF locator_ordinal IS NULL OR locator_ordinal < 0
                        OR locator_ordinal >= source_loc_count
@@ -615,15 +669,15 @@ def upgrade() -> None:
                        OR existing_claim.document_version_id IS DISTINCT FROM doc_version_id THEN
                         RAISE EXCEPTION 'knowledge_payload_mismatch' USING ERRCODE = '22023';
                     END IF;
-                    claim_id := existing_claim.id;
+                    v_claim_id := existing_claim.id;
                 ELSE
-                    claim_id := gen_random_uuid();
+                    v_claim_id := gen_random_uuid();
                     INSERT INTO core.claims (
                         id, origin_analysis_result_id, subject_entity_id, ordinal,
                         claim_text, claim_fingerprint, claim_type, assertion_status,
                         attribution, created_by, document_version_id
                     ) VALUES (
-                        claim_id, analysis.id, NULL, claim_ordinal,
+                        v_claim_id, analysis.id, NULL, claim_ordinal,
                         claim_text, fingerprint,
                         'other'::core.claim_type, 'reported'::core.assertion_status,
                         NULL, NULL, doc_version_id
@@ -744,15 +798,15 @@ def upgrade() -> None:
                             RAISE EXCEPTION 'knowledge_locator_hash_conflict'
                                 USING ERRCODE = '22023';
                         END IF;
-                        span_id := existing_span.id;
+                        v_span_id := existing_span.id;
                     ELSE
-                        span_id := gen_random_uuid();
+                        v_span_id := gen_random_uuid();
                         INSERT INTO core.evidence_spans (
                             id, document_version_id, extraction_id, evidence_text,
                             locator_type, char_start, char_end, page_start, page_end,
                             time_start_ms, time_end_ms, locator, locator_sha256
                         ) VALUES (
-                            span_id, doc_version_id, extraction_id, evidence_text,
+                            v_span_id, doc_version_id, extraction_id, evidence_text,
                             locator_type::core.locator_type,
                             char_start, char_end, page_start, page_end,
                             time_start_ms, time_end_ms, envelope, locator_sha
@@ -760,13 +814,14 @@ def upgrade() -> None:
                     END IF;
 
                     IF NOT EXISTS (
-                        SELECT 1 FROM core.claim_evidence
-                         WHERE claim_id = claim_id AND evidence_span_id = span_id
+                        SELECT 1 FROM core.claim_evidence AS evidence
+                         WHERE evidence.claim_id = v_claim_id
+                           AND evidence.evidence_span_id = v_span_id
                     ) THEN
                         INSERT INTO core.claim_evidence (
                             id, claim_id, evidence_span_id, support_type, document_version_id
                         ) VALUES (
-                            gen_random_uuid(), claim_id, span_id,
+                            gen_random_uuid(), v_claim_id, v_span_id,
                             'supports'::core.support_type, doc_version_id
                         );
                     END IF;
@@ -797,6 +852,7 @@ def upgrade() -> None:
         REVOKE ALL ON FUNCTION core._claim_cross_axis_ok(
             text, integer, integer, integer, integer, bigint, bigint, jsonb
         ) FROM PUBLIC;
+        REVOKE ALL ON FUNCTION core._jsonb_keys_exact(jsonb, text[]) FROM PUBLIC;
         REVOKE ALL ON FUNCTION core.materialize_claim_bundle(uuid, uuid, uuid, jsonb)
             FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION core.materialize_claim_bundle(uuid, uuid, uuid, jsonb)
@@ -816,5 +872,178 @@ def downgrade() -> None:
             text, integer, integer, integer, integer, bigint, bigint, jsonb
         );
         DROP FUNCTION IF EXISTS core._claim_source_locator_json(jsonb);
+        DROP FUNCTION IF EXISTS core._jsonb_keys_exact(jsonb, text[]);
+
+        CREATE OR REPLACE FUNCTION ops.validate_knowledge_attempt_metrics(
+            p_metrics jsonb,
+            p_outcome ops.attempt_outcome
+        ) RETURNS void
+        LANGUAGE plpgsql STABLE SECURITY DEFINER
+        SET search_path = ops, pg_catalog
+        AS $validate_knowledge_attempt_metrics$
+        DECLARE
+            allowed_keys text[] := ARRAY[
+                'schema_version', 'input_candidates', 'materialized_candidates',
+                'input_locators', 'materialized_locators', 'rejected_candidates',
+                'rejected_locators', 'empty_valid_result', 'rejected_by_code', 'samples'
+            ];
+            allowed_codes text[] := ARRAY[
+                'locator_end_not_after_start', 'locator_out_of_range',
+                'locator_axis_conflict', 'locator_pdf_page_missing',
+                'locator_time_missing', 'locator_page_range_invalid',
+                'locator_time_range_invalid', 'locator_location_map_invalid',
+                'locator_cross_axis_mismatch', 'locator_excerpt_too_large',
+                'locator_duplicate', 'knowledge_extraction_missing',
+                'knowledge_extraction_ambiguous', 'knowledge_extraction_mismatch',
+                'knowledge_locator_unmappable', 'knowledge_invalid_origin',
+                'knowledge_schema_unsupported', 'knowledge_payload_mismatch',
+                'knowledge_bundle_mismatch'
+            ];
+            unknown_key text;
+            input_candidates integer;
+            materialized_candidates integer;
+            input_locators integer;
+            materialized_locators integer;
+            rejected_candidates integer;
+            rejected_locators integer;
+            empty_valid boolean;
+            code_sum integer;
+            sample jsonb;
+            sample_key text;
+            code_value jsonb;
+        BEGIN
+            IF p_metrics IS NULL OR jsonb_typeof(p_metrics) <> 'object' THEN
+                RAISE EXCEPTION 'knowledge attempt metrics must be an object'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF pg_column_size(p_metrics) > 65536 THEN
+                RAISE EXCEPTION 'knowledge attempt metrics exceed 64KiB'
+                    USING ERRCODE = '22023';
+            END IF;
+            SELECT key INTO unknown_key
+              FROM jsonb_object_keys(p_metrics) AS key
+             WHERE key <> ALL (allowed_keys)
+             LIMIT 1;
+            IF unknown_key IS NOT NULL THEN
+                RAISE EXCEPTION 'knowledge attempt metrics contain unknown keys'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF p_metrics ->> 'schema_version' <> 'knowledge-attempt-metrics.v1' THEN
+                RAISE EXCEPTION 'knowledge attempt metrics schema is unsupported'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF jsonb_typeof(p_metrics -> 'empty_valid_result') <> 'boolean' THEN
+                RAISE EXCEPTION 'empty_valid_result must be boolean'
+                    USING ERRCODE = '22023';
+            END IF;
+            empty_valid := (p_metrics ->> 'empty_valid_result')::boolean;
+            BEGIN
+                input_candidates := (p_metrics ->> 'input_candidates')::integer;
+                materialized_candidates := (p_metrics ->> 'materialized_candidates')::integer;
+                input_locators := (p_metrics ->> 'input_locators')::integer;
+                materialized_locators := (p_metrics ->> 'materialized_locators')::integer;
+                rejected_candidates := (p_metrics ->> 'rejected_candidates')::integer;
+                rejected_locators := (p_metrics ->> 'rejected_locators')::integer;
+            EXCEPTION
+                WHEN invalid_text_representation THEN
+                    RAISE EXCEPTION 'knowledge attempt metrics counts are required'
+                        USING ERRCODE = '22023';
+            END;
+            IF input_candidates IS NULL OR materialized_candidates IS NULL
+               OR input_locators IS NULL OR materialized_locators IS NULL
+               OR rejected_candidates IS NULL OR rejected_locators IS NULL THEN
+                RAISE EXCEPTION 'knowledge attempt metrics counts are required'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF input_candidates < 0 OR materialized_candidates < 0
+               OR input_locators < 0 OR materialized_locators < 0
+               OR rejected_candidates < 0 OR rejected_locators < 0 THEN
+                RAISE EXCEPTION 'knowledge attempt metrics counts cannot be negative'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF materialized_candidates + rejected_candidates <> input_candidates
+               OR materialized_locators + rejected_locators <> input_locators THEN
+                RAISE EXCEPTION 'knowledge attempt metrics counts are inconsistent'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF jsonb_typeof(p_metrics -> 'rejected_by_code') IS DISTINCT FROM 'object' THEN
+                RAISE EXCEPTION 'rejected_by_code must be an object'
+                    USING ERRCODE = '22023';
+            END IF;
+            SELECT key INTO unknown_key
+              FROM jsonb_object_keys(p_metrics -> 'rejected_by_code') AS key
+             WHERE key <> ALL (allowed_codes)
+             LIMIT 1;
+            IF unknown_key IS NOT NULL THEN
+                RAISE EXCEPTION 'rejected_by_code contains an unknown reason'
+                    USING ERRCODE = '22023';
+            END IF;
+            FOR code_value IN
+                SELECT value FROM jsonb_each(p_metrics -> 'rejected_by_code')
+            LOOP
+                IF jsonb_typeof(code_value) <> 'number'
+                   OR truncate((code_value #>> '{}')::numeric) <> (code_value #>> '{}')::numeric
+                   OR (code_value #>> '{}')::integer < 0 THEN
+                    RAISE EXCEPTION 'rejected_by_code counts must be non-negative integers'
+                        USING ERRCODE = '22023';
+                END IF;
+            END LOOP;
+            SELECT coalesce(sum((value)::integer), 0) INTO code_sum
+              FROM jsonb_each_text(p_metrics -> 'rejected_by_code');
+            IF code_sum <> rejected_locators THEN
+                RAISE EXCEPTION 'rejected_by_code does not match rejected locators'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF jsonb_typeof(p_metrics -> 'samples') IS DISTINCT FROM 'array' THEN
+                RAISE EXCEPTION 'samples must be an array'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF jsonb_array_length(p_metrics -> 'samples') > 50 THEN
+                RAISE EXCEPTION 'samples exceed the frozen maximum'
+                    USING ERRCODE = '22023';
+            END IF;
+            FOR sample IN SELECT value FROM jsonb_array_elements(p_metrics -> 'samples')
+            LOOP
+                IF jsonb_typeof(sample) <> 'object' THEN
+                    RAISE EXCEPTION 'sample rows must be objects'
+                        USING ERRCODE = '22023';
+                END IF;
+                SELECT key INTO sample_key
+                  FROM jsonb_object_keys(sample) AS key
+                 WHERE key NOT IN ('candidate_ordinal', 'locator_ordinal', 'reason_code')
+                 LIMIT 1;
+                IF sample_key IS NOT NULL THEN
+                    RAISE EXCEPTION 'sample rows contain unknown keys'
+                        USING ERRCODE = '22023';
+                END IF;
+                IF coalesce(sample ->> 'reason_code', '') <> ALL (allowed_codes) THEN
+                    RAISE EXCEPTION 'sample reason_code is not frozen'
+                        USING ERRCODE = '22023';
+                END IF;
+                IF jsonb_typeof(sample -> 'candidate_ordinal') IS DISTINCT FROM 'number'
+                   OR jsonb_typeof(sample -> 'locator_ordinal') IS DISTINCT FROM 'number' THEN
+                    RAISE EXCEPTION 'sample ordinals must be numbers'
+                        USING ERRCODE = '22023';
+                END IF;
+            END LOOP;
+            IF empty_valid THEN
+                IF p_outcome <> 'succeeded'
+                   OR input_candidates <> 0 OR materialized_candidates <> 0 THEN
+                    RAISE EXCEPTION 'empty valid metrics require a zero success'
+                        USING ERRCODE = '22023';
+                END IF;
+            END IF;
+            IF p_outcome = 'succeeded'
+               AND NOT (materialized_candidates > 0 OR empty_valid) THEN
+                RAISE EXCEPTION 'successful knowledge metrics require materialization or empty valid'
+                    USING ERRCODE = '22023';
+            END IF;
+            IF p_outcome IN ('terminal_failure', 'retryable_failure')
+               AND materialized_candidates <> 0 THEN
+                RAISE EXCEPTION 'failed knowledge metrics cannot report materialization'
+                    USING ERRCODE = '22023';
+            END IF;
+        END
+        $validate_knowledge_attempt_metrics$;
         """
     )

@@ -11,6 +11,8 @@ from psycopg import Connection
 from psycopg.errors import Error as PsycopgError
 from psycopg.types.json import Jsonb
 
+from uap_platform.object_registry import ObjectClient, read_verified_object
+
 from .anchors import object_consistent
 from .bundle import (
     build_knowledge_bundle,
@@ -56,8 +58,11 @@ _FROZEN_ERROR_TOKENS = (
 class ResolveClaimsHandler:
     """Claim one resolve_claims attempt through mapping and DB materialization."""
 
-    def __init__(self, connection: Connection[object]) -> None:
+    def __init__(
+        self, connection: Connection[object], object_client: ObjectClient
+    ) -> None:
         self._connection = connection
+        self._object_client = object_client
 
     def handle(
         self,
@@ -371,19 +376,55 @@ class ResolveClaimsHandler:
                 elif loc_map is not None and not isinstance(loc_map, (str, bytes)):
                     location_map = [dict(item) for item in loc_map]
 
-        text_body = self._load_evidence_text()
+        text_body = ""
+        if named_extraction is not None and claims:
+            text_body = self._load_derived_text(
+                extraction_id=named_extraction,
+                document_version_id=parsed.document_version_id,
+                input_sha256=parsed.input_sha256,
+            )
         return claims, text_body, location_map, records
 
-    def _load_evidence_text(self) -> str:
-        """Load derived extraction text. Prefer fixture GUC for probes (text is not in PG)."""
+    def _load_derived_text(
+        self,
+        *,
+        extraction_id: uuid.UUID,
+        document_version_id: uuid.UUID,
+        input_sha256: str,
+    ) -> str:
+        """Read the frozen derived object and verify its content hash."""
 
         with self._connection.cursor() as cursor:
-            cursor.execute("SELECT current_setting('uap.fixture_extraction_text', true)")
+            cursor.execute(
+                """
+                SELECT stored.bucket_name, stored.object_key,
+                       stored.content_sha256, stored.byte_length
+                  FROM core.extractions AS extraction
+                  JOIN core.stored_objects AS stored
+                    ON stored.id = extraction.text_object_id
+                   AND stored.storage_domain = 'derived'
+                 WHERE extraction.id = %s
+                   AND extraction.document_version_id = %s
+                   AND extraction.outcome = 'succeeded'
+                   AND extraction.output_sha256 = %s
+                   AND stored.content_sha256 = %s
+                """,
+                (extraction_id, document_version_id, input_sha256, input_sha256),
+            )
             row = cast(tuple[Any, ...] | None, cursor.fetchone())
-            if row and row[0] and str(row[0]) not in ("", "unset"):
-                return str(row[0])
-        return ""
-
+        if row is None:
+            raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
+        data = read_verified_object(
+            self._object_client,
+            str(row[0]),
+            str(row[1]),
+            str(row[2]),
+            int(row[3]),
+        )
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH) from error
 
 def _optional_int(item: Mapping[str, Any], key: str) -> int | None:
     value = item.get(key)
