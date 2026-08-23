@@ -72,22 +72,28 @@ class ResolveClaimsWorker:
 
     @property
     def claim_job_types(self) -> tuple[str, ...]:
-        """Exact array passed to ops.claim_job: dispatchable subset of the activated set."""
+        """Exact array passed to ops.claim_job.
 
-        return self._claim_job_types
+        Pre-handler: the full pre-claim set, so claim_job is invoked and cannot
+        select resolve_claims. After activation: only resolve_claims, which this
+        consumer can dispatch without stealing extract/analyze jobs.
+        """
+
+        if self._claim_job_types:
+            return self._claim_job_types
+        return self._activated_types
 
     def claim_one(self) -> tuple[Any, ...] | None:
-        """Call ops.claim_job only when resolve_claims is in the activated set."""
+        """Always call ops.claim_job with the activated G8-16A type array."""
 
-        if not self._claim_job_types:
-            return None
+        requested = self.claim_job_types
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT job_id, attempt_id, job_type, payload, lease_token
                   FROM ops.claim_job('worker', %s, %s::text[], %s)
                 """,
-                (self._worker_id, list(self._claim_job_types), self._lease_seconds),
+                (self._worker_id, list(requested), self._lease_seconds),
             )
             row = cast(tuple[Any, ...] | None, cursor.fetchone())
         self._connection.commit()

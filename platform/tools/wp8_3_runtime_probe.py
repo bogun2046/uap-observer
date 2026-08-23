@@ -744,8 +744,8 @@ def g8_16a(
         True,
     )
     require(
-        "g8-16a inactive claim_job_types empty",
-        inactive.claim_job_types == (),
+        "g8-16a inactive claim_job_types omit claims",
+        "resolve_claims" not in inactive.claim_job_types,
         True,
     )
     pre_claim = inactive.claim_one()
@@ -754,7 +754,6 @@ def g8_16a(
     active = ResolveClaimsWorker.from_settings(
         worker,
         worker_id=f"wp8-3-post-{tag}",
-        claims_handler_active=True,
         lease_seconds=60,
     )
     require(
@@ -784,7 +783,6 @@ def g8_16a(
         claimed = ResolveClaimsWorker.from_settings(
             worker,
             worker_id=f"wp8-3-post-{tag}-{index}",
-            claims_handler_active=True,
             lease_seconds=60,
         ).claim_one()
         if claimed is None:
