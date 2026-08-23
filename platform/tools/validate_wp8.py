@@ -325,6 +325,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "ResolveClaimsWorker" in knowledge_sources
             and "from_settings" in knowledge_sources
             and "claim_job_types" in knowledge_sources
+            and "if not requested" in knowledge_sources
             and "read_verified_object" in knowledge_sources
             and "parse_knowledge_payload" in knowledge_sources
             and "_finish_unmapped_failure" in knowledge_sources
@@ -340,6 +341,7 @@ def evaluate(platform: Path) -> list[Check]:
             "wp8_3_runtime_and_fail_closed_tests",
             "test_g8_16a_claimable_job_types_activation" in foundation_tests
             and "test_production_worker_activates_resolve_claims" in handler_tests
+            and "inactive.claim_job_types == ()" in handler_tests
             and "test_0011_downgrade_restores_frozen_0010_metrics_validator" in foundation_tests
             and "test_parse_knowledge_payload_missing_key" in handler_tests
             and "test_handler_missing_key_finishes_attempt" in handler_tests
@@ -354,7 +356,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "read_verified_object" in probe3
             and "ProbeObjectClient" not in probe3
             and "uap_worker" in probe3
-            and "fixture_extraction_text" not in probe3,
+            and "fixture_extraction_text" not in probe3
+            and "name[:8]" not in probe3
+            and "inactive.claim_job_types == ()" in probe3
+            and "SAVEPOINT g8_16a_preclaim_control" in probe3,
             True,
         ),
     ]

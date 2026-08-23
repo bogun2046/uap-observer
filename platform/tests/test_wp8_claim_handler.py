@@ -294,13 +294,15 @@ def test_production_worker_activates_resolve_claims() -> None:
     )
     assert "resolve_claims" not in inactive.job_types
     assert inactive.job_types == PRE_CLAIM_HANDLER_JOB_TYPES
-    assert inactive.claim_job_types == PRE_CLAIM_HANDLER_JOB_TYPES
+    assert inactive.claim_job_types == ()
     production = ResolveClaimsWorker(MagicMock(), MagicMock(), worker_id="prod")
     assert production.job_types == CLAIMABLE_JOB_TYPES
     assert "resolve_claims" in production.job_types
     assert production.claim_job_types == ("resolve_claims",)
     assert "resolve_entities" not in production.job_types
     assert "resolve_relations" not in production.job_types
+    for job_type in (*inactive.claim_job_types, *production.claim_job_types):
+        assert job_type == "resolve_claims"
 
 
 def test_worker_claim_one_none_and_dispatch_rejects_other_types() -> None:
@@ -314,13 +316,12 @@ def test_worker_claim_one_none_and_dispatch_rejects_other_types() -> None:
         conn, MagicMock(), worker_id="pre", claims_handler_active=False
     )
     assert inactive.claim_one() is None
-    inactive_types = cursor.execute.call_args.args[1][1]
-    assert "ops.claim_job" in str(cursor.execute.call_args.args[0])
-    assert "resolve_claims" not in inactive_types
-    assert set(inactive_types) == set(PRE_CLAIM_HANDLER_JOB_TYPES)
+    assert cursor.execute.call_count == 0
+    assert conn.commit.call_count == 0
     worker = ResolveClaimsWorker(conn, MagicMock(), worker_id="w")
     assert worker.claim_one() is None
     active_types = cursor.execute.call_args.args[1][1]
+    assert "ops.claim_job" in str(cursor.execute.call_args.args[0])
     assert active_types == ["resolve_claims"]
     assert worker.run_once() is None
     with pytest.raises(KnowledgePayloadError):

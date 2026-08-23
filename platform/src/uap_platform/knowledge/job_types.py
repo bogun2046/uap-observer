@@ -21,7 +21,12 @@ FORBIDDEN_CLAIMABLE_JOB_TYPES: tuple[str, ...] = (
 
 
 def claimable_job_types(*, claims_handler_active: bool) -> tuple[str, ...]:
-    """Return the job-type array passed to ops.claim_job."""
+    """Platform-wide G8-16A activation set. Not a Claims worker's p_job_types.
+
+    A general worker that owns fetch/extract/translate/analyze handlers uses this
+    set; it never includes resolve_claims until that handler is deployed. A
+    Claims-specific consumer must pass only types it can dispatch to claim_job.
+    """
 
     if claims_handler_active:
         return CLAIMABLE_JOB_TYPES

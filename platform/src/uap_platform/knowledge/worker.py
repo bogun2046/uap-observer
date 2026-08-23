@@ -39,10 +39,11 @@ class ResolveClaimsWorker:
         self._activated_types = claimable_job_types(
             claims_handler_active=claims_handler_active
         )
+        # ADR-0008: p_job_types must be a subset of handlers deployed here.
+        # This consumer only dispatches resolve_claims; inactive it claims nothing.
+        requested = ("resolve_claims",) if claims_handler_active else ()
         self._claim_job_types = tuple(
-            job_type
-            for job_type in self._activated_types
-            if job_type in _DISPATCHABLE_JOB_TYPES
+            job_type for job_type in requested if job_type in _DISPATCHABLE_JOB_TYPES
         )
 
     @classmethod
@@ -66,27 +67,26 @@ class ResolveClaimsWorker:
 
     @property
     def job_types(self) -> tuple[str, ...]:
-        """Activated claimable set used by G8-16A. Sibling types stay undispatched here."""
+        """Platform-wide G8-16A claimable set. Sibling types stay undispatched here."""
 
         return self._activated_types
 
     @property
     def claim_job_types(self) -> tuple[str, ...]:
-        """Exact array passed to ops.claim_job.
+        """Exact array passed to ops.claim_job: only types this process can dispatch.
 
-        Pre-handler: the full pre-claim set, so claim_job is invoked and cannot
-        select resolve_claims. After activation: only resolve_claims, which this
-        consumer can dispatch without stealing extract/analyze jobs.
+        Inactive Claims consumer: empty (never call claim_job with sibling types).
+        After activation: only resolve_claims.
         """
 
-        if self._claim_job_types:
-            return self._claim_job_types
-        return self._activated_types
+        return self._claim_job_types
 
     def claim_one(self) -> tuple[Any, ...] | None:
-        """Always call ops.claim_job with the activated G8-16A type array."""
+        """Lease one job this process can dispatch. Empty type set claims nothing."""
 
         requested = self.claim_job_types
+        if not requested:
+            return None
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """

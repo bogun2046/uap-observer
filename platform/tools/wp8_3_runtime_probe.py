@@ -34,6 +34,7 @@ from tools.wp8_1_runtime_probe import (  # noqa: E402
 )
 from uap_platform.config import load_settings  # noqa: E402
 from uap_platform.knowledge.handler import ResolveClaimsHandler  # noqa: E402
+from uap_platform.knowledge.job_types import PRE_CLAIM_HANDLER_JOB_TYPES  # noqa: E402
 from uap_platform.knowledge.metrics import failure_metrics  # noqa: E402
 from uap_platform.knowledge.payload import parse_knowledge_payload  # noqa: E402
 from uap_platform.knowledge.worker import ResolveClaimsWorker  # noqa: E402
@@ -488,8 +489,10 @@ def _g8_13_payload_cases(
         "illegal_uuid": "not-a-uuid",
     }
     outcomes: dict[str, str] = {}
+    seed_tags = [f"{tag}-13-{name}" for name in cases]
+    require("g8-13 payload seed tags unique", len(seed_tags) == len(set(seed_tags)), True)
     for name, value in cases.items():
-        world = _seed_claim_world(admin, f"{tag}-13-{name[:8]}")
+        world = _seed_claim_world(admin, f"{tag}-13-{name}")
         payload = _payload_for(admin, world["job_id"])
         if name == "missing_key":
             del payload["model_run_id"]
@@ -541,8 +544,10 @@ def _g8_13_bundle_tamper(
         "missing_candidate": "omitted candidate",
         "missing_keys": "missing accepted/rejected keys",
     }
+    seed_tags = [f"{tag}-13b-{name}" for name in tampers]
+    require("g8-13 bundle seed tags unique", len(seed_tags) == len(set(seed_tags)), True)
     for name in tampers:
-        world = _seed_claim_world(admin, f"{tag}-13b-{name[:8]}")
+        world = _seed_claim_world(admin, f"{tag}-13b-{name}")
         payload = _payload_for(admin, world["job_id"])
         attempt_id, token = grant_running_lease(
             admin, world["job_id"], f"wp8-3-13b-{name}-{tag}"
@@ -744,12 +749,61 @@ def g8_16a(
         True,
     )
     require(
-        "g8-16a inactive claim_job_types omit claims",
-        "resolve_claims" not in inactive.claim_job_types,
+        "g8-16a inactive platform set is pre-claim",
+        inactive.job_types == PRE_CLAIM_HANDLER_JOB_TYPES,
+        True,
+    )
+    require(
+        "g8-16a inactive claims consumer requests no types",
+        inactive.claim_job_types == (),
         True,
     )
     pre_claim = inactive.claim_one()
     require("g8-16a not claimed before activation", pre_claim is None, True)
+    still_queued = scalar(
+        admin,
+        "SELECT status::text FROM ops.jobs WHERE id=%s",
+        job_id,
+    )
+    require("g8-16a still queued after inactive claim_one", still_queued, "queued")
+
+    # Probe SQL only: a sibling worker that owns fetch/extract/translate/analyze
+    # may call claim_job with PRE_CLAIM types. That set must not select this
+    # queued resolve_claims job. Rollback so leftover sibling jobs stay queued.
+    with worker.cursor() as cursor:
+        cursor.execute("SAVEPOINT g8_16a_preclaim_control")
+        try:
+            cursor.execute(
+                """
+                SELECT job_id, job_type
+                  FROM ops.claim_job('worker', %s, %s::text[], 30)
+                """,
+                (
+                    f"wp8-3-preclaim-control-{tag}",
+                    list(PRE_CLAIM_HANDLER_JOB_TYPES),
+                ),
+            )
+            control = cursor.fetchone()
+            if control is not None:
+                require(
+                    "g8-16a pre-claim control type",
+                    str(control[1]) != "resolve_claims",
+                    True,
+                )
+                require(
+                    "g8-16a pre-claim control missed our job",
+                    control[0] != job_id,
+                    True,
+                )
+        finally:
+            cursor.execute("ROLLBACK TO SAVEPOINT g8_16a_preclaim_control")
+    worker.commit()
+    queued_after_control = scalar(
+        admin,
+        "SELECT status::text FROM ops.jobs WHERE id=%s",
+        job_id,
+    )
+    require("g8-16a still queued after pre-claim control", queued_after_control, "queued")
 
     active = ResolveClaimsWorker.from_settings(
         worker,
