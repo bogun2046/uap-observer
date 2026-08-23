@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
@@ -153,6 +155,7 @@ def _seed_claim_world(
         "job_id": job[0],
         "payload": job[3] if len(job) > 3 else None,
         "input_sha": input_sha,
+        "frozen_text": body,
         "start": start,
         "end": end,
     }
@@ -163,7 +166,9 @@ def _payload_for(admin: psycopg.Connection[Any], job_id: uuid.UUID) -> dict[str,
     return dict(raw)
 
 
-def _valid_bundle(payload: dict[str, object], start: int, end: int) -> dict[str, object]:
+def _valid_bundle(
+    payload: dict[str, object], frozen_text: str, start: int, end: int
+) -> dict[str, object]:
     return {
         "bundle_schema_version": "knowledge-bundle.v2",
         "analysis_result_id": payload["analysis_result_id"],
@@ -174,7 +179,7 @@ def _valid_bundle(payload: dict[str, object], start: int, end: int) -> dict[str,
                 "accepted_locators": [
                     {
                         "locator_ordinal": 0,
-                        "evidence_text": FIXTURE_TEXT[start:end],
+                        "evidence_text": frozen_text[start:end],
                         "char_start": start,
                         "char_end": end,
                         "page_start": None,
@@ -199,6 +204,157 @@ def _run_handler(
 ) -> str:
     handler = ResolveClaimsHandler(worker, _client())
     return handler.handle(job_id, attempt_id, token, payload)
+
+
+def _frozen_slice(world: dict[str, Any]) -> str:
+    return str(world["frozen_text"])[int(world["start"]) : int(world["end"])]
+
+
+def _require_evidence_slice(
+    admin: psycopg.Connection[Any], analysis_id: uuid.UUID, world: dict[str, Any], name: str
+) -> None:
+    stored = scalar(
+        admin,
+        """
+        SELECT span.evidence_text
+          FROM core.evidence_spans AS span
+          JOIN core.claim_evidence AS link ON link.evidence_span_id = span.id
+          JOIN core.claims AS claim ON claim.id = link.claim_id
+         WHERE claim.origin_analysis_result_id = %s
+        """,
+        analysis_id,
+    )
+    require(name, stored, _frozen_slice(world))
+
+
+def _knowledge_counts(
+    admin: psycopg.Connection[Any], analysis_id: uuid.UUID
+) -> tuple[int, int]:
+    claims = scalar(
+        admin, "SELECT count(*) FROM core.claims WHERE origin_analysis_result_id=%s", analysis_id
+    )
+    evidence = scalar(
+        admin,
+        """
+        SELECT count(*) FROM core.claim_evidence AS evidence
+          JOIN core.claims AS claim ON claim.id = evidence.claim_id
+         WHERE claim.origin_analysis_result_id = %s
+        """,
+        analysis_id,
+    )
+    return int(claims), int(evidence)
+
+
+def _extraction_object(
+    admin: psycopg.Connection[Any], extraction_id: uuid.UUID
+) -> tuple[Any, ...]:
+    return one(
+        admin,
+        """
+        SELECT stored.bucket_name, stored.object_key, stored.content_sha256,
+               stored.byte_length, stored.id
+          FROM core.stored_objects AS stored
+          JOIN core.extractions AS extraction
+            ON extraction.text_object_id = stored.id
+         WHERE extraction.id = %s
+        """,
+        extraction_id,
+    )
+
+
+def _claim_one_resolve(
+    conn: psycopg.Connection[Any], worker_id: str
+) -> tuple[Any, ...] | None:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT job_id, attempt_id, job_type, payload, lease_token
+              FROM ops.claim_job('worker', %s, ARRAY['resolve_claims'], 60)
+            """,
+            (worker_id,),
+        )
+        row = cast(tuple[Any, ...] | None, cursor.fetchone())
+    conn.commit()
+    return None if row is None else tuple(row)
+
+
+def _finish_probe_failure(
+    conn: psycopg.Connection[Any],
+    job_id: uuid.UUID,
+    attempt_id: uuid.UUID,
+    token: uuid.UUID,
+) -> None:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ops.finish_knowledge_job(
+                %s, %s, %s, 'terminal_failure'::ops.attempt_outcome,
+                NULL, %s, %s, NULL, %s
+            )
+            """,
+            (
+                job_id,
+                attempt_id,
+                token,
+                "knowledge_payload_mismatch",
+                "knowledge_payload_mismatch",
+                Jsonb(failure_metrics("knowledge_payload_mismatch")),
+            ),
+        )
+    conn.commit()
+
+
+def _claim_target_job(
+    conn: psycopg.Connection[Any],
+    *,
+    worker_id: str,
+    job_id: uuid.UUID,
+    limit: int = 16,
+) -> tuple[Any, ...]:
+    for index in range(limit):
+        row = _claim_one_resolve(conn, f"{worker_id}-{index}")
+        if row is None:
+            raise RuntimeError(f"g8-13 did not claim {job_id}")
+        if row[0] == job_id:
+            return row
+        _finish_probe_failure(conn, row[0], row[1], row[4])
+    raise RuntimeError(f"g8-13 claim loop missed {job_id}")
+
+
+def _drain_resolve_claims(conn: psycopg.Connection[Any], worker_id: str, limit: int = 16) -> None:
+    for index in range(limit):
+        row = _claim_one_resolve(conn, f"{worker_id}-drain-{index}")
+        if row is None:
+            return
+        _finish_probe_failure(conn, row[0], row[1], row[4])
+
+
+def _require_handler_fail_closed(
+    admin: psycopg.Connection[Any],
+    worker: psycopg.Connection[Any],
+    world: dict[str, Any],
+    tag: str,
+    name: str,
+) -> str:
+    payload = _payload_for(admin, world["job_id"])
+    before_claims, before_evidence = _knowledge_counts(admin, world["analysis_id"])
+    attempt_id, token = grant_running_lease(admin, world["job_id"], f"wp8-3-13-{name}-{tag}")
+    status = _run_handler(worker, world["job_id"], attempt_id, token, payload)
+    after_claims, after_evidence = _knowledge_counts(admin, world["analysis_id"])
+    outcome = scalar(
+        admin, "SELECT outcome::text FROM ops.job_attempts WHERE id=%s", attempt_id
+    )
+    error_code = scalar(admin, "SELECT error_code FROM ops.job_attempts WHERE id=%s", attempt_id)
+    require(f"g8-13 {name} no new claims", after_claims, before_claims)
+    require(f"g8-13 {name} no new evidence", after_evidence, before_evidence)
+    require(
+        f"g8-13 {name} closed",
+        outcome in {"terminal_failure", "retryable_failure"},
+        True,
+    )
+    require(f"g8-13 {name} not succeeded", status != "succeeded", True)
+    require(f"g8-13 {name} frozen code", error_code in _FROZEN_G8_13_CODES, True)
+    return str(error_code)
 
 
 def g8_11(
@@ -245,6 +401,7 @@ def g8_11(
     require("g8-11 ordinal", claim_row[5], 0)
     require("g8-11 fingerprint", claim_row[7], expected_fp)
     require("g8-11 supports", int(supports) >= 1, True)
+    _require_evidence_slice(admin, world["analysis_id"], world, "g8-11 evidence slice")
     require("g8-11 job succeeded", job_status, "succeeded")
     require("g8-11 attempt succeeded", outcome, "succeeded")
     return {"passed": True, "job_status": job_status, "fingerprint": claim_row[7]}
@@ -543,6 +700,8 @@ def _g8_13_bundle_tamper(
         "ordinal": "accepted ordinal",
         "missing_candidate": "omitted candidate",
         "missing_keys": "missing accepted/rejected keys",
+        "locator_ordinal": "locator ordinal",
+        "locator_axes": "locator content axes",
     }
     seed_tags = [f"{tag}-13b-{name}" for name in tampers]
     require("g8-13 bundle seed tags unique", len(seed_tags) == len(set(seed_tags)), True)
@@ -552,7 +711,9 @@ def _g8_13_bundle_tamper(
         attempt_id, token = grant_running_lease(
             admin, world["job_id"], f"wp8-3-13b-{name}-{tag}"
         )
-        bundle = _valid_bundle(payload, world["start"], world["end"])
+        bundle = _valid_bundle(
+            payload, str(world["frozen_text"]), int(world["start"]), int(world["end"])
+        )
         if name == "hash":
             bundle["analysis_result_sha256"] = "e" * 64
         elif name == "ordinal":
@@ -565,6 +726,30 @@ def _g8_13_bundle_tamper(
         elif name == "missing_candidate":
             bundle["accepted_candidates"] = []
             bundle["rejected_candidates"] = []
+        elif name == "locator_ordinal":
+            accepted_raw = bundle["accepted_candidates"]
+            if not isinstance(accepted_raw, list) or not accepted_raw:
+                raise RuntimeError("valid bundle missing accepted candidate")
+            candidate = dict(accepted_raw[0])
+            locators_raw = candidate["accepted_locators"]
+            if not isinstance(locators_raw, list) or not locators_raw:
+                raise RuntimeError("valid bundle missing accepted locator")
+            locator = dict(locators_raw[0])
+            locator["locator_ordinal"] = 99
+            candidate["accepted_locators"] = [locator]
+            bundle["accepted_candidates"] = [candidate]
+        elif name == "locator_axes":
+            accepted_raw = bundle["accepted_candidates"]
+            if not isinstance(accepted_raw, list) or not accepted_raw:
+                raise RuntimeError("valid bundle missing accepted candidate")
+            candidate = dict(accepted_raw[0])
+            locators_raw = candidate["accepted_locators"]
+            if not isinstance(locators_raw, list) or not locators_raw:
+                raise RuntimeError("valid bundle missing accepted locator")
+            locator = dict(locators_raw[0])
+            locator["char_start"] = int(locator["char_start"]) + 1
+            candidate["accepted_locators"] = [locator]
+            bundle["accepted_candidates"] = [candidate]
         else:
             del bundle["accepted_candidates"]
             del bundle["rejected_candidates"]
@@ -616,6 +801,192 @@ def _g8_13_bundle_tamper(
     return outcomes
 
 
+def _g8_13_object_and_slice(
+    admin: psycopg.Connection[Any],
+    worker: psycopg.Connection[Any],
+    tag: str,
+) -> dict[str, str]:
+    """Handler slice comes from the hash-verified derived object, not a Python GUC."""
+
+    outcomes: dict[str, str] = {}
+    happy = _seed_claim_world(admin, f"{tag}-13-slice")
+    payload = _payload_for(admin, happy["job_id"])
+    attempt_id, token = grant_running_lease(admin, happy["job_id"], f"wp8-3-13-slice-{tag}")
+    status = _run_handler(worker, happy["job_id"], attempt_id, token, payload)
+    require("g8-13 handler slice succeeded", status in {"succeeded", "success"}, True)
+    _require_evidence_slice(admin, happy["analysis_id"], happy, "g8-13 evidence slice")
+    outcomes["slice"] = "ok"
+
+    content = _seed_claim_world(admin, f"{tag}-13-object-content")
+    bucket, key, _digest, _length, _stored_id = _extraction_object(admin, content["extraction_id"])
+    tampered = b"TAMPERED CONTENT that is not the frozen derived slice"
+    _client().put_object(
+        str(bucket),
+        str(key),
+        io.BytesIO(tampered),
+        len(tampered),
+        "text/plain",
+        {"sha256": "tampered"},
+    )
+    outcomes["object_content"] = _require_handler_fail_closed(
+        admin, worker, content, tag, "object_content"
+    )
+
+    length = _seed_claim_world(admin, f"{tag}-13-object-length")
+    _bucket, _key, _digest, _length, stored_id = _extraction_object(admin, length["extraction_id"])
+    execute(
+        admin,
+        "UPDATE core.stored_objects SET byte_length = byte_length + 1 WHERE id=%s",
+        stored_id,
+    )
+    outcomes["object_length"] = _require_handler_fail_closed(
+        admin, worker, length, tag, "object_length"
+    )
+
+    digest = _seed_claim_world(admin, f"{tag}-13-object-hash")
+    _bucket, _key, _old, _length, stored_id = _extraction_object(admin, digest["extraction_id"])
+    execute(
+        admin,
+        "UPDATE core.stored_objects SET content_sha256=%s WHERE id=%s",
+        sha256_text(f"tampered-hash-{tag}"),
+        stored_id,
+    )
+    outcomes["object_hash"] = _require_handler_fail_closed(
+        admin, worker, digest, tag, "object_hash"
+    )
+    return outcomes
+
+
+def _g8_13_at_least_once(
+    admin: psycopg.Connection[Any],
+    worker: psycopg.Connection[Any],
+    tag: str,
+) -> dict[str, Any]:
+    """Two-connection claim race plus lease expiry re-claim. At most one succeeded."""
+
+    _drain_resolve_claims(worker, f"wp8-3-drain-{tag}")
+    race = _seed_claim_world(admin, f"{tag}-13-race")
+    job_id = race["job_id"]
+    worker_b = connect("uap_worker")
+    worker_b.autocommit = False
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            future_a = pool.submit(_claim_one_resolve, worker, f"wp8-3-race-a-{tag}")
+            future_b = pool.submit(_claim_one_resolve, worker_b, f"wp8-3-race-b-{tag}")
+            claimed_a = future_a.result()
+            claimed_b = future_b.result()
+        hits = [
+            row for row in (claimed_a, claimed_b) if row is not None and row[0] == job_id
+        ]
+        require("g8-13 race at most one claim", len(hits) <= 1, True)
+        require("g8-13 race claimed our job", len(hits), 1)
+        winner = hits[0]
+        if claimed_a is not None and claimed_a[0] == job_id:
+            winner_conn = worker
+        else:
+            winner_conn = worker_b
+        payload = _payload_for(admin, job_id)
+        status = ResolveClaimsHandler(winner_conn, _client()).handle(
+            winner[0], winner[1], winner[4], payload
+        )
+        require("g8-13 race winner succeeded", status in {"succeeded", "success"}, True)
+        _require_evidence_slice(admin, race["analysis_id"], race, "g8-13 race evidence slice")
+
+        reclaim = _seed_claim_world(admin, f"{tag}-13-reclaim")
+        first = _claim_target_job(
+            worker, worker_id=f"wp8-3-reclaim-a-{tag}", job_id=reclaim["job_id"]
+        )
+        attempt_a = first[1]
+        token_a = first[4]
+        execute(
+            admin,
+            """
+            UPDATE ops.jobs
+               SET lease_expires_at = clock_timestamp() - interval '1 second'
+             WHERE id=%s
+            """,
+            reclaim["job_id"],
+        )
+        second = _claim_target_job(
+            worker_b, worker_id=f"wp8-3-reclaim-b-{tag}", job_id=reclaim["job_id"]
+        )
+        require("g8-13 expiry new attempt", second[1] != attempt_a, True)
+        expired_outcome = scalar(
+            admin, "SELECT outcome::text FROM ops.job_attempts WHERE id=%s", attempt_a
+        )
+        expired_code = scalar(
+            admin, "SELECT error_code FROM ops.job_attempts WHERE id=%s", attempt_a
+        )
+        require("g8-13 expired attempt closed", expired_outcome, "retryable_failure")
+        require("g8-13 expired error_code", expired_code, "lease_expired")
+
+        state_40001 = "ok"
+        try:
+            _run_handler(
+                worker,
+                reclaim["job_id"],
+                attempt_a,
+                token_a,
+                _payload_for(admin, reclaim["job_id"]),
+            )
+        except psycopg.Error as error:
+            state_40001 = error.sqlstate or "none"
+        require("g8-13 expired first 40001", state_40001, "40001")
+
+        second_payload = _payload_for(admin, reclaim["job_id"])
+        reclaim_status = ResolveClaimsHandler(worker_b, _client()).handle(
+            second[0], second[1], second[4], second_payload
+        )
+        require(
+            "g8-13 reclaim succeeded", reclaim_status in {"succeeded", "success"}, True
+        )
+        _require_evidence_slice(
+            admin, reclaim["analysis_id"], reclaim, "g8-13 reclaim evidence slice"
+        )
+
+        succeeded = int(
+            scalar(
+                admin,
+                """
+                SELECT count(*) FROM ops.job_attempts
+                 WHERE job_id=%s AND outcome='succeeded'
+                """,
+                reclaim["job_id"],
+            )
+        )
+        running = int(
+            scalar(
+                admin,
+                """
+                SELECT count(*) FROM ops.job_attempts
+                 WHERE job_id=%s AND outcome='running'
+                """,
+                reclaim["job_id"],
+            )
+        )
+        open_attempts = int(
+            scalar(
+                admin,
+                """
+                SELECT count(*) FROM ops.job_attempts
+                 WHERE job_id=%s AND finished_at IS NULL
+                """,
+                reclaim["job_id"],
+            )
+        )
+        require("g8-13 at most one succeeded", succeeded <= 1, True)
+        require("g8-13 exactly one succeeded", succeeded, 1)
+        require("g8-13 no running attempts", running, 0)
+        require("g8-13 all attempts closed", open_attempts, 0)
+        return {
+            "race_claimed": 1,
+            "reclaim_succeeded": 1,
+            "expired_closed": expired_outcome,
+        }
+    finally:
+        worker_b.close()
+
+
 def g8_13(
     admin: psycopg.Connection[Any],
     worker: psycopg.Connection[Any],
@@ -623,11 +994,14 @@ def g8_13(
 ) -> dict[str, Any]:
     outcomes = _g8_13_payload_cases(admin, worker, tag)
     bundle_outcomes = _g8_13_bundle_tamper(admin, worker, tag)
+    object_outcomes = _g8_13_object_and_slice(admin, worker, tag)
 
     replay = _seed_claim_world(admin, f"{tag}-13-replay")
     payload = _payload_for(admin, replay["job_id"])
     attempt_id, token = grant_running_lease(admin, replay["job_id"], f"wp8-3-replay-{tag}")
-    bundle = _valid_bundle(payload, replay["start"], replay["end"])
+    bundle = _valid_bundle(
+        payload, str(replay["frozen_text"]), int(replay["start"]), int(replay["end"])
+    )
     with worker.cursor() as cursor:
         cursor.execute(
             "SELECT core.materialize_claim_bundle(%s, %s, %s, %s::jsonb)",
@@ -675,7 +1049,15 @@ def g8_13(
     )
     require("g8-13 replay one claim", int(replay_count), 1)
     require("g8-13 replay one evidence", int(replay_spans), 1)
-    return {"passed": True, "tamper": outcomes, "bundle": bundle_outcomes}
+    _require_evidence_slice(admin, replay["analysis_id"], replay, "g8-13 replay evidence slice")
+    once = _g8_13_at_least_once(admin, worker, tag)
+    return {
+        "passed": True,
+        "tamper": outcomes,
+        "bundle": bundle_outcomes,
+        "object": object_outcomes,
+        "at_least_once": once,
+    }
 
 
 def g8_live_definitions(admin: psycopg.Connection[Any]) -> dict[str, Any]:

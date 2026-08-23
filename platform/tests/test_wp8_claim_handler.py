@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import uuid
 from typing import Any
 from unittest.mock import MagicMock
@@ -340,3 +341,11 @@ def test_production_worker_from_settings_uses_active_default() -> None:
         "claims_handler_active": True,
         "lease_seconds": 60,
     }
+
+
+def test_handler_slice_comes_from_verified_object() -> None:
+    source = inspect.getsource(ResolveClaimsHandler._load_derived_text)
+    assert "read_verified_object" in source
+    assert "content_sha256" in source
+    assert "byte_length" in source
+    assert "fixture_extraction_text" not in source

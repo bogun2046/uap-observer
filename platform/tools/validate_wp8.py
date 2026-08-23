@@ -345,6 +345,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "test_0011_downgrade_restores_frozen_0010_metrics_validator" in foundation_tests
             and "test_parse_knowledge_payload_missing_key" in handler_tests
             and "test_handler_missing_key_finishes_attempt" in handler_tests
+            and "test_handler_slice_comes_from_verified_object" in handler_tests
             and "def g8_11" in probe3
             and "def g8_12" in probe3
             and "def g8_13" in probe3
@@ -359,7 +360,20 @@ def evaluate(platform: Path) -> list[Check]:
             and "fixture_extraction_text" not in probe3
             and "name[:8]" not in probe3
             and "inactive.claim_job_types == ()" in probe3
-            and "SAVEPOINT g8_16a_preclaim_control" in probe3,
+            and "SAVEPOINT g8_16a_preclaim_control" in probe3
+            and "g8-11 evidence slice" in probe3
+            and "g8-13 evidence slice" in probe3
+            and "object_content" in probe3
+            and "object_length" in probe3
+            and "object_hash" in probe3
+            and "locator_ordinal" in probe3
+            and "locator_axes" in probe3
+            and "g8-13 race at most one claim" in probe3
+            and "g8-13 expired first 40001" in probe3
+            and "g8-13 at most one succeeded" in probe3
+            and "g8-13 all attempts closed" in probe3
+            and "ThreadPoolExecutor" in probe3
+            and "read_verified_object" in probe3,
             True,
         ),
     ]
