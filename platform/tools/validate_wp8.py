@@ -521,6 +521,12 @@ def evaluate(platform: Path) -> list[Check]:
             and "knowledge_merge_cycle" in migration_13
             and "knowledge_merge_chain_too_long" in migration_13
             and "entity.merge.reverse" in migration_13
+            and "event_kind = 'reverse'"
+            in migration_13[
+                migration_13.find("CREATE FUNCTION core.reverse_entity_merge") : migration_13.find(
+                    "$reverse_entity_merge$;"
+                )
+            ]
             and "GRANT EXECUTE ON FUNCTION core.canonical_entity_id" in migration_13
             and "GRANT EXECUTE ON FUNCTION core.merge_entities" not in migration_13
             and "GRANT EXECUTE ON FUNCTION core.reverse_entity_merge" not in migration_13

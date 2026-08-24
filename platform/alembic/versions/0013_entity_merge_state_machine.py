@@ -324,6 +324,19 @@ def upgrade() -> None:
                 clock_timestamp(), 'reverse', NULL, NULL
             );
 
+            IF NOT EXISTS (
+                SELECT 1
+                  FROM core.entity_merge_events AS event
+                 WHERE event.id = v_reverse_id
+                   AND event.source_entity_id = v_source_id
+                   AND event.target_entity_id = v_target_id
+                   AND event.event_kind = 'reverse'
+                   AND event.reversed_at IS NULL
+            ) THEN
+                RAISE EXCEPTION 'knowledge_merge_reverse_copy_failed'
+                    USING ERRCODE = '23514';
+            END IF;
+
             UPDATE core.entity_merge_events
                SET reversed_by_id = v_reverse_id,
                    reversed_at = clock_timestamp()

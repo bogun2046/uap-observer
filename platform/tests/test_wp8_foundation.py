@@ -184,6 +184,12 @@ def test_wp8_5_merge_state_machine_present() -> None:
     )
     assert "CREATE FUNCTION core.merge_entities" in source
     assert "CREATE FUNCTION core.reverse_entity_merge" in source
+    reverse_fn = source[
+        source.find("CREATE FUNCTION core.reverse_entity_merge") : source.find(
+            "$reverse_entity_merge$;"
+        )
+    ]
+    assert "event_kind = 'reverse'" in reverse_fn
     assert "CREATE FUNCTION core.canonical_entity_id" in source
     assert "uq_open_merge_source" in source
     assert "pg_advisory_xact_lock(824, 1)" in source
