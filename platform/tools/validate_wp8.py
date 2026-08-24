@@ -1,4 +1,4 @@
-"""Validate the WP8.1-WP8.3 knowledge handover, mapping, and claim materialization contract."""
+"""Validate the WP8.1-WP8.4 knowledge handover, mapping, claim and entity contract."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-WP8_HEAD = "0011_claim_materialization"
-WP8_PARENT = "0010_knowledge_foundation"
+WP8_HEAD = "0012_entity_materialization"
+WP8_PARENT = "0011_claim_materialization"
+WP8_3_HEAD = "0011_claim_materialization"
+WP8_3_PARENT = "0010_knowledge_foundation"
 WP8_1_HEAD = "0010_knowledge_foundation"
 WP8_1_PARENT = "0009_model_governance_boundaries"
 KNOWLEDGE_V2_KEYS = (
@@ -35,6 +37,7 @@ REQUIRED_FILES = (
     "docs/wp8/adr/0010-evidence-locator-mapping.md",
     "platform/alembic/versions/0010_knowledge_foundation.py",
     "platform/alembic/versions/0011_claim_materialization.py",
+    "platform/alembic/versions/0012_entity_materialization.py",
     "platform/src/uap_platform/knowledge/__init__.py",
     "platform/src/uap_platform/knowledge/bundle.py",
     "platform/src/uap_platform/knowledge/handler.py",
@@ -43,12 +46,14 @@ REQUIRED_FILES = (
     "platform/src/uap_platform/knowledge/payload.py",
     "platform/src/uap_platform/knowledge/worker.py",
     "platform/tools/wp8_3_runtime_probe.py",
+    "platform/tools/wp8_4_runtime_probe.py",
     "platform/src/uap_platform/knowledge/anchors.py",
     "platform/src/uap_platform/knowledge/contracts.py",
     "platform/src/uap_platform/knowledge/locators.py",
     "platform/src/uap_platform/knowledge/mapping.py",
     "platform/src/uap_platform/knowledge/reasons.py",
     "platform/tests/test_wp8_locator_mapping.py",
+    "platform/tests/test_wp8_entity_handler.py",
     "platform/tools/validate_wp8.py",
     "platform/tools/wp8_1_runtime_probe.py",
     "platform/scripts/verify-migration-chain.sh",
@@ -57,7 +62,6 @@ REQUIRED_FILES = (
     "platform/tools/wp3_runtime_probe.py",
 )
 FORBIDDEN_STAGE_TOKENS = (
-    "CREATE FUNCTION core.materialize_entity_bundle",
     "CREATE FUNCTION core.merge_entities",
     "CREATE FUNCTION core.reverse_entity_merge",
     "CREATE FUNCTION core.canonical_entity_id",
@@ -92,6 +96,10 @@ def evaluate(platform: Path) -> list[Check]:
     migration_11 = (
         migration_11_path.read_text(encoding="utf-8") if migration_11_path.is_file() else ""
     )
+    migration_12_path = platform / "alembic/versions/0012_entity_materialization.py"
+    migration_12 = (
+        migration_12_path.read_text(encoding="utf-8") if migration_12_path.is_file() else ""
+    )
     foundation_tests = (
         (platform / "tests/test_wp8_foundation.py").read_text(encoding="utf-8")
         if (platform / "tests/test_wp8_foundation.py").is_file()
@@ -102,9 +110,19 @@ def evaluate(platform: Path) -> list[Check]:
         if (platform / "tests/test_wp8_claim_handler.py").is_file()
         else ""
     )
+    entity_handler_tests = (
+        (platform / "tests/test_wp8_entity_handler.py").read_text(encoding="utf-8")
+        if (platform / "tests/test_wp8_entity_handler.py").is_file()
+        else ""
+    )
     probe3 = (
         (platform / "tools/wp8_3_runtime_probe.py").read_text(encoding="utf-8")
         if (platform / "tools/wp8_3_runtime_probe.py").is_file()
+        else ""
+    )
+    probe4 = (
+        (platform / "tools/wp8_4_runtime_probe.py").read_text(encoding="utf-8")
+        if (platform / "tools/wp8_4_runtime_probe.py").is_file()
         else ""
     )
     chain = (platform / "scripts/verify-migration-chain.sh").read_text(encoding="utf-8")
@@ -133,7 +151,7 @@ def evaluate(platform: Path) -> list[Check]:
     return [
         check("required_files", not missing, missing, []),
         check(
-            "unique_wp8_3_head",
+            "unique_wp8_4_head",
             heads == [WP8_HEAD] and revision_ids[:2] == [WP8_HEAD, WP8_PARENT],
             {"heads": heads, "prefix": revision_ids[:2]},
             {"heads": [WP8_HEAD], "prefix": [WP8_HEAD, WP8_PARENT]},
@@ -142,8 +160,10 @@ def evaluate(platform: Path) -> list[Check]:
             "migration_revision_id",
             f'revision = "{WP8_1_HEAD}"' in migration
             and f'down_revision = "{WP8_1_PARENT}"' in migration
-            and f'revision = "{WP8_HEAD}"' in migration_11
-            and f'down_revision = "{WP8_PARENT}"' in migration_11,
+            and f'revision = "{WP8_3_HEAD}"' in migration_11
+            and f'down_revision = "{WP8_3_PARENT}"' in migration_11
+            and f'revision = "{WP8_HEAD}"' in migration_12
+            and f'down_revision = "{WP8_PARENT}"' in migration_12,
             True,
         ),
         check(
@@ -203,24 +223,45 @@ def evaluate(platform: Path) -> list[Check]:
             "stage_boundary",
             all(token not in migration for token in FORBIDDEN_STAGE_TOKENS)
             and all(token not in migration_11 for token in FORBIDDEN_STAGE_TOKENS)
+            and all(token not in migration_12 for token in FORBIDDEN_STAGE_TOKENS)
             and all(token not in knowledge_sources for token in FORBIDDEN_STAGE_TOKENS)
             and "CREATE FUNCTION core.materialize_claim_bundle" in migration_11
             and "GRANT EXECUTE ON FUNCTION core.materialize_claim_bundle" in migration_11
+            and "CREATE FUNCTION core.materialize_entity_bundle" in migration_12
+            and "GRANT EXECUTE ON FUNCTION core.materialize_entity_bundle" in migration_12
             and "TO uap_worker" in migration_11
-            and "materialize_entity_bundle" not in knowledge_sources
+            and "TO uap_worker" in migration_12
+            and "materialize_entity_bundle" not in migration_11
+            and "CREATE FUNCTION core._jsonb_keys_exact" not in migration_12
+            and "CREATE FUNCTION core._claim_source_locator_json" not in migration_12
+            and "CREATE FUNCTION core._claim_cross_axis_ok" not in migration_12
+            and "INSERT INTO core.entities" not in migration_12
+            and "UPDATE core.claims" not in migration_12
+            and "subject_entity_id" not in migration_12
+            and "merge_entities" not in knowledge_sources
             and "def resolve_entities" not in knowledge_sources
             and knowledge_package.is_dir(),
             {
                 "materialize_claim": "CREATE FUNCTION core.materialize_claim_bundle"
                 in migration_11,
+                "materialize_entity": "CREATE FUNCTION core.materialize_entity_bundle"
+                in migration_12,
                 "forbidden": [
                     token
                     for token in FORBIDDEN_STAGE_TOKENS
-                    if token in migration or token in migration_11 or token in knowledge_sources
+                    if token in migration
+                    or token in migration_11
+                    or token in migration_12
+                    or token in knowledge_sources
                 ],
                 "knowledge_package": knowledge_package.is_dir(),
             },
-            {"materialize_claim": True, "forbidden": [], "knowledge_package": True},
+            {
+                "materialize_claim": True,
+                "materialize_entity": True,
+                "forbidden": [],
+                "knowledge_package": True,
+            },
         ),
         check(
             "historical_validators_use_suffix",
@@ -239,13 +280,14 @@ def evaluate(platform: Path) -> list[Check]:
             and "len(actual_tables) == 49" in wp3_validator
             and "WP3_ORIGINAL_TABLE_COUNT = 49" in wp3_probe
             and "EXPECTED_TABLE_COUNT = 50" in wp3_probe
-            and 'CURRENT_HEAD = "0011_claim_materialization"' in wp3_probe
+            and 'CURRENT_HEAD = "0012_entity_materialization"' in wp3_probe
             and "document_version_id" in wp3_probe,
             True,
         ),
         check(
             "migration_chain_head",
-            "0011_claim_materialization" in chain
+            "0012_entity_materialization" in chain
+            and "0011_claim_materialization" in chain
             and '= "50"' in chain
             and "knowledge_claim_backfill_required" in chain
             and "entity_candidate_evidence" in chain,
@@ -267,10 +309,12 @@ def evaluate(platform: Path) -> list[Check]:
             "validate_wp8.py" not in makefile
             and "wp8_1_runtime_probe.py" not in makefile
             and "wp8_3_runtime_probe.py" not in makefile
+            and "wp8_4_runtime_probe.py" not in makefile
             and "validate_wp8.py" not in ci
             and "wp8_runtime_probe.py" not in ci
             and "wp8_1_runtime_probe.py" not in ci
-            and "wp8_3_runtime_probe.py" not in ci,
+            and "wp8_3_runtime_probe.py" not in ci
+            and "wp8_4_runtime_probe.py" not in ci,
             True,
         ),
         check(
@@ -311,8 +355,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "core.compute_claim_fingerprint" in migration_11
             and "knowledge-bundle.v2" in migration_11
             and "knowledge_locator_hash_conflict" in migration_11.split("def downgrade", 1)[0]
-            and "knowledge_locator_hash_conflict"
-            not in migration_11.split("def downgrade", 1)[-1]
+            and "knowledge_locator_hash_conflict" not in migration_11.split("def downgrade", 1)[-1]
             and "trunc((code_value" in migration_11.split("def downgrade", 1)[0]
             and "truncate((code_value" not in migration_11.split("def downgrade", 1)[0]
             and "WHERE claim_id = claim_id" not in migration_11
@@ -373,7 +416,78 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-13 at most one succeeded" in probe3
             and "g8-13 all attempts closed" in probe3
             and "ThreadPoolExecutor" in probe3
-            and "read_verified_object" in probe3,
+            and "read_verified_object" in probe3
+            and 'CURRENT_HEAD = "0012_entity_materialization"' in probe3,
+            True,
+        ),
+        check(
+            "wp8_4_entity_materialization",
+            "CREATE FUNCTION core.materialize_entity_bundle" in migration_12
+            and "knowledge-bundle.v2" in migration_12
+            and "proposed_aliases" in migration_12
+            and "'[]'::jsonb" in migration_12
+            and "v_candidate_id" in migration_12
+            and "entity_candidate_evidence" in migration_12
+            and "evidence_ordinal" in migration_12
+            and "pending" in migration_12
+            and "core._jsonb_keys_exact" in migration_12
+            and "core._claim_source_locator_json" in migration_12
+            and "core._claim_cross_axis_ok" in migration_12
+            and "core.compute_evidence_locator_sha256" in migration_12
+            and "GRANT EXECUTE ON FUNCTION core.materialize_entity_bundle" in migration_12
+            and "TO uap_worker" in migration_12
+            and "GRANT EXECUTE ON FUNCTION core.compute_evidence_locator_sha256" not in migration_12
+            and "INSERT INTO core.entities" not in migration_12
+            and "UPDATE core.claims" not in migration_12
+            and "subject_entity_id" not in migration_12
+            and "CREATE FUNCTION core.merge_entities" not in migration_12
+            and "ResolveEntitiesHandler" in knowledge_sources
+            and "ResolveEntitiesWorker" in knowledge_sources
+            and "entities_handler_active" in knowledge_sources
+            and 'duplicate_policy = "entity"' in knowledge_sources
+            and "expected_result_type" in knowledge_sources
+            and "PRE_ENTITY_HANDLER_JOB_TYPES" in knowledge_sources
+            and "ENTITY_CLAIMABLE_JOB_TYPES" in knowledge_sources
+            and "def resolve_entities" not in knowledge_sources
+            and "fixture_extraction_text" not in knowledge_sources,
+            True,
+        ),
+        check(
+            "wp8_4_runtime_and_fail_closed_tests",
+            "test_g8_16b_claimable_job_types_activation" in foundation_tests
+            and "test_production_worker_activates_resolve_entities" in entity_handler_tests
+            and "inactive.claim_job_types == ()" in entity_handler_tests
+            and "test_parse_knowledge_payload_entity_result_type" in entity_handler_tests
+            and "def g8_14" in probe4
+            and "def g8_15" in probe4
+            and "def g8_16b" in probe4
+            and "def g8_live_definitions" in probe4
+            and "ResolveEntitiesWorker" in probe4
+            and "from_settings" in probe4
+            and "put_verified" in probe4
+            and "read_verified_object" in probe4
+            and "ProbeObjectClient" not in probe4
+            and "uap_worker" in probe4
+            and "fixture_extraction_text" not in probe4
+            and "name[:8]" not in probe4
+            and "inactive.claim_job_types == ()" in probe4
+            and "SAVEPOINT g8_16b_preentity_control" in probe4
+            and "object_content" in probe4
+            and "object_length" in probe4
+            and "SET content_sha256" not in probe4
+            and "locator_ordinal" in probe4
+            and "locator_axes" in probe4
+            and "ThreadPoolExecutor" in probe4
+            and "proposed_aliases" in probe4
+            and "evidence_span_id" in probe4
+            and "core.entities" in probe4
+            and "subject_entity_id" in probe4
+            and 'CURRENT_HEAD = "0012_entity_materialization"' in probe4
+            and "g8-14 pending" in probe4
+            and "g8-15 race at most one claim" in probe4
+            and "g8-15 expired first 40001" in probe4
+            and "g8-15 at most one succeeded" in probe4
+            and "g8-15 all attempts closed" in probe4,
             True,
         ),
     ]

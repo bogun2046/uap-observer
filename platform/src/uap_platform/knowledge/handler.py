@@ -21,6 +21,7 @@ from .bundle import (
     terminal_error_code,
 )
 from .contracts import (
+    DuplicatePolicy,
     ExtractionRecord,
     LocatorType,
     MappingReport,
@@ -58,9 +59,13 @@ _FROZEN_ERROR_TOKENS = (
 class ResolveClaimsHandler:
     """Claim one resolve_claims attempt through mapping and DB materialization."""
 
-    def __init__(
-        self, connection: Connection[object], object_client: ObjectClient
-    ) -> None:
+    _expected_result_type: str = "claim_extraction"
+    _duplicate_policy: DuplicatePolicy = "claim"
+    _result_array_key: str = "claims"
+    _materialize_sql: str = "SELECT core.materialize_claim_bundle(%s, %s, %s, %s)"
+    _job_label: str = "resolve_claims"
+
+    def __init__(self, connection: Connection[object], object_client: ObjectClient) -> None:
         self._connection = connection
         self._object_client = object_client
 
@@ -74,21 +79,20 @@ class ResolveClaimsHandler:
         """Run mapping + materialize + finish. Always closes the attempt except 40001."""
 
         try:
-            parsed = parse_knowledge_payload(payload)
-        except KnowledgePayloadError as error:
-            return self._finish_unmapped_failure(
-                job_id, job_attempt_id, lease_token, error.code
+            parsed = parse_knowledge_payload(
+                payload, expected_result_type=self._expected_result_type
             )
+        except KnowledgePayloadError as error:
+            return self._finish_unmapped_failure(job_id, job_attempt_id, lease_token, error.code)
 
         try:
-            return self._handle_in_transaction(
-                job_id, job_attempt_id, lease_token, parsed
-            )
+            return self._handle_in_transaction(job_id, job_attempt_id, lease_token, parsed)
         except PsycopgError as error:
             if error.sqlstate == "40001":
                 self._connection.rollback()
                 LOGGER.warning(
-                    "resolve_claims lease serialization failure job=%s attempt=%s",
+                    "%s lease serialization failure job=%s attempt=%s",
+                    self._job_label,
                     job_id,
                     job_attempt_id,
                 )
@@ -96,9 +100,7 @@ class ResolveClaimsHandler:
             self._connection.rollback()
             code = _error_code_from_exception(error)
             if error.sqlstate in _DETERMINISTIC_SQLSTATES:
-                return self._finish_unmapped_failure(
-                    job_id, job_attempt_id, lease_token, code
-                )
+                return self._finish_unmapped_failure(job_id, job_attempt_id, lease_token, code)
             return self._finish_unmapped_failure(
                 job_id, job_attempt_id, lease_token, KNOWLEDGE_PAYLOAD_MISMATCH
             )
@@ -109,13 +111,12 @@ class ResolveClaimsHandler:
                 if isinstance(error, KnowledgePayloadError)
                 else KNOWLEDGE_PAYLOAD_MISMATCH
             )
-            return self._finish_unmapped_failure(
-                job_id, job_attempt_id, lease_token, code
-            )
+            return self._finish_unmapped_failure(job_id, job_attempt_id, lease_token, code)
         except Exception:
             self._connection.rollback()
             LOGGER.exception(
-                "unclassified resolve_claims failure job=%s attempt=%s",
+                "unclassified %s failure job=%s attempt=%s",
+                self._job_label,
                 job_id,
                 job_attempt_id,
             )
@@ -130,10 +131,8 @@ class ResolveClaimsHandler:
         lease_token: uuid.UUID,
         parsed: FrozenKnowledgePayload,
     ) -> str:
-        claims, text_body, location_map, extraction_rows = self._load_mapping_inputs(
-            parsed
-        )
-        candidates = _source_candidates_from_claims(claims)
+        items, text_body, location_map, extraction_rows = self._load_mapping_inputs(parsed)
+        candidates = _source_candidates_from_items(items)
         report = map_knowledge_result(
             candidates=candidates,
             payload_anchor=parsed.anchor,
@@ -142,7 +141,7 @@ class ResolveClaimsHandler:
             input_sha256=parsed.input_sha256,
             extracted_text=text_body,
             location_map=location_map,
-            duplicate_policy="claim",
+            duplicate_policy=self._duplicate_policy,
         )
 
         if is_terminal_mapping(report):
@@ -164,9 +163,7 @@ class ResolveClaimsHandler:
             cursor.execute("SAVEPOINT knowledge_materialize")
             try:
                 cursor.execute(
-                    """
-                    SELECT core.materialize_claim_bundle(%s, %s, %s, %s)
-                    """,
+                    self._materialize_sql,
                     (job_id, job_attempt_id, lease_token, Jsonb(bundle)),
                 )
                 receipt_row = cast(tuple[Any, ...] | None, cursor.fetchone())
@@ -222,7 +219,7 @@ class ResolveClaimsHandler:
                     self._connection.commit()
                     return str(status_row[0]) if status_row else "failed"
                 raise
-        raise RuntimeError("resolve_claims materialize path did not finish")
+        raise RuntimeError(f"{self._job_label} materialize path did not finish")
 
     def _finish_terminal(
         self,
@@ -239,9 +236,7 @@ class ResolveClaimsHandler:
             materialized_locators=0,
             empty_valid_result=False,
         )
-        return self._call_finish(
-            job_id, job_attempt_id, lease_token, error_code, metrics
-        )
+        return self._call_finish(job_id, job_attempt_id, lease_token, error_code, metrics)
 
     def _finish_unmapped_failure(
         self,
@@ -332,7 +327,9 @@ class ResolveClaimsHandler:
             if row is None:
                 raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
             result_map = cast(Mapping[str, Any], row[0] or {})
-            claims = list(cast(Sequence[dict[str, Any]], result_map.get("claims") or []))
+            items = list(
+                cast(Sequence[dict[str, Any]], result_map.get(self._result_array_key) or [])
+            )
             cursor.execute(
                 """
                 SELECT e.id, e.document_version_id, e.outcome::text, e.output_sha256,
@@ -377,13 +374,13 @@ class ResolveClaimsHandler:
                     location_map = [dict(item) for item in loc_map]
 
         text_body = ""
-        if named_extraction is not None and claims:
+        if named_extraction is not None and items:
             text_body = self._load_derived_text(
                 extraction_id=named_extraction,
                 document_version_id=parsed.document_version_id,
                 input_sha256=parsed.input_sha256,
             )
-        return claims, text_body, location_map, records
+        return items, text_body, location_map, records
 
     def _load_derived_text(
         self,
@@ -426,6 +423,17 @@ class ResolveClaimsHandler:
         except (RuntimeError, UnicodeDecodeError, LookupError) as error:
             raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH) from error
 
+
+class ResolveEntitiesHandler(ResolveClaimsHandler):
+    """Claim one resolve_entities attempt through mapping and DB materialization."""
+
+    _expected_result_type = "entity_extraction"
+    _duplicate_policy = "entity"
+    _result_array_key = "entities"
+    _materialize_sql = "SELECT core.materialize_entity_bundle(%s, %s, %s, %s)"
+    _job_label = "resolve_entities"
+
+
 def _optional_int(item: Mapping[str, Any], key: str) -> int | None:
     value = item.get(key)
     if value is None:
@@ -433,34 +441,40 @@ def _optional_int(item: Mapping[str, Any], key: str) -> int | None:
     return int(value)
 
 
-def _source_candidates_from_claims(
-    claims: Sequence[Mapping[str, Any]],
+def _source_candidates_from_items(
+    items: Sequence[Mapping[str, Any]],
 ) -> tuple[SourceCandidate, ...]:
     candidates: list[SourceCandidate] = []
-    for ordinal, claim in enumerate(claims):
-        evidence = claim.get("evidence") or []
+    for ordinal, item in enumerate(items):
+        evidence = item.get("evidence") or []
         if not isinstance(evidence, Sequence) or isinstance(evidence, (str, bytes)):
             raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
         locators: list[SourceLocator] = []
-        for item in evidence:
-            if not isinstance(item, Mapping):
+        for locator_item in evidence:
+            if not isinstance(locator_item, Mapping):
                 raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
-            locator_type = item.get("locator_type")
+            locator_type = locator_item.get("locator_type")
             if locator_type not in _LOCATOR_TYPES:
                 raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
             locators.append(
                 SourceLocator(
                     locator_type=cast(LocatorType, locator_type),
-                    start=int(item["start"]),
-                    end=int(item["end"]),
-                    page_start=_optional_int(item, "page_start"),
-                    page_end=_optional_int(item, "page_end"),
-                    time_start_ms=_optional_int(item, "time_start_ms"),
-                    time_end_ms=_optional_int(item, "time_end_ms"),
+                    start=int(locator_item["start"]),
+                    end=int(locator_item["end"]),
+                    page_start=_optional_int(locator_item, "page_start"),
+                    page_end=_optional_int(locator_item, "page_end"),
+                    time_start_ms=_optional_int(locator_item, "time_start_ms"),
+                    time_end_ms=_optional_int(locator_item, "time_end_ms"),
                 )
             )
         candidates.append(SourceCandidate(ordinal=ordinal, locators=tuple(locators)))
     return tuple(candidates)
+
+
+def _source_candidates_from_claims(
+    claims: Sequence[Mapping[str, Any]],
+) -> tuple[SourceCandidate, ...]:
+    return _source_candidates_from_items(claims)
 
 
 def _error_code_from_exception(error: BaseException) -> str:

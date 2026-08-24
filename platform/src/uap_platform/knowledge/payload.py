@@ -60,7 +60,11 @@ def _require_uuid(payload: Mapping[str, object], key: str) -> uuid.UUID:
         raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH) from error
 
 
-def parse_knowledge_payload(payload: Mapping[str, object] | object) -> FrozenKnowledgePayload:
+def parse_knowledge_payload(
+    payload: Mapping[str, object] | object,
+    *,
+    expected_result_type: str = "claim_extraction",
+) -> FrozenKnowledgePayload:
     """Reject missing keys, illegal UUIDs, and non-knowledge.v2 schemas with frozen codes."""
 
     if not isinstance(payload, Mapping):
@@ -75,7 +79,7 @@ def parse_knowledge_payload(payload: Mapping[str, object] | object) -> FrozenKno
     if analysis_schema != "ai.v1":
         raise KnowledgePayloadError(KNOWLEDGE_SCHEMA_UNSUPPORTED)
     result_type = _require_str(payload, "result_type")
-    if result_type != "claim_extraction":
+    if result_type != expected_result_type:
         raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
     status_raw = payload.get("extraction_anchor_status")
     try:

@@ -10,8 +10,10 @@ from tools.validate_wp4 import evaluate as evaluate_wp4
 from tools.validate_wp8 import evaluate as evaluate_wp8
 from uap_platform.knowledge.job_types import (
     CLAIMABLE_JOB_TYPES,
+    ENTITY_CLAIMABLE_JOB_TYPES,
     FORBIDDEN_CLAIMABLE_JOB_TYPES,
     PRE_CLAIM_HANDLER_JOB_TYPES,
+    PRE_ENTITY_HANDLER_JOB_TYPES,
     claimable_job_types,
 )
 
@@ -127,3 +129,44 @@ def test_g8_16a_claimable_job_types_activation() -> None:
     assert after == CLAIMABLE_JOB_TYPES
     for forbidden in FORBIDDEN_CLAIMABLE_JOB_TYPES:
         assert forbidden not in after
+
+
+def test_wp8_4_entity_materialization_present() -> None:
+    source = (platform_root() / "alembic/versions/0012_entity_materialization.py").read_text(
+        encoding="utf-8"
+    )
+    source_11 = (platform_root() / "alembic/versions/0011_claim_materialization.py").read_text(
+        encoding="utf-8"
+    )
+    assert "CREATE FUNCTION core.materialize_entity_bundle" in source
+    assert "materialize_entity_bundle" not in source_11
+    assert "CREATE FUNCTION core._jsonb_keys_exact" not in source
+    assert "core._jsonb_keys_exact" in source
+    assert "INSERT INTO core.entities" not in source
+    assert "UPDATE core.claims" not in source
+    assert "merge_entities" not in source
+    knowledge = platform_root() / "src/uap_platform/knowledge"
+    package = "\n".join(path.read_text(encoding="utf-8") for path in knowledge.glob("*.py"))
+    assert "ResolveEntitiesHandler" in package
+    assert "ResolveEntitiesWorker" in package
+    assert "entities_handler_active" in package
+    assert "def resolve_entities" not in package
+    assert "fixture_extraction_text" not in package
+
+
+def test_g8_16b_claimable_job_types_activation() -> None:
+    """G8-16B: resolve_entities absent until handler activation; relations never."""
+
+    before = claimable_job_types(claims_handler_active=True, entities_handler_active=False)
+    assert "resolve_entities" not in before
+    assert before == PRE_ENTITY_HANDLER_JOB_TYPES
+    assert before == CLAIMABLE_JOB_TYPES
+    assert "resolve_relations" not in before
+
+    after = claimable_job_types(claims_handler_active=True, entities_handler_active=True)
+    assert "resolve_entities" in after
+    assert after == ENTITY_CLAIMABLE_JOB_TYPES
+    assert "resolve_relations" not in after
+    inactive_claims = claimable_job_types(claims_handler_active=False)
+    assert "resolve_entities" not in inactive_claims
+    assert inactive_claims == PRE_CLAIM_HANDLER_JOB_TYPES
