@@ -364,8 +364,10 @@ def _require_handler_fail_closed(
     world: dict[str, Any],
     tag: str,
     name: str,
+    payload: dict[str, object] | None = None,
 ) -> str:
-    payload = _payload_for(admin, world["job_id"])
+    if payload is None:
+        payload = _payload_for(admin, world["job_id"])
     before_candidates, before_evidence = _knowledge_counts(admin, world["analysis_id"])
     attempt_id, token = grant_running_lease(admin, world["job_id"], f"wp8-4-15-{name}-{tag}")
     status = _run_handler(worker, world["job_id"], attempt_id, token, payload)
@@ -753,7 +755,7 @@ def _g8_15_payload_and_bundle(
             payload["document_version_id"] = value
         else:
             payload[name] = value
-        outcomes[name] = _require_handler_fail_closed(admin, worker, world, tag, name)
+        outcomes[name] = _require_handler_fail_closed(admin, worker, world, tag, name, payload)
 
     tampers = {
         "hash": "bundle hash",

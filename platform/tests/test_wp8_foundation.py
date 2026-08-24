@@ -152,6 +152,9 @@ def test_wp8_4_entity_materialization_present() -> None:
     assert "entities_handler_active" in package
     assert "def resolve_entities" not in package
     assert "fixture_extraction_text" not in package
+    probe4 = (platform_root() / "tools/wp8_4_runtime_probe.py").read_text(encoding="utf-8")
+    assert "if payload is None:" in probe4
+    assert "admin, worker, world, tag, name, payload" in probe4
 
 
 def test_g8_16b_claimable_job_types_activation() -> None:

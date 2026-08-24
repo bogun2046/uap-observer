@@ -487,7 +487,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-15 race at most one claim" in probe4
             and "g8-15 expired first 40001" in probe4
             and "g8-15 at most one succeeded" in probe4
-            and "g8-15 all attempts closed" in probe4,
+            and "g8-15 all attempts closed" in probe4
+            and "if payload is None:" in probe4
+            and "admin, worker, world, tag, name, payload" in probe4,
             True,
         ),
     ]
