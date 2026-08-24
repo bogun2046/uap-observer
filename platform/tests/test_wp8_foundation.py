@@ -173,3 +173,35 @@ def test_g8_16b_claimable_job_types_activation() -> None:
     inactive_claims = claimable_job_types(claims_handler_active=False)
     assert "resolve_entities" not in inactive_claims
     assert inactive_claims == PRE_CLAIM_HANDLER_JOB_TYPES
+
+
+def test_wp8_5_merge_state_machine_present() -> None:
+    source = (platform_root() / "alembic/versions/0013_entity_merge_state_machine.py").read_text(
+        encoding="utf-8"
+    )
+    source_12 = (platform_root() / "alembic/versions/0012_entity_materialization.py").read_text(
+        encoding="utf-8"
+    )
+    assert "CREATE FUNCTION core.merge_entities" in source
+    assert "CREATE FUNCTION core.reverse_entity_merge" in source
+    assert "CREATE FUNCTION core.canonical_entity_id" in source
+    assert "uq_open_merge_source" in source
+    assert "pg_advisory_xact_lock(824, 1)" in source
+    assert "GRANT EXECUTE ON FUNCTION core.merge_entities" not in source
+    assert "GRANT EXECUTE ON FUNCTION core.reverse_entity_merge" not in source
+    assert "GRANT EXECUTE ON FUNCTION core.canonical_entity_id" in source
+    assert "UPDATE core.entity_candidates" not in source
+    assert "UPDATE core.claims" not in source
+    assert "UPDATE core.relations" not in source
+    assert "CREATE FUNCTION core.merge_entities" not in source_12
+    knowledge = platform_root() / "src/uap_platform/knowledge"
+    package = "\n".join(path.read_text(encoding="utf-8") for path in knowledge.glob("*.py"))
+    assert "merge_entities" not in package
+    assert "reverse_entity_merge" not in package
+    probe5 = (platform_root() / "tools/wp8_5_runtime_probe.py").read_text(encoding="utf-8")
+    assert "def g8_17" in probe5
+    assert "def g8_18" in probe5
+    assert "def g8_19" in probe5
+    assert "if payload is None:" not in probe5
+    assert "name[:8]" not in probe5
+    assert 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe5

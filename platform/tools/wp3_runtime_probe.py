@@ -18,7 +18,7 @@ from uap_platform.object_store_init import build_client
 
 EXPECTED_TABLE_COUNT = 50
 WP3_ORIGINAL_TABLE_COUNT = 49
-CURRENT_HEAD = "0012_entity_materialization"
+CURRENT_HEAD = "0013_entity_merge_state_machine"
 EXPECTED_FOREIGN_KEYS = 115
 ROLE_PASSWORDS = {
     "uap_migrator": "UAP_MIGRATOR_PASSWORD",

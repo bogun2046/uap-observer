@@ -1,4 +1,4 @@
-"""Validate the WP8.1-WP8.4 knowledge handover, mapping, claim and entity contract."""
+"""Validate the WP8.1-WP8.5 knowledge handover through entity merge contract."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-WP8_HEAD = "0012_entity_materialization"
-WP8_PARENT = "0011_claim_materialization"
+WP8_HEAD = "0013_entity_merge_state_machine"
+WP8_PARENT = "0012_entity_materialization"
+WP8_4_HEAD = "0012_entity_materialization"
+WP8_4_PARENT = "0011_claim_materialization"
 WP8_3_HEAD = "0011_claim_materialization"
 WP8_3_PARENT = "0010_knowledge_foundation"
 WP8_1_HEAD = "0010_knowledge_foundation"
@@ -38,6 +40,7 @@ REQUIRED_FILES = (
     "platform/alembic/versions/0010_knowledge_foundation.py",
     "platform/alembic/versions/0011_claim_materialization.py",
     "platform/alembic/versions/0012_entity_materialization.py",
+    "platform/alembic/versions/0013_entity_merge_state_machine.py",
     "platform/src/uap_platform/knowledge/__init__.py",
     "platform/src/uap_platform/knowledge/bundle.py",
     "platform/src/uap_platform/knowledge/handler.py",
@@ -47,6 +50,7 @@ REQUIRED_FILES = (
     "platform/src/uap_platform/knowledge/worker.py",
     "platform/tools/wp8_3_runtime_probe.py",
     "platform/tools/wp8_4_runtime_probe.py",
+    "platform/tools/wp8_5_runtime_probe.py",
     "platform/src/uap_platform/knowledge/anchors.py",
     "platform/src/uap_platform/knowledge/contracts.py",
     "platform/src/uap_platform/knowledge/locators.py",
@@ -100,6 +104,10 @@ def evaluate(platform: Path) -> list[Check]:
     migration_12 = (
         migration_12_path.read_text(encoding="utf-8") if migration_12_path.is_file() else ""
     )
+    migration_13_path = platform / "alembic/versions/0013_entity_merge_state_machine.py"
+    migration_13 = (
+        migration_13_path.read_text(encoding="utf-8") if migration_13_path.is_file() else ""
+    )
     foundation_tests = (
         (platform / "tests/test_wp8_foundation.py").read_text(encoding="utf-8")
         if (platform / "tests/test_wp8_foundation.py").is_file()
@@ -123,6 +131,11 @@ def evaluate(platform: Path) -> list[Check]:
     probe4 = (
         (platform / "tools/wp8_4_runtime_probe.py").read_text(encoding="utf-8")
         if (platform / "tools/wp8_4_runtime_probe.py").is_file()
+        else ""
+    )
+    probe5 = (
+        (platform / "tools/wp8_5_runtime_probe.py").read_text(encoding="utf-8")
+        if (platform / "tools/wp8_5_runtime_probe.py").is_file()
         else ""
     )
     chain = (platform / "scripts/verify-migration-chain.sh").read_text(encoding="utf-8")
@@ -151,7 +164,7 @@ def evaluate(platform: Path) -> list[Check]:
     return [
         check("required_files", not missing, missing, []),
         check(
-            "unique_wp8_4_head",
+            "unique_wp8_5_head",
             heads == [WP8_HEAD] and revision_ids[:2] == [WP8_HEAD, WP8_PARENT],
             {"heads": heads, "prefix": revision_ids[:2]},
             {"heads": [WP8_HEAD], "prefix": [WP8_HEAD, WP8_PARENT]},
@@ -162,8 +175,10 @@ def evaluate(platform: Path) -> list[Check]:
             and f'down_revision = "{WP8_1_PARENT}"' in migration
             and f'revision = "{WP8_3_HEAD}"' in migration_11
             and f'down_revision = "{WP8_3_PARENT}"' in migration_11
-            and f'revision = "{WP8_HEAD}"' in migration_12
-            and f'down_revision = "{WP8_PARENT}"' in migration_12,
+            and f'revision = "{WP8_4_HEAD}"' in migration_12
+            and f'down_revision = "{WP8_4_PARENT}"' in migration_12
+            and f'revision = "{WP8_HEAD}"' in migration_13
+            and f'down_revision = "{WP8_PARENT}"' in migration_13,
             True,
         ),
         check(
@@ -280,13 +295,14 @@ def evaluate(platform: Path) -> list[Check]:
             and "len(actual_tables) == 49" in wp3_validator
             and "WP3_ORIGINAL_TABLE_COUNT = 49" in wp3_probe
             and "EXPECTED_TABLE_COUNT = 50" in wp3_probe
-            and 'CURRENT_HEAD = "0012_entity_materialization"' in wp3_probe
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in wp3_probe
             and "document_version_id" in wp3_probe,
             True,
         ),
         check(
             "migration_chain_head",
-            "0012_entity_materialization" in chain
+            "0013_entity_merge_state_machine" in chain
+            and "0012_entity_materialization" in chain
             and "0011_claim_materialization" in chain
             and '= "50"' in chain
             and "knowledge_claim_backfill_required" in chain
@@ -310,11 +326,13 @@ def evaluate(platform: Path) -> list[Check]:
             and "wp8_1_runtime_probe.py" not in makefile
             and "wp8_3_runtime_probe.py" not in makefile
             and "wp8_4_runtime_probe.py" not in makefile
+            and "wp8_5_runtime_probe.py" not in makefile
             and "validate_wp8.py" not in ci
             and "wp8_runtime_probe.py" not in ci
             and "wp8_1_runtime_probe.py" not in ci
             and "wp8_3_runtime_probe.py" not in ci
-            and "wp8_4_runtime_probe.py" not in ci,
+            and "wp8_4_runtime_probe.py" not in ci
+            and "wp8_5_runtime_probe.py" not in ci,
             True,
         ),
         check(
@@ -417,7 +435,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-13 all attempts closed" in probe3
             and "ThreadPoolExecutor" in probe3
             and "read_verified_object" in probe3
-            and 'CURRENT_HEAD = "0012_entity_materialization"' in probe3,
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe3,
             True,
         ),
         check(
@@ -482,7 +500,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "evidence_span_id" in probe4
             and "core.entities" in probe4
             and "subject_entity_id" in probe4
-            and 'CURRENT_HEAD = "0012_entity_materialization"' in probe4
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe4
             and "g8-14 pending" in probe4
             and "g8-15 race at most one claim" in probe4
             and "g8-15 expired first 40001" in probe4
@@ -490,6 +508,55 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-15 all attempts closed" in probe4
             and "if payload is None:" in probe4
             and "admin, worker, world, tag, name, payload" in probe4,
+            True,
+        ),
+        check(
+            "wp8_5_merge_state_machine",
+            "CREATE FUNCTION core.merge_entities" in migration_13
+            and "CREATE FUNCTION core.reverse_entity_merge" in migration_13
+            and "CREATE FUNCTION core.canonical_entity_id" in migration_13
+            and "uq_open_merge_source" in migration_13
+            and "event_kind" in migration_13
+            and "pg_advisory_xact_lock(824, 1)" in migration_13
+            and "knowledge_merge_cycle" in migration_13
+            and "knowledge_merge_chain_too_long" in migration_13
+            and "entity.merge.reverse" in migration_13
+            and "GRANT EXECUTE ON FUNCTION core.canonical_entity_id" in migration_13
+            and "GRANT EXECUTE ON FUNCTION core.merge_entities" not in migration_13
+            and "GRANT EXECUTE ON FUNCTION core.reverse_entity_merge" not in migration_13
+            and "REVOKE ALL ON FUNCTION core.merge_entities" in migration_13
+            and "REVOKE ALL ON FUNCTION core.reverse_entity_merge" in migration_13
+            and "UPDATE core.entity_candidates" not in migration_13
+            and "UPDATE core.claims" not in migration_13
+            and "UPDATE core.relations" not in migration_13
+            and "UPDATE core.entity_aliases" not in migration_13
+            and "UPDATE core.entity_candidate_evidence" not in migration_13
+            and "CREATE FUNCTION core.merge_entities" not in migration_12
+            and "merge_entities" not in knowledge_sources
+            and "reverse_entity_merge" not in knowledge_sources
+            and "canonical_entity_id" not in knowledge_sources,
+            True,
+        ),
+        check(
+            "wp8_5_runtime_and_fail_closed_tests",
+            "test_wp8_5_merge_state_machine_present" in foundation_tests
+            and "def g8_17" in probe5
+            and "def g8_18" in probe5
+            and "def g8_19" in probe5
+            and "def g8_live_definitions" in probe5
+            and "pg_advisory_xact_lock(824, 1)" in probe5
+            and "ThreadPoolExecutor" in probe5
+            and "knowledge_merge_cycle" in probe5
+            and "uq_open_merge_source" in probe5
+            and "uap_worker" in probe5
+            and "uap_public_reader" in probe5
+            and "42501" in probe5
+            and "event_kind" in probe5
+            and "name[:8]" not in probe5
+            and "SET content_sha256" not in probe5
+            and "fixture_extraction_text" not in probe5
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe5
+            and "table count remains 50" in probe5,
             True,
         ),
     ]
