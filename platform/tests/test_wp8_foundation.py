@@ -227,3 +227,28 @@ def test_wp8_5_merge_state_machine_present() -> None:
     assert "if payload is None:" not in probe5
     assert "name[:8]" not in probe5
     assert 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe5
+
+
+def test_wp8_6_relation_reject_present() -> None:
+    worker = (platform_root() / "src/uap_platform/knowledge/worker.py").read_text(encoding="utf-8")
+    assert "def finish_misclaimed_relation_job" in worker
+    helper = worker[
+        worker.find("def finish_misclaimed_relation_job") : worker.find(
+            "class KnowledgeJobDispatcher"
+        )
+    ]
+    assert "SELECT ops.finish_job" in helper
+    assert "SELECT ops.finish_knowledge_job" not in helper
+    assert "materialize_claim" not in helper
+    assert "materialize_entity" not in helper
+    assert 'types.append("resolve_relations")' not in worker
+    probe6 = (platform_root() / "tools/wp8_6_runtime_probe.py").read_text(encoding="utf-8")
+    assert "def g8_16c" in probe6
+    assert "knowledge_relation_task_not_in_wp8" in probe6
+    assert "name[:8]" not in probe6
+    assert 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe6
+    orchestrator = (platform_root() / "tools/wp8_runtime_probe.py").read_text(encoding="utf-8")
+    assert "wp3_runtime_probe.py" in orchestrator
+    assert "wp8_6_runtime_probe.py" in orchestrator
+    probe1 = (platform_root() / "tools/wp8_1_runtime_probe.py").read_text(encoding="utf-8")
+    assert 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe1

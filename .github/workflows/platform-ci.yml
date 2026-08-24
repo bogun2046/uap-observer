@@ -11,6 +11,7 @@ on:
       - "docs/wp5/**"
       - "docs/wp6/**"
       - "docs/wp7/**"
+      - "docs/wp8/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   push:
@@ -24,6 +25,7 @@ on:
       - "docs/wp5/**"
       - "docs/wp6/**"
       - "docs/wp7/**"
+      - "docs/wp8/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   workflow_dispatch:
@@ -155,6 +157,20 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/build_wp7_evidence.py --output /tmp/wp7-evidence
+      - name: WP8 knowledge contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp8.py
+      - name: WP8 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp8_evidence.py --output /tmp/wp8-evidence
 
   security:
     runs-on: ubuntu-latest
@@ -231,6 +247,9 @@ jobs:
       - name: Run WP7 model-governance probe
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp7_runtime_probe.py
+      - name: Run WP8 knowledge probes WP8.1 through WP8.6
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp8_runtime_probe.py --from wp8.1
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json

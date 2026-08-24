@@ -30,7 +30,12 @@ from .mapping import map_knowledge_result
 from .metrics import build_attempt_metrics, failure_metrics
 from .payload import FrozenKnowledgePayload, KnowledgePayloadError, parse_knowledge_payload
 from .reasons import FROZEN_REASON_CODES, LOCATOR_SCHEMA_VERSION, MAX_EVIDENCE_UTF8_BYTES
-from .worker import ResolveClaimsWorker, ResolveEntitiesWorker
+from .worker import (
+    KnowledgeJobDispatcher,
+    ResolveClaimsWorker,
+    ResolveEntitiesWorker,
+    finish_misclaimed_relation_job,
+)
 
 __all__ = [
     "CLAIMABLE_JOB_TYPES",
@@ -47,6 +52,7 @@ __all__ = [
     "ExtractionAnchor",
     "ExtractionRecord",
     "FrozenKnowledgePayload",
+    "KnowledgeJobDispatcher",
     "KnowledgePayloadError",
     "MappingClass",
     "MappingReport",
@@ -64,6 +70,7 @@ __all__ = [
     "build_knowledge_bundle",
     "claimable_job_types",
     "failure_metrics",
+    "finish_misclaimed_relation_job",
     "map_knowledge_result",
     "map_locator",
     "parse_knowledge_payload",

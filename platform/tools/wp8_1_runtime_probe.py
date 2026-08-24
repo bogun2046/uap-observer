@@ -27,7 +27,7 @@ ROLE_PASSWORDS = {
     "uap_backup": "UAP_BACKUP_PASSWORD",
 }
 
-CURRENT_HEAD = "0010_knowledge_foundation"
+CURRENT_HEAD = "0013_entity_merge_state_machine"
 EXPECTED_TABLE_COUNT = 50
 WP3_ORIGINAL_TABLE_COUNT = 49
 PAYLOAD_KEYS = {

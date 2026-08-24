@@ -1,4 +1,4 @@
-"""Validate the WP8.1-WP8.5 knowledge handover through entity merge contract."""
+"""Validate the WP8.1-WP8.6 knowledge handover through CI freeze contract."""
 
 from __future__ import annotations
 
@@ -51,6 +51,11 @@ REQUIRED_FILES = (
     "platform/tools/wp8_3_runtime_probe.py",
     "platform/tools/wp8_4_runtime_probe.py",
     "platform/tools/wp8_5_runtime_probe.py",
+    "platform/tools/wp8_6_runtime_probe.py",
+    "platform/tools/wp8_runtime_probe.py",
+    "platform/tools/build_wp8_evidence.py",
+    "docs/wp8/adr/0013-relations-out-of-scope.md",
+    "platform/tests/test_wp8_relation_reject.py",
     "platform/src/uap_platform/knowledge/anchors.py",
     "platform/src/uap_platform/knowledge/contracts.py",
     "platform/src/uap_platform/knowledge/locators.py",
@@ -136,6 +141,26 @@ def evaluate(platform: Path) -> list[Check]:
     probe5 = (
         (platform / "tools/wp8_5_runtime_probe.py").read_text(encoding="utf-8")
         if (platform / "tools/wp8_5_runtime_probe.py").is_file()
+        else ""
+    )
+    probe1 = (
+        (platform / "tools/wp8_1_runtime_probe.py").read_text(encoding="utf-8")
+        if (platform / "tools/wp8_1_runtime_probe.py").is_file()
+        else ""
+    )
+    probe6 = (
+        (platform / "tools/wp8_6_runtime_probe.py").read_text(encoding="utf-8")
+        if (platform / "tools/wp8_6_runtime_probe.py").is_file()
+        else ""
+    )
+    orchestrator = (
+        (platform / "tools/wp8_runtime_probe.py").read_text(encoding="utf-8")
+        if (platform / "tools/wp8_runtime_probe.py").is_file()
+        else ""
+    )
+    evidence = (
+        (platform / "tools/build_wp8_evidence.py").read_text(encoding="utf-8")
+        if (platform / "tools/build_wp8_evidence.py").is_file()
         else ""
     )
     chain = (platform / "scripts/verify-migration-chain.sh").read_text(encoding="utf-8")
@@ -321,18 +346,18 @@ def evaluate(platform: Path) -> list[Check]:
             True,
         ),
         check(
-            "wp8_not_wired_to_ci",
-            "validate_wp8.py" not in makefile
+            "wp8_wired_to_ci",
+            "validate_wp8.py" in makefile
             and "wp8_1_runtime_probe.py" not in makefile
             and "wp8_3_runtime_probe.py" not in makefile
             and "wp8_4_runtime_probe.py" not in makefile
             and "wp8_5_runtime_probe.py" not in makefile
-            and "validate_wp8.py" not in ci
-            and "wp8_runtime_probe.py" not in ci
-            and "wp8_1_runtime_probe.py" not in ci
-            and "wp8_3_runtime_probe.py" not in ci
-            and "wp8_4_runtime_probe.py" not in ci
-            and "wp8_5_runtime_probe.py" not in ci,
+            and "wp8_6_runtime_probe.py" not in makefile
+            and "validate_wp8.py" in ci
+            and "build_wp8_evidence.py" in ci
+            and "wp8_runtime_probe.py" in ci
+            and "docs/wp8/**" in ci
+            and "--from wp8.1" in ci,
             True,
         ),
         check(
@@ -570,6 +595,40 @@ def evaluate(platform: Path) -> list[Check]:
             and "fixture_extraction_text" not in probe5
             and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe5
             and "table count remains 50" in probe5,
+            True,
+        ),
+        check(
+            "wp8_6_relation_reject_and_orchestrator",
+            "def finish_misclaimed_relation_job" in knowledge_sources
+            and "class KnowledgeJobDispatcher" in knowledge_sources
+            and "ops.finish_job" in knowledge_sources
+            and "knowledge_relation_task_not_in_wp8" in knowledge_sources
+            and "SELECT ops.finish_knowledge_job"
+            not in knowledge_sources.split("def finish_misclaimed_relation_job", 1)[-1].split(
+                "class KnowledgeJobDispatcher", 1
+            )[0]
+            and 'types.append("resolve_relations")' not in knowledge_sources
+            and "def g8_16c" in probe6
+            and "knowledge_relation_task_not_in_wp8" in probe6
+            and "ops.claim_job" in probe6
+            and "name[:8]" not in probe6
+            and "SET content_sha256" not in probe6
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe6
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe1
+            and "wp3_runtime_probe.py" in orchestrator
+            and "wp8_6_runtime_probe.py" in orchestrator
+            and "WP3 -> WP4 -> WP5 -> WP6 -> WP7 -> WP8" in orchestrator
+            and "build_wp8_evidence.py" in evidence
+            and "test_finish_misclaimed_relation_job_uses_finish_job_not_knowledge"
+            in (platform / "tests/test_wp8_relation_reject.py").read_text(encoding="utf-8"),
+            True,
+        ),
+        check(
+            "wp8_6_runtime_and_fail_closed_tests",
+            "test_wp8_6_relation_reject_present" in foundation_tests
+            and "def g8_16c" in probe6
+            and "KnowledgeJobDispatcher" in probe6
+            and "table count remains 50" in probe6,
             True,
         ),
     ]

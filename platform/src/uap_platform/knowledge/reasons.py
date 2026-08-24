@@ -24,6 +24,7 @@ KNOWLEDGE_SCHEMA_UNSUPPORTED: Final = "knowledge_schema_unsupported"
 KNOWLEDGE_PAYLOAD_MISMATCH: Final = "knowledge_payload_mismatch"
 KNOWLEDGE_BUNDLE_MISMATCH: Final = "knowledge_bundle_mismatch"
 KNOWLEDGE_LOCATOR_HASH_CONFLICT: Final = "knowledge_locator_hash_conflict"
+KNOWLEDGE_RELATION_TASK_NOT_IN_WP8: Final = "knowledge_relation_task_not_in_wp8"
 
 FROZEN_REASON_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -47,6 +48,7 @@ FROZEN_REASON_CODES: Final[frozenset[str]] = frozenset(
         KNOWLEDGE_PAYLOAD_MISMATCH,
         KNOWLEDGE_BUNDLE_MISMATCH,
         KNOWLEDGE_LOCATOR_HASH_CONFLICT,
+        KNOWLEDGE_RELATION_TASK_NOT_IN_WP8,
     }
 )
 

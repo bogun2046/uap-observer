@@ -15,10 +15,90 @@ from uap_platform.object_store_init import build_client
 from .handler import ResolveClaimsHandler, ResolveEntitiesHandler
 from .job_types import claimable_job_types
 from .payload import KnowledgePayloadError
-from .reasons import KNOWLEDGE_PAYLOAD_MISMATCH
+from .reasons import KNOWLEDGE_PAYLOAD_MISMATCH, KNOWLEDGE_RELATION_TASK_NOT_IN_WP8
 
 _CLAIMS_DISPATCHABLE = frozenset({"resolve_claims"})
 _ENTITIES_DISPATCHABLE = frozenset({"resolve_entities"})
+_RELATION_JOB_TYPE = "resolve_relations"
+
+
+def finish_misclaimed_relation_job(
+    connection: Connection[object],
+    job_id: uuid.UUID,
+    attempt_id: uuid.UUID,
+    lease_token: uuid.UUID,
+    job_type: str,
+) -> str:
+    """Close a mis-claimed resolve_relations job via ops.finish_job.
+
+    ADR-0013 / G8-16C: no materialize, no finish_knowledge_job, never succeeded.
+    """
+
+    if job_type != _RELATION_JOB_TYPE:
+        raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ops.finish_job(
+                %s, %s, %s, 'terminal_failure'::ops.attempt_outcome,
+                NULL, %s, %s, NULL
+            )
+            """,
+            (
+                job_id,
+                attempt_id,
+                lease_token,
+                KNOWLEDGE_RELATION_TASK_NOT_IN_WP8,
+                KNOWLEDGE_RELATION_TASK_NOT_IN_WP8,
+            ),
+        )
+        row = cast(tuple[Any, ...] | None, cursor.fetchone())
+    connection.commit()
+    return str(row[0]) if row else "dead"
+
+
+class KnowledgeJobDispatcher:
+    """Generic knowledge dispatcher. resolve_relations is fail-closed."""
+
+    def __init__(
+        self,
+        connection: Connection[object],
+        object_client: ObjectClient | None = None,
+    ) -> None:
+        self._connection = connection
+        self._object_client = object_client
+
+    def dispatch(self, claimed: tuple[Any, ...]) -> str:
+        if len(claimed) < 5:
+            raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
+        job_type = str(claimed[2])
+        if job_type == _RELATION_JOB_TYPE:
+            return finish_misclaimed_relation_job(
+                self._connection,
+                uuid.UUID(str(claimed[0])),
+                uuid.UUID(str(claimed[1])),
+                uuid.UUID(str(claimed[4])),
+                job_type,
+            )
+        if self._object_client is None:
+            raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
+        payload = claimed[3]
+        if not isinstance(payload, Mapping):
+            raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
+        if job_type == "resolve_claims":
+            handler: ResolveClaimsHandler | ResolveEntitiesHandler = ResolveClaimsHandler(
+                self._connection, self._object_client
+            )
+        elif job_type == "resolve_entities":
+            handler = ResolveEntitiesHandler(self._connection, self._object_client)
+        else:
+            raise KnowledgePayloadError(KNOWLEDGE_PAYLOAD_MISMATCH)
+        return handler.handle(
+            uuid.UUID(str(claimed[0])),
+            uuid.UUID(str(claimed[1])),
+            uuid.UUID(str(claimed[4])),
+            payload,
+        )
 
 
 class ResolveClaimsWorker:
