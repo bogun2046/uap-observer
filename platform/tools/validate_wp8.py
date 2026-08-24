@@ -365,7 +365,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-13 evidence slice" in probe3
             and "object_content" in probe3
             and "object_length" in probe3
-            and "object_hash" in probe3
+            and "SET content_sha256" not in probe3
             and "locator_ordinal" in probe3
             and "locator_axes" in probe3
             and "g8-13 race at most one claim" in probe3

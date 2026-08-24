@@ -842,18 +842,10 @@ def _g8_13_object_and_slice(
     outcomes["object_length"] = _require_handler_fail_closed(
         admin, worker, length, tag, "object_length"
     )
-
-    digest = _seed_claim_world(admin, f"{tag}-13-object-hash")
-    _bucket, _key, _old, _length, stored_id = _extraction_object(admin, digest["extraction_id"])
-    execute(
-        admin,
-        "UPDATE core.stored_objects SET content_sha256=%s WHERE id=%s",
-        sha256_text(f"tampered-hash-{tag}"),
-        stored_id,
-    )
-    outcomes["object_hash"] = _require_handler_fail_closed(
-        admin, worker, digest, tag, "object_hash"
-    )
+    # Do not UPDATE stored_objects.content_sha256 after extraction exists:
+    # extractions_text_object_id_storage_domain_output_sha256_fkey makes that
+    # 23503 before the handler runs. object_content already covers a SHA
+    # mismatch between registered digest and object bytes.
     return outcomes
 
 
