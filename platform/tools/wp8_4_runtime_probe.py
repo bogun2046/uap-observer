@@ -6,6 +6,7 @@ import io
 import json
 import sys
 import uuid
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
@@ -17,6 +18,7 @@ for _path in (str(_PLATFORM_ROOT), str(_SRC)):
         sys.path.insert(0, _path)
 
 import psycopg  # noqa: E402
+from psycopg.errors import Error as PsycopgError  # noqa: E402
 from psycopg.types.json import Jsonb  # noqa: E402
 
 from tools.wp8_1_runtime_probe import (  # noqa: E402
@@ -333,12 +335,105 @@ def _finish_probe_failure(
     conn.commit()
 
 
+def _analysis_id_from_payload(payload: object) -> uuid.UUID | None:
+    if not isinstance(payload, Mapping):
+        return None
+    raw = payload.get("analysis_result_id")
+    if raw is None:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except ValueError:
+        return None
+
+
+def _existing_materialization_metrics(
+    conn: psycopg.Connection[Any], analysis_id: uuid.UUID
+) -> dict[str, Any] | None:
+    """Metrics that match domain rows already written for this analysis."""
+
+    candidates, locators = _knowledge_counts(conn, analysis_id)
+    if candidates <= 0:
+        return None
+    return {
+        "schema_version": "knowledge-attempt-metrics.v1",
+        "input_candidates": candidates,
+        "materialized_candidates": candidates,
+        "input_locators": locators,
+        "materialized_locators": locators,
+        "rejected_candidates": 0,
+        "rejected_locators": 0,
+        "empty_valid_result": False,
+        "rejected_by_code": {},
+        "samples": [],
+    }
+
+
+def _finish_existing_materialization(
+    conn: psycopg.Connection[Any],
+    job_id: uuid.UUID,
+    attempt_id: uuid.UUID,
+    token: uuid.UUID,
+    metrics: dict[str, Any],
+) -> str:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ops.finish_knowledge_job(
+                %s, %s, %s, 'succeeded'::ops.attempt_outcome,
+                NULL, NULL, NULL, NULL, %s
+            )
+            """,
+            (job_id, attempt_id, token, Jsonb(metrics)),
+        )
+        row = cast(tuple[Any, ...] | None, cursor.fetchone())
+    conn.commit()
+    return str(row[0]) if row else "succeeded"
+
+
+def _close_claimed_resolve_job(
+    conn: psycopg.Connection[Any],
+    claimed: tuple[Any, ...],
+    handler: ResolveEntitiesHandler | None = None,
+) -> str:
+    """Close a claimed resolve_entities job through the real knowledge lifecycle.
+
+    Leftover WP8.1 jobs may already have domain rows. finish_knowledge_job then
+    rejects terminal_failure/knowledge_payload_mismatch once payload_parsed.
+    Those jobs must finish succeeded with metrics matching the existing counts.
+    """
+
+    job_id = uuid.UUID(str(claimed[0]))
+    attempt_id = uuid.UUID(str(claimed[1]))
+    payload = claimed[3]
+    token = uuid.UUID(str(claimed[4]))
+    active = handler if handler is not None else ResolveEntitiesHandler(conn, _client())
+    try:
+        return active.handle(job_id, attempt_id, token, payload)
+    except PsycopgError as error:
+        conn.rollback()
+        if error.sqlstate == "40001":
+            raise
+        analysis_id = _analysis_id_from_payload(payload)
+        metrics = (
+            _existing_materialization_metrics(conn, analysis_id)
+            if analysis_id is not None
+            else None
+        )
+        if metrics is not None:
+            return _finish_existing_materialization(
+                conn, job_id, attempt_id, token, metrics
+            )
+        _finish_probe_failure(conn, job_id, attempt_id, token)
+        return "dead"
+
+
 def _claim_target_job(
     conn: psycopg.Connection[Any],
     *,
     worker_id: str,
     job_id: uuid.UUID,
-    limit: int = 16,
+    limit: int = 64,
 ) -> tuple[Any, ...]:
     for index in range(limit):
         row = _claim_one_resolve(conn, f"{worker_id}-{index}")
@@ -346,16 +441,18 @@ def _claim_target_job(
             raise RuntimeError(f"g8-15 did not claim {job_id}")
         if row[0] == job_id:
             return row
-        _finish_probe_failure(conn, row[0], row[1], row[4])
+        _close_claimed_resolve_job(conn, row)
     raise RuntimeError(f"g8-15 claim loop missed {job_id}")
 
 
-def _drain_resolve_entities(conn: psycopg.Connection[Any], worker_id: str, limit: int = 16) -> None:
+def _drain_resolve_entities(
+    conn: psycopg.Connection[Any], worker_id: str, limit: int = 256
+) -> None:
     for index in range(limit):
         row = _claim_one_resolve(conn, f"{worker_id}-drain-{index}")
         if row is None:
             return
-        _finish_probe_failure(conn, row[0], row[1], row[4])
+        _close_claimed_resolve_job(conn, row)
 
 
 def _require_handler_fail_closed(
@@ -1172,7 +1269,7 @@ def g8_16b(
 
     consumed: tuple[Any, ...] | None = None
     status = None
-    for index in range(16):
+    for index in range(64):
         claimed = ResolveEntitiesWorker.from_settings(
             worker,
             worker_id=f"wp8-4-post-{tag}-{index}",
@@ -1184,6 +1281,7 @@ def g8_16b(
             consumed = claimed
             status = active.dispatch(claimed)
             break
+        _close_claimed_resolve_job(worker, claimed)
     if consumed is None:
         raise RuntimeError("g8-16b did not claim the queued resolve_entities job")
     require("g8-16b claimed type", consumed[2], "resolve_entities")
@@ -1226,6 +1324,7 @@ def main() -> None:
     worker.autocommit = False
     head = scalar(admin, "SELECT version_num FROM public.alembic_version")
     require("alembic head", head, CURRENT_HEAD)
+    _drain_resolve_entities(worker, f"wp8-4-startup-drain-{tag}")
     results = {
         "head": head,
         "live_definitions": g8_live_definitions(admin),

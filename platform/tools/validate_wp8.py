@@ -56,6 +56,7 @@ REQUIRED_FILES = (
     "platform/tools/build_wp8_evidence.py",
     "docs/wp8/adr/0013-relations-out-of-scope.md",
     "platform/tests/test_wp8_relation_reject.py",
+    "platform/tests/test_wp8_chain_drain.py",
     "platform/src/uap_platform/knowledge/anchors.py",
     "platform/src/uap_platform/knowledge/contracts.py",
     "platform/src/uap_platform/knowledge/locators.py",
@@ -460,7 +461,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-13 all attempts closed" in probe3
             and "ThreadPoolExecutor" in probe3
             and "read_verified_object" in probe3
-            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe3,
+            and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe3
+            and "def _close_claimed_resolve_job" in probe3
+            and "wp8-3-startup-drain" in probe3
+            and "test_wp8_3_drain_closes_prior_queued_resolve_claims" in foundation_tests,
             True,
         ),
         check(
@@ -532,7 +536,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-15 at most one succeeded" in probe4
             and "g8-15 all attempts closed" in probe4
             and "if payload is None:" in probe4
-            and "admin, worker, world, tag, name, payload" in probe4,
+            and "admin, worker, world, tag, name, payload" in probe4
+            and "def _close_claimed_resolve_job" in probe4
+            and "wp8-4-startup-drain" in probe4
+            and "test_wp8_4_drain_closes_prior_queued_resolve_entities" in foundation_tests,
             True,
         ),
         check(
@@ -626,6 +633,9 @@ def evaluate(platform: Path) -> list[Check]:
         check(
             "wp8_6_runtime_and_fail_closed_tests",
             "test_wp8_6_relation_reject_present" in foundation_tests
+            and "test_wp8_3_drain_closes_prior_queued_resolve_claims" in foundation_tests
+            and "test_close_claimed_resolve_job_finishes_succeeded_when_claims_exist"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
             and "def g8_16c" in probe6
             and "KnowledgeJobDispatcher" in probe6
             and "table count remains 50" in probe6,

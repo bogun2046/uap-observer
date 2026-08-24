@@ -252,3 +252,49 @@ def test_wp8_6_relation_reject_present() -> None:
     assert "wp8_6_runtime_probe.py" in orchestrator
     probe1 = (platform_root() / "tools/wp8_1_runtime_probe.py").read_text(encoding="utf-8")
     assert 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe1
+
+
+def test_wp8_3_drain_closes_prior_queued_resolve_claims() -> None:
+    probe3 = (platform_root() / "tools/wp8_3_runtime_probe.py").read_text(encoding="utf-8")
+    close = probe3[
+        probe3.find("def _existing_materialization_metrics") : probe3.find("def _claim_target_job")
+    ]
+    drain = probe3[
+        probe3.find("def _drain_resolve_claims") : probe3.find("def _require_handler_fail_closed")
+    ]
+    claim_loop = probe3[
+        probe3.find("def _claim_target_job") : probe3.find("def _drain_resolve_claims")
+    ]
+    g16 = probe3[probe3.find("def g8_16a") : probe3.find("def g8_permissions")]
+    assert "ResolveClaimsHandler" in close
+    assert "SELECT ops.finish_knowledge_job" in close
+    assert "'succeeded'::ops.attempt_outcome" in close
+    assert "_knowledge_counts(" in close
+    assert "_finish_probe_failure(" in close
+    assert "_close_claimed_resolve_job(" in drain
+    assert "_finish_probe_failure(" not in drain
+    assert "_close_claimed_resolve_job(" in claim_loop
+    assert "_close_claimed_resolve_job(" in g16
+    assert "wp8-3-startup-drain" in probe3
+    assert "DELETE FROM ops.jobs" not in probe3
+    assert "TRUNCATE" not in probe3
+
+
+def test_wp8_4_drain_closes_prior_queued_resolve_entities() -> None:
+    probe4 = (platform_root() / "tools/wp8_4_runtime_probe.py").read_text(encoding="utf-8")
+    close = probe4[
+        probe4.find("def _existing_materialization_metrics") : probe4.find("def _claim_target_job")
+    ]
+    drain = probe4[
+        probe4.find("def _drain_resolve_entities") : probe4.find("def _require_handler_fail_closed")
+    ]
+    g16 = probe4[probe4.find("def g8_16b") : probe4.find("def g8_permissions")]
+    assert "ResolveEntitiesHandler" in close
+    assert "SELECT ops.finish_knowledge_job" in close
+    assert "'succeeded'::ops.attempt_outcome" in close
+    assert "_close_claimed_resolve_job(" in drain
+    assert "_finish_probe_failure(" not in drain
+    assert "_close_claimed_resolve_job(" in g16
+    assert "wp8-4-startup-drain" in probe4
+    assert "DELETE FROM ops.jobs" not in probe4
+    assert "TRUNCATE" not in probe4
