@@ -208,6 +208,16 @@ def test_wp8_5_merge_state_machine_present() -> None:
     assert "def g8_17" in probe5
     assert "def g8_18" in probe5
     assert "def g8_19" in probe5
+    assert "def _activity_wait_event" in probe5
+    wait_helper = probe5[
+        probe5.find("def _activity_wait_event") : probe5.find("def g8_live_definitions")
+    ]
+    assert "FROM pg_stat_activity" in wait_helper
+    assert "fetchone()" in wait_helper
+    assert "scalar(" not in wait_helper
+    g8_18 = probe5[probe5.find("def g8_18") : probe5.find("def g8_19")]
+    assert "_activity_wait_event(" in g8_18
+    assert "SELECT coalesce(wait_event_type" not in g8_18
     assert "if payload is None:" not in probe5
     assert "name[:8]" not in probe5
     assert 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe5

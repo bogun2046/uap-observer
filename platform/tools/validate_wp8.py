@@ -550,6 +550,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "def g8_18" in probe5
             and "def g8_19" in probe5
             and "def g8_live_definitions" in probe5
+            and "def _activity_wait_event" in probe5
+            and "FROM pg_stat_activity" in probe5
             and "pg_advisory_xact_lock(824, 1)" in probe5
             and "ThreadPoolExecutor" in probe5
             and "knowledge_merge_cycle" in probe5

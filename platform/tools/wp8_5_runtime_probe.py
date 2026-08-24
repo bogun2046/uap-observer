@@ -199,6 +199,25 @@ def _has_execute(admin: psycopg.Connection[Any], role: str, signature: str) -> b
     )
 
 
+def _activity_wait_event(
+    admin: psycopg.Connection[Any], application_name: str
+) -> str | None:
+    with admin.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '')
+              FROM pg_stat_activity
+             WHERE application_name = %s
+             LIMIT 1
+            """,
+            (application_name,),
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None
+    return str(row[0])
+
+
 def g8_live_definitions(admin: psycopg.Connection[Any]) -> dict[str, Any]:
     merge_def = scalar(admin, "SELECT pg_get_functiondef(%s::regprocedure)", MERGE_SIGNATURE)
     reverse_def = scalar(admin, "SELECT pg_get_functiondef(%s::regprocedure)", REVERSE_SIGNATURE)
@@ -584,8 +603,8 @@ def g8_18(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
             waiter.autocommit = False
             try:
                 with waiter.cursor() as cursor:
-                    cursor.execute("SET lock_timeout = '4000ms'")
                     cursor.execute("SET application_name = %s", (f"wp8-5-wait-{tag}",))
+                    cursor.execute("SET lock_timeout = '4000ms'")
                     cursor.execute(
                         "SELECT core.merge_entities(%s, %s, %s, %s)",
                         (blocker, survivor, actor, f"{tag}-wait-lock"),
@@ -603,17 +622,10 @@ def g8_18(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
         thread.start()
         deadline = time.time() + 2.0
         while time.time() < deadline and thread.is_alive():
-            wait_event = scalar(
-                admin,
-                """
-                SELECT coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '')
-                  FROM pg_stat_activity
-                 WHERE application_name = %s
-                 LIMIT 1
-                """,
-                f"wp8-5-wait-{tag}",
-            )
-            if "advisory" in str(wait_event).lower() or str(wait_event).startswith("Lock:"):
+            wait_event = _activity_wait_event(admin, f"wp8-5-wait-{tag}")
+            if wait_event and (
+                "advisory" in wait_event.lower() or wait_event.startswith("Lock:")
+            ):
                 waited = True
                 break
             time.sleep(0.05)
