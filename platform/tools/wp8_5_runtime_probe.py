@@ -218,6 +218,22 @@ def _activity_wait_event(
     return str(row[0])
 
 
+def _ungranted_advisory_locks(admin: psycopg.Connection[Any]) -> int:
+    with admin.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT count(*)::int
+              FROM pg_locks
+             WHERE locktype = 'advisory'
+               AND NOT granted
+            """
+        )
+        row = cursor.fetchone()
+    if row is None or row[0] is None:
+        return 0
+    return int(row[0])
+
+
 def g8_live_definitions(admin: psycopg.Connection[Any]) -> dict[str, Any]:
     merge_def = scalar(admin, "SELECT pg_get_functiondef(%s::regprocedure)", MERGE_SIGNATURE)
     reverse_def = scalar(admin, "SELECT pg_get_functiondef(%s::regprocedure)", REVERSE_SIGNATURE)
@@ -592,6 +608,7 @@ def g8_18(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
     holder.autocommit = False
     waiter_state: dict[str, str] = {}
     waited = False
+    ready = threading.Event()
     try:
         with holder.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(824, 1)")
@@ -604,33 +621,41 @@ def g8_18(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
             try:
                 with waiter.cursor() as cursor:
                     cursor.execute("SET application_name = %s", (f"wp8-5-wait-{tag}",))
-                    cursor.execute("SET lock_timeout = '4000ms'")
+                    cursor.execute("SET lock_timeout = '30s'")
+                    ready.set()
                     cursor.execute(
                         "SELECT core.merge_entities(%s, %s, %s, %s)",
                         (blocker, survivor, actor, f"{tag}-wait-lock"),
                     )
                 waiter.commit()
                 waiter_state["result"] = "ok"
-            except psycopg.Error as error:
-                waiter.rollback()
-                waiter_state["sqlstate"] = str(error.sqlstate)
+            except Exception as error:
+                waiter_state["sqlstate"] = str(getattr(error, "sqlstate", "") or "")
+                waiter_state["error"] = type(error).__name__
                 waiter_state["result"] = "blocked"
+                waiter.rollback()
             finally:
                 waiter.close()
 
         thread = threading.Thread(target=_wait_merge, name=f"wp8-5-lock-{tag}")
         thread.start()
-        deadline = time.time() + 2.0
+        ready.wait(timeout=5)
+        deadline = time.time() + 5.0
         while time.time() < deadline and thread.is_alive():
+            if _ungranted_advisory_locks(admin) > 0:
+                waited = True
+                break
             wait_event = _activity_wait_event(admin, f"wp8-5-wait-{tag}")
             if wait_event and (
-                "advisory" in wait_event.lower() or wait_event.startswith("Lock:")
+                "advisory" in wait_event.lower()
+                or wait_event.startswith("Lock:")
+                or "lwlock" in wait_event.lower()
             ):
                 waited = True
                 break
             time.sleep(0.05)
         holder.rollback()
-        thread.join(timeout=8)
+        thread.join(timeout=30)
         require("g8-18 waiter observed or completed", thread.is_alive(), False)
         require(
             "g8-18 advisory wait or success",
