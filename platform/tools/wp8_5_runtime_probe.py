@@ -620,8 +620,11 @@ def g8_18(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
             waiter.autocommit = False
             try:
                 with waiter.cursor() as cursor:
-                    cursor.execute("SET application_name = %s", (f"wp8-5-wait-{tag}",))
-                    cursor.execute("SET lock_timeout = '30s'")
+                    cursor.execute(
+                        "SELECT set_config('application_name', %s, false)",
+                        (f"wp8-5-wait-{tag}",),
+                    )
+                    cursor.execute("SELECT set_config('lock_timeout', %s, false)", ("30s",))
                     ready.set()
                     cursor.execute(
                         "SELECT core.merge_entities(%s, %s, %s, %s)",
@@ -657,6 +660,7 @@ def g8_18(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
         holder.rollback()
         thread.join(timeout=30)
         require("g8-18 waiter observed or completed", thread.is_alive(), False)
+        require("g8-18 waiter not SET syntax error", waiter_state.get("sqlstate") != "42601", True)
         require(
             "g8-18 advisory wait or success",
             waited or waiter_state.get("result") == "ok",

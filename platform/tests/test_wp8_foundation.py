@@ -220,6 +220,9 @@ def test_wp8_5_merge_state_machine_present() -> None:
     g8_18 = probe5[probe5.find("def g8_18") : probe5.find("def g8_19")]
     assert "_activity_wait_event(" in g8_18
     assert "_ungranted_advisory_locks(" in g8_18
+    assert "set_config('application_name'" in g8_18
+    assert "SET application_name = %s" not in g8_18
+    assert "g8-18 waiter not SET syntax error" in g8_18
     assert "SELECT coalesce(wait_event_type" not in g8_18
     assert "if payload is None:" not in probe5
     assert "name[:8]" not in probe5

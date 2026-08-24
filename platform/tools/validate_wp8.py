@@ -554,6 +554,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "def _ungranted_advisory_locks" in probe5
             and "FROM pg_stat_activity" in probe5
             and "FROM pg_locks" in probe5
+            and "set_config('application_name'" in probe5
+            and "SET application_name = %s" not in probe5
+            and "g8-18 waiter not SET syntax error" in probe5
             and "pg_advisory_xact_lock(824, 1)" in probe5
             and "ThreadPoolExecutor" in probe5
             and "knowledge_merge_cycle" in probe5
