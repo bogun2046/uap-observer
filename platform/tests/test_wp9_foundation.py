@@ -42,4 +42,6 @@ def test_wp9_2_does_not_open_decision_stage() -> None:
     assert "CREATE TABLE" not in migration
     assert "record_review_decision" not in probe
     assert "g9_06" in probe and "g9_34" in probe
-
+    assert "CREATE FUNCTION audit._canonical_json" in migration
+    assert "p_payload::text" not in migration
+    assert "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777" in probe

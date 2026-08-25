@@ -25,6 +25,7 @@ REQUIRED_FILES = (
     "platform/src/uap_platform/review/errors.py",
     "platform/src/uap_platform/review/session.py",
     "platform/src/uap_platform/review/cases.py",
+    "platform/src/uap_platform/review/canonical.py",
     "platform/tests/test_wp9_session.py",
     "platform/tests/test_wp9_cases.py",
     "platform/tests/test_wp9_foundation.py",
@@ -133,7 +134,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "review_idempotency_payload_conflict" in migration_15
             and "GRANT EXECUTE ON FUNCTION audit.open_review_case" in migration_15
             and "GRANT EXECUTE ON FUNCTION audit.assign_review_case" in migration_15
-            and "GRANT EXECUTE ON FUNCTION audit.close_review_case" in migration_15,
+            and "GRANT EXECUTE ON FUNCTION audit.close_review_case" in migration_15
+            and "CREATE FUNCTION audit._canonical_json" in migration_15
+            and "p_payload::text" not in migration_15
+            and "ORDER BY each.key COLLATE \"C\"" in migration_15,
             True,
         ),
         check("no_later_wp9_functions", not forbidden_hits, forbidden_hits, []),
@@ -155,7 +159,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "g9_09" in probe2
             and "g9_31" in probe2
             and "g9_34" in probe2
-            and "record_review_decision" not in probe2,
+            and "record_review_decision" not in probe2
+            and "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+            in probe2
+            and "payload_sha256" in probe2,
             True,
         ),
         check(
@@ -178,7 +185,10 @@ def evaluate(platform: Path) -> list[Check]:
         check(
             "unit_tests_present",
             "require_active_role" in tests
-            and "open_review_case" in case_tests,
+            and "open_review_case" in case_tests
+            and "FROZEN_COMPACT_SHA256" in case_tests
+            and "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+            in case_tests,
             True,
         ),
     ]

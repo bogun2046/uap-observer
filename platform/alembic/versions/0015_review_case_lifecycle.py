@@ -43,12 +43,58 @@ def upgrade() -> None:
         END
         $_review_request_id$;
 
+        CREATE FUNCTION audit._canonical_json(p_value jsonb) RETURNS text
+        LANGUAGE plpgsql
+        IMMUTABLE
+        STRICT
+        SET search_path = pg_catalog
+        AS $_canonical_json$
+        DECLARE
+            v_type text;
+            v_parts text[] := ARRAY[]::text[];
+            rec record;
+        BEGIN
+            v_type := jsonb_typeof(p_value);
+            IF v_type IN ('null', 'boolean', 'number', 'string') THEN
+                RETURN p_value::text;
+            ELSIF v_type = 'array' THEN
+                FOR rec IN
+                    SELECT elem.value AS value
+                      FROM jsonb_array_elements(p_value)
+                           WITH ORDINALITY AS elem(value, ord)
+                     ORDER BY elem.ord
+                LOOP
+                    v_parts := v_parts || audit._canonical_json(rec.value);
+                END LOOP;
+                RETURN '[' || array_to_string(v_parts, ',') || ']';
+            ELSIF v_type = 'object' THEN
+                FOR rec IN
+                    SELECT each.key, each.value
+                      FROM jsonb_each(p_value) AS each
+                     ORDER BY each.key COLLATE "C"
+                LOOP
+                    v_parts := v_parts || (
+                        to_json(rec.key)::text
+                        || ':'
+                        || audit._canonical_json(rec.value)
+                    );
+                END LOOP;
+                RETURN '{' || array_to_string(v_parts, ',') || '}';
+            END IF;
+            RAISE EXCEPTION 'review_canonical_json_unsupported' USING ERRCODE = '22023';
+        END
+        $_canonical_json$;
+
         CREATE FUNCTION audit._payload_sha256(p_payload jsonb) RETURNS text
         LANGUAGE sql
         IMMUTABLE
+        STRICT
         SET search_path = pg_catalog
         AS $_payload_sha256$
-            SELECT encode(sha256(convert_to(p_payload::text, 'UTF8')), 'hex')
+            SELECT encode(
+                sha256(convert_to(audit._canonical_json(p_payload), 'UTF8')),
+                'hex'
+            )
         $_payload_sha256$;
 
         CREATE FUNCTION audit._existing_write_target(p_event_key text, p_sha text)
@@ -360,6 +406,7 @@ def upgrade() -> None:
         $close_review_case$;
 
         REVOKE ALL ON FUNCTION audit._review_request_id() FROM PUBLIC;
+        REVOKE ALL ON FUNCTION audit._canonical_json(jsonb) FROM PUBLIC;
         REVOKE ALL ON FUNCTION audit._payload_sha256(jsonb) FROM PUBLIC;
         REVOKE ALL ON FUNCTION audit._existing_write_target(text, text) FROM PUBLIC;
         REVOKE ALL ON FUNCTION audit._require_reviewer_principal(uuid) FROM PUBLIC;
@@ -390,6 +437,7 @@ def downgrade() -> None:
         DROP FUNCTION IF EXISTS audit._require_reviewer_principal(uuid);
         DROP FUNCTION IF EXISTS audit._existing_write_target(text, text);
         DROP FUNCTION IF EXISTS audit._payload_sha256(jsonb);
+        DROP FUNCTION IF EXISTS audit._canonical_json(jsonb);
         DROP FUNCTION IF EXISTS audit._review_request_id();
         """
     )

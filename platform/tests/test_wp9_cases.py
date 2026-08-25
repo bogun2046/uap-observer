@@ -15,6 +15,14 @@ from uap_platform.review import (
     close_review_case,
     open_review_case,
 )
+from uap_platform.review.canonical import (
+    FROZEN_COMPACT_JSON,
+    FROZEN_COMPACT_SHA256,
+    FROZEN_NESTED_JSON,
+    FROZEN_NESTED_SHA256,
+    canonical_json,
+    payload_sha256,
+)
 from uap_platform.review.errors import (
     KNOWLEDGE_RELATION_REVIEW_NOT_IN_WP9,
     REVIEW_CASE_ALREADY_OPEN,
@@ -80,6 +88,20 @@ def test_map_relation_and_request_id_codes() -> None:
     assert map_review_error(error).code == REVIEW_IDEMPOTENCY_PAYLOAD_CONFLICT
     error.diag.message_primary = REVIEW_CASE_ALREADY_OPEN
     assert map_review_error(error).code == REVIEW_CASE_ALREADY_OPEN
+
+
+def test_frozen_compact_canonical_sha256() -> None:
+    assert canonical_json({"b": 2, "a": 1}) == FROZEN_COMPACT_JSON
+    assert payload_sha256({"b": 2, "a": 1}) == FROZEN_COMPACT_SHA256
+    assert payload_sha256({"a": 1, "b": 2}) == FROZEN_COMPACT_SHA256
+    nested = {"z": [{"b": 2, "a": 1}, True, None], "m": {"d": "x y"}}
+    assert canonical_json(nested) == FROZEN_NESTED_JSON
+    assert payload_sha256(nested) == FROZEN_NESTED_SHA256
+    assert FROZEN_COMPACT_SHA256 == (
+        "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+    )
+    assert " " not in FROZEN_COMPACT_JSON
+    assert "x y" in FROZEN_NESTED_JSON
 
 
 def test_wp9_2_package_has_no_decision_functions() -> None:

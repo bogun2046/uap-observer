@@ -12,6 +12,12 @@ import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from uap_platform.config import load_settings
+from uap_platform.review.canonical import (
+    FROZEN_COMPACT_JSON,
+    FROZEN_COMPACT_SHA256,
+    FROZEN_NESTED_SHA256,
+    payload_sha256,
+)
 
 ROLE_PASSWORDS = {
     "uap_api": "UAP_API_PASSWORD",
@@ -334,6 +340,47 @@ def close_sql(
     return ("SELECT audit.close_review_case(%s, %s)", (case_id, reason))
 
 
+def event_payload_sha(
+    connection: psycopg.Connection[Any], target_id: uuid.UUID, action: str
+) -> str:
+    return str(
+        scalar(
+            connection,
+            """
+            SELECT metadata ->> 'payload_sha256'
+              FROM audit.audit_events
+             WHERE target_id=%s AND action=%s
+            """,
+            target_id,
+            action,
+        )
+    )
+
+
+def open_payload_sha(
+    case_type: str, subject: uuid.UUID, reason: str = REASON, priority: int = 0
+) -> str:
+    return payload_sha256(
+        {
+            "case_type": case_type,
+            "op": "review.case.open",
+            "priority": priority,
+            "reason": reason,
+            "subject_id": str(subject).lower(),
+        }
+    )
+
+
+def assign_payload_sha(case_id: uuid.UUID, assignee: uuid.UUID) -> str:
+    return payload_sha256(
+        {
+            "assignee_id": str(assignee).lower(),
+            "case_id": str(case_id).lower(),
+            "op": "review.case.assign",
+        }
+    )
+
+
 def run_open(
     api: psycopg.Connection[Any],
     principal: uuid.UUID,
@@ -367,11 +414,12 @@ def g9_06(
     before_cases = int(scalar(admin, "SELECT count(*) FROM audit.review_cases"))
     before_events = int(scalar(admin, "SELECT count(*) FROM audit.audit_events"))
     opened: list[uuid.UUID] = []
-    for case_type, subject in (
+    subjects = (
         ("document", document_id),
         ("claim", claim_id),
         ("entity", entity_id),
-    ):
+    )
+    for case_type, subject in subjects:
         opened.append(run_open(api, principal, uuid.uuid4(), case_type, subject))
     require(
         "g9-06 cases +3",
@@ -383,7 +431,7 @@ def g9_06(
         int(scalar(admin, "SELECT count(*) FROM audit.audit_events")),
         before_events + 3,
     )
-    for case_id, case_type in zip(opened, ("document", "claim", "entity"), strict=True):
+    for case_id, (case_type, subject) in zip(opened, subjects, strict=True):
         status, opened_by = (
             scalar(admin, "SELECT status::text FROM audit.review_cases WHERE id=%s", case_id),
             scalar(admin, "SELECT opened_by FROM audit.review_cases WHERE id=%s", case_id),
@@ -399,6 +447,11 @@ def g9_06(
             case_id,
         )
         require(f"g9-06 {case_type} key prefix", str(key).startswith("review.case.open:"), True)
+        require(
+            f"g9-06 {case_type} payload_sha256",
+            event_payload_sha(admin, case_id, "review.case.open"),
+            open_payload_sha(case_type, subject),
+        )
     return opened[0], opened[1], opened[2]
 
 
@@ -475,6 +528,11 @@ def g9_09(
     )
     require("g9-09 status", status, "assigned")
     require("g9-09 assignee", assigned_to, assignee)
+    require(
+        "g9-09 payload_sha256",
+        event_payload_sha(admin, case_id, "review.case.assign"),
+        assign_payload_sha(case_id, assignee),
+    )
     state, primary = sqlerror_tx(
         api,
         [*bind(principal, uuid.uuid4()), close_sql(case_id)],
@@ -509,6 +567,11 @@ def g9_34(
     first = run_open(api, principal, request, "document", document_id, REASON)
     replay = run_open(api, principal, request, "document", document_id, REASON)
     require("g9-34 open replay", replay, first)
+    require(
+        "g9-34 open payload_sha256",
+        event_payload_sha(admin, first, "review.case.open"),
+        open_payload_sha("document", document_id, REASON),
+    )
     require(
         "g9-34 one case for subject",
         int(
@@ -573,6 +636,11 @@ def g9_34(
             cursor.execute("SELECT audit.assign_review_case(%s, %s)", (first, assignee))
             row = cursor.fetchone()
     require("g9-34 assign replay", uuid.UUID(str(row[0])) if row else None, first)
+    require(
+        "g9-34 assign payload_sha256",
+        event_payload_sha(admin, first, "review.case.assign"),
+        assign_payload_sha(first, assignee),
+    )
     require(
         "g9-34 assign events",
         int(
@@ -688,6 +756,36 @@ def permissions(admin: psycopg.Connection[Any]) -> None:
     )
 
 
+def assert_frozen_canonical(admin: psycopg.Connection[Any]) -> None:
+    compact = scalar(admin, "SELECT audit._payload_sha256(%s::jsonb)", '{"b": 2, "a": 1}')
+    require("frozen compact sha", compact, FROZEN_COMPACT_SHA256)
+    require(
+        "frozen compact sha literal",
+        FROZEN_COMPACT_SHA256,
+        "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777",
+    )
+    rendered = scalar(admin, "SELECT audit._canonical_json(%s::jsonb)", '{"b": 2, "a": 1}')
+    require("frozen compact json", rendered, FROZEN_COMPACT_JSON)
+    nested = scalar(
+        admin,
+        "SELECT audit._payload_sha256(%s::jsonb)",
+        '{"z":[{"b":2,"a":1}, true, null], "m": {"d": "x y"}}',
+    )
+    require("frozen nested sha", nested, FROZEN_NESTED_SHA256)
+    require(
+        "api no execute canonical",
+        scalar(
+            admin,
+            """
+            SELECT has_function_privilege(
+                'uap_api', 'audit._canonical_json(jsonb)', 'EXECUTE'
+            )
+            """,
+        ),
+        False,
+    )
+
+
 def main() -> None:
     admin = connect()
     api = connect("uap_api")
@@ -705,6 +803,7 @@ def main() -> None:
         require("table count", int(tables), EXPECTED_TABLE_COUNT)
         seed_grantor(admin)
         permissions(admin)
+        assert_frozen_canonical(admin)
         reviewer = insert_person(admin)
         bind_role(admin, reviewer, "reviewer")
         assignee = insert_person(admin)
