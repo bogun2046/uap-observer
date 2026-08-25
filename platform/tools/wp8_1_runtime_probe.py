@@ -8,12 +8,14 @@ import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from uap_platform.config import load_settings
+from uap_platform.object_registry import ObjectClient, StorageDomain, put_verified
+from uap_platform.object_store_init import build_client
 
 ROLE_PASSWORDS = {
     "uap_migrator": "UAP_MIGRATOR_PASSWORD",
@@ -30,6 +32,7 @@ ROLE_PASSWORDS = {
 CURRENT_HEAD = "0013_entity_merge_state_machine"
 EXPECTED_TABLE_COUNT = 50
 WP3_ORIGINAL_TABLE_COUNT = 49
+_OBJECTS: ObjectClient | None = None
 PAYLOAD_KEYS = {
     "payload_schema_version",
     "analysis_result_id",
@@ -58,6 +61,13 @@ EMPTY_METRICS = {
 
 def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _object_client() -> ObjectClient:
+    global _OBJECTS
+    if _OBJECTS is None:
+        _OBJECTS = cast(ObjectClient, build_client(load_settings()))
+    return _OBJECTS
 
 
 def admin_url() -> str:
@@ -359,21 +369,33 @@ def insert_extraction(
     tag: str,
     output_sha256: str,
     extractor_name: str = "text",
+    *,
+    text: str,
 ) -> uuid.UUID:
     extraction_id = uuid.uuid4()
     text_object_id = uuid.uuid4()
     now = datetime.now(UTC)
+    require("extraction text hash", sha256_text(text), output_sha256)
+    physical = put_verified(
+        _object_client(),
+        StorageDomain.DERIVED,
+        text.encode("utf-8"),
+        "text/plain",
+        expected_sha256=output_sha256,
+    )
     execute(
         admin,
         """
         INSERT INTO core.stored_objects (
             id, storage_domain, bucket_name, object_key, content_sha256,
             byte_length, media_type, verified_at
-        ) VALUES (%s, 'derived', 'derived', %s, %s, 24, 'text/plain', %s)
+        ) VALUES (%s, 'derived', %s, %s, %s, %s, 'text/plain', %s)
         """,
         text_object_id,
-        f"derived/{tag}/{extractor_name}",
-        output_sha256,
+        physical.bucket_name,
+        physical.object_key,
+        physical.content_sha256,
+        physical.byte_length,
         now,
     )
     attempt_id = insert_job_attempt(admin, f"wp8-1-extract-{tag}-{extractor_name}")
@@ -508,12 +530,99 @@ def job_for(
     )
 
 
+def _knowledge_row_counts(
+    admin: psycopg.Connection[Any], analysis_id: uuid.UUID, result_type: str
+) -> tuple[int, int]:
+    if result_type == "claim_extraction":
+        candidates = scalar(
+            admin,
+            "SELECT count(*) FROM core.claims WHERE origin_analysis_result_id=%s",
+            analysis_id,
+        )
+        locators = scalar(
+            admin,
+            """
+            SELECT count(*) FROM core.claim_evidence AS evidence
+              JOIN core.claims AS claim ON claim.id = evidence.claim_id
+             WHERE claim.origin_analysis_result_id = %s
+            """,
+            analysis_id,
+        )
+        return int(candidates), int(locators)
+    candidates = scalar(
+        admin,
+        "SELECT count(*) FROM core.entity_candidates WHERE analysis_result_id=%s",
+        analysis_id,
+    )
+    locators = scalar(
+        admin,
+        """
+        SELECT count(*) FROM core.entity_candidate_evidence AS evidence
+          JOIN core.entity_candidates AS candidate
+            ON candidate.id = evidence.entity_candidate_id
+         WHERE candidate.analysis_result_id = %s
+        """,
+        analysis_id,
+    )
+    return int(candidates), int(locators)
+
+
+def finish_owned_resolution_job(
+    admin: psycopg.Connection[Any],
+    worker: psycopg.Connection[Any],
+    analysis_id: uuid.UUID,
+    result_type: str,
+    worker_id: str,
+) -> str:
+    """Finish a WP8.1 fixture resolve_* job through the worker knowledge lifecycle."""
+
+    job = job_for(admin, analysis_id, result_type)
+    job_id = uuid.UUID(str(job[0]))
+    status = str(scalar(admin, "SELECT status::text FROM ops.jobs WHERE id=%s", job_id))
+    if status != "queued":
+        return status
+    attempt_id, token = grant_running_lease(admin, job_id, worker_id)
+    candidates, locators = _knowledge_row_counts(admin, analysis_id, result_type)
+    require("owned resolution has domain rows", candidates > 0, True)
+    metrics = json.dumps(
+        {
+            "schema_version": "knowledge-attempt-metrics.v1",
+            "input_candidates": candidates,
+            "materialized_candidates": candidates,
+            "input_locators": locators,
+            "materialized_locators": locators,
+            "rejected_candidates": 0,
+            "rejected_locators": 0,
+            "empty_valid_result": False,
+            "rejected_by_code": {},
+            "samples": [],
+        }
+    )
+    return str(
+        scalar(
+            worker,
+            """
+            SELECT ops.finish_knowledge_job(
+                %s::uuid, %s::uuid, %s::uuid, 'succeeded'::ops.attempt_outcome,
+                NULL, NULL, NULL, NULL, %s::jsonb
+            )::text
+            """,
+            job_id,
+            attempt_id,
+            token,
+            metrics,
+        )
+    )
+
+
 def g8_01(
     admin: psycopg.Connection[Any], governance: psycopg.Connection[Any], tag: str
 ) -> dict[str, object]:
     _principal_id, document_version_id, _source_id = seed_document(admin, f"{tag}-g801")
     input_hash = sha256_text(f"matched-{tag}")
-    extraction_id = insert_extraction(admin, document_version_id, f"{tag}-g801", input_hash)
+    extraction_id = insert_extraction(
+        admin, document_version_id, f"{tag}-g801", input_hash, text=f"matched-{tag}"
+    )
     first_run = insert_model_run(
         admin,
         document_version_id=document_version_id,
@@ -664,7 +773,9 @@ def g8_02(
 ) -> dict[str, object]:
     _principal_id, document_version_id, _source_id = seed_document(admin, f"{tag}-g802")
     input_hash = sha256_text(f"g802-{tag}")
-    insert_extraction(admin, document_version_id, f"{tag}-g802", input_hash)
+    insert_extraction(
+        admin, document_version_id, f"{tag}-g802", input_hash, text=f"g802-{tag}"
+    )
     invalid_run = insert_model_run(
         admin,
         document_version_id=document_version_id,
@@ -735,7 +846,9 @@ def g8_03(
 ) -> dict[str, object]:
     _principal_id, document_version_id, _source_id = seed_document(admin, f"{tag}-g803")
     input_hash = sha256_text(f"g803-{tag}")
-    insert_extraction(admin, document_version_id, f"{tag}-g803", input_hash)
+    insert_extraction(
+        admin, document_version_id, f"{tag}-g803", input_hash, text=f"g803-{tag}"
+    )
     run_id = insert_model_run(
         admin,
         document_version_id=document_version_id,
@@ -818,7 +931,9 @@ def g8_04(
 ) -> dict[str, object]:
     _principal_id, document_version_id, _source_id = seed_document(admin, f"{tag}-g804")
     input_hash = sha256_text(f"g804-{tag}")
-    insert_extraction(admin, document_version_id, f"{tag}-g804", input_hash)
+    insert_extraction(
+        admin, document_version_id, f"{tag}-g804", input_hash, text=f"g804-{tag}"
+    )
     execute(
         admin,
         "ALTER TABLE core.analysis_results DISABLE TRIGGER analysis_results_enqueue_knowledge",
@@ -1106,7 +1221,9 @@ def g8_05(
 
     _principal_id, document_version_id, _source_id = seed_document(admin, f"{tag}-g805")
     input_hash = sha256_text(f"g805-{tag}")
-    insert_extraction(admin, document_version_id, f"{tag}-g805", input_hash)
+    insert_extraction(
+        admin, document_version_id, f"{tag}-g805", input_hash, text=f"g805-{tag}"
+    )
     run_id = insert_model_run(
         admin,
         document_version_id=document_version_id,
@@ -1394,7 +1511,9 @@ def insert_candidate_with_evidence(
     return candidate_id, link_id
 
 
-def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
+def g8_06(
+    admin: psycopg.Connection[Any], worker: psycopg.Connection[Any], tag: str
+) -> dict[str, object]:
     head = scalar(admin, "SELECT version_num FROM public.alembic_version")
     with admin.cursor() as cursor:
         cursor.execute(
@@ -1416,7 +1535,9 @@ def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
     _principal_id, document_version_id, _source_id = seed_document(admin, f"{tag}-g806")
     other_document = seed_document(admin, f"{tag}-g806-other")[1]
     input_hash = sha256_text(f"g806-{tag}")
-    insert_extraction(admin, document_version_id, f"{tag}-g806", input_hash)
+    insert_extraction(
+        admin, document_version_id, f"{tag}-g806", input_hash, text=f"g806-{tag}"
+    )
     claim_run = insert_model_run(
         admin,
         document_version_id=document_version_id,
@@ -1852,6 +1973,14 @@ def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
         admin, "SELECT core.compute_evidence_locator_sha256(%s::jsonb)", json.dumps(envelope)
     )
     require("locator hash length", len(str(digest)), 64)
+    claim_job_status = finish_owned_resolution_job(
+        admin, worker, claim_analysis, "claim_extraction", f"wp8-1-g806-claim-{tag}"
+    )
+    entity_job_status = finish_owned_resolution_job(
+        admin, worker, entity_analysis, "entity_extraction", f"wp8-1-g806-entity-{tag}"
+    )
+    require("g8-06 claim leftover closed", claim_job_status, "succeeded")
+    require("g8-06 entity leftover closed", entity_job_status, "succeeded")
     return {
         "passed": True,
         "tables": len(table_list),
@@ -1862,6 +1991,8 @@ def g8_06(admin: psycopg.Connection[Any], tag: str) -> dict[str, object]:
         "same_tx_claim_transfer": same_tx_claim_state,
         "candidate_evidence_transfer": cand_xfer_state,
         "same_tx_candidate_transfer": same_tx_state,
+        "claim_job_status": claim_job_status,
+        "entity_job_status": entity_job_status,
     }
 
 
@@ -1878,7 +2009,7 @@ def main() -> None:
         "G8-03": g8_03(admin, governance, tag),
         "G8-04": g8_04(admin, scheduler, tag),
         "G8-05": g8_05(admin, worker, tag),
-        "G8-06": g8_06(admin, tag),
+        "G8-06": g8_06(admin, worker, tag),
     }
     print(json.dumps(results, indent=2, sort_keys=True, default=str))
     failed = [

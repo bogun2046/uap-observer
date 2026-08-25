@@ -463,7 +463,11 @@ def evaluate(platform: Path) -> list[Check]:
             and "read_verified_object" in probe3
             and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe3
             and "def _close_claimed_resolve_job" in probe3
+            and "def _proven_complete_materialization" in probe3
+            and "Handler failures never fall back to succeeded." in probe3
             and "wp8-3-startup-drain" in probe3
+            and "DELETE FROM ops.jobs" not in probe3
+            and "TRUNCATE" not in probe3
             and "test_wp8_3_drain_closes_prior_queued_resolve_claims" in foundation_tests,
             True,
         ),
@@ -538,7 +542,11 @@ def evaluate(platform: Path) -> list[Check]:
             and "if payload is None:" in probe4
             and "admin, worker, world, tag, name, payload" in probe4
             and "def _close_claimed_resolve_job" in probe4
+            and "def _proven_complete_materialization" in probe4
+            and "Handler failures never fall back to succeeded." in probe4
             and "wp8-4-startup-drain" in probe4
+            and "DELETE FROM ops.jobs" not in probe4
+            and "TRUNCATE" not in probe4
             and "test_wp8_4_drain_closes_prior_queued_resolve_entities" in foundation_tests,
             True,
         ),
@@ -634,8 +642,25 @@ def evaluate(platform: Path) -> list[Check]:
             "wp8_6_runtime_and_fail_closed_tests",
             "test_wp8_6_relation_reject_present" in foundation_tests
             and "test_wp8_3_drain_closes_prior_queued_resolve_claims" in foundation_tests
-            and "test_close_claimed_resolve_job_finishes_succeeded_when_claims_exist"
+            and "test_close_claimed_job_nosuchkey_with_rows_does_not_succeed"
             in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_close_claimed_job_42501_with_rows_does_not_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_close_claimed_job_23503_with_rows_does_not_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_close_claimed_entity_job_nosuchkey_with_rows_does_not_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_close_claimed_entity_job_23503_with_rows_does_not_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_close_claimed_job_proven_replay_finishes_succeeded_without_handler"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_proven_complete_rejects_existing_rows_with_text_mismatch"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "put_verified(" in probe1
+            and "expected_sha256=output_sha256" in probe1
+            and "physical.object_key" in probe1
+            and "def finish_owned_resolution_job" in probe1
+            and "g8-06 claim leftover closed" in probe1
             and "def g8_16c" in probe6
             and "KnowledgeJobDispatcher" in probe6
             and "table count remains 50" in probe6,

@@ -257,7 +257,7 @@ def test_wp8_6_relation_reject_present() -> None:
 def test_wp8_3_drain_closes_prior_queued_resolve_claims() -> None:
     probe3 = (platform_root() / "tools/wp8_3_runtime_probe.py").read_text(encoding="utf-8")
     close = probe3[
-        probe3.find("def _existing_materialization_metrics") : probe3.find("def _claim_target_job")
+        probe3.find("def _proven_complete_materialization") : probe3.find("def _claim_target_job")
     ]
     drain = probe3[
         probe3.find("def _drain_resolve_claims") : probe3.find("def _require_handler_fail_closed")
@@ -269,8 +269,12 @@ def test_wp8_3_drain_closes_prior_queued_resolve_claims() -> None:
     assert "ResolveClaimsHandler" in close
     assert "SELECT ops.finish_knowledge_job" in close
     assert "'succeeded'::ops.attempt_outcome" in close
-    assert "_knowledge_counts(" in close
-    assert "_finish_probe_failure(" in close
+    assert "active.handle(" in close
+    assert "Finish-lost recovery is allowed only after a strict pre-handler proof." in close
+    assert "Handler failures never fall back to succeeded." in close
+    handler_except = close.split("except PsycopgError", 1)[1]
+    assert "_finish_existing_materialization" not in handler_except
+    assert "_finish_probe_failure(" not in handler_except
     assert "_close_claimed_resolve_job(" in drain
     assert "_finish_probe_failure(" not in drain
     assert "_close_claimed_resolve_job(" in claim_loop
@@ -278,12 +282,19 @@ def test_wp8_3_drain_closes_prior_queued_resolve_claims() -> None:
     assert "wp8-3-startup-drain" in probe3
     assert "DELETE FROM ops.jobs" not in probe3
     assert "TRUNCATE" not in probe3
+    probe1 = (platform_root() / "tools/wp8_1_runtime_probe.py").read_text(encoding="utf-8")
+    assert "put_verified(" in probe1
+    assert "expected_sha256=output_sha256" in probe1
+    assert "physical.object_key" in probe1
+    assert "def finish_owned_resolution_job(" in probe1
+    assert "g8-06 claim leftover closed" in probe1
+    assert 'f"derived/{tag}/{extractor_name}"' not in probe1
 
 
 def test_wp8_4_drain_closes_prior_queued_resolve_entities() -> None:
     probe4 = (platform_root() / "tools/wp8_4_runtime_probe.py").read_text(encoding="utf-8")
     close = probe4[
-        probe4.find("def _existing_materialization_metrics") : probe4.find("def _claim_target_job")
+        probe4.find("def _proven_complete_materialization") : probe4.find("def _claim_target_job")
     ]
     drain = probe4[
         probe4.find("def _drain_resolve_entities") : probe4.find("def _require_handler_fail_closed")
@@ -292,9 +303,12 @@ def test_wp8_4_drain_closes_prior_queued_resolve_entities() -> None:
     assert "ResolveEntitiesHandler" in close
     assert "SELECT ops.finish_knowledge_job" in close
     assert "'succeeded'::ops.attempt_outcome" in close
+    assert "Handler failures never fall back to succeeded." in close
     assert "_close_claimed_resolve_job(" in drain
     assert "_finish_probe_failure(" not in drain
     assert "_close_claimed_resolve_job(" in g16
+    handler_except = close.split("except PsycopgError", 1)[1]
+    assert "_finish_existing_materialization" not in handler_except
     assert "wp8-4-startup-drain" in probe4
     assert "DELETE FROM ops.jobs" not in probe4
     assert "TRUNCATE" not in probe4
