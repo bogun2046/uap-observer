@@ -1,6 +1,6 @@
 # ADR-0017：分析选择与 Entity Candidate 晋升
 
-- 状态：Proposed for `G9-FROZEN-20260825-01`
+- 状态：Proposed for `G9-FROZEN-20260825-02`
 - 日期：2026-08-25
 - 前置：0002 `analysis_selections` / `entity_candidates` / `entities`、ADR-0008、ADR-0012、WP8.4
 

@@ -1,6 +1,6 @@
 # ADR-0016：Publication Grant 与 Publisher Outbox
 
-- 状态：Proposed for `G9-FROZEN-20260825-01`
+- 状态：Proposed for `G9-FROZEN-20260825-02`
 - 日期：2026-08-25
 - 前置：0002/0003 grant 表与 `validate_publication_grant`、ADR-0004 Outbox、ADR-0015、ADR-0006
 
@@ -25,7 +25,30 @@ grant 字段：
 - `grant_status='active'`（非 withdraw）；
 - `publication_payload_sha256`：对冻结的最小投影信封做 SHA-256，信封只含 ID、类型、revision、subject 哈希，不含正文、Prompt、审核人显示名。
 
-`revise` 必须先将同 subject 仍 active 的 grant 标为 `superseded`（`grant_status='superseded'`，不填 withdraw 字段），再插入新 active grant。禁止两行 `withdrawn_at IS NULL`（已有部分唯一索引）。
+`revise` 必须先将同 subject 当前 `grant_status='active'` 的行改为 `superseded`（`withdrawn_at` 与 `withdrawn_by_decision_id` 保持 NULL），再插入新的 `active` grant。0002 部分唯一索引
+
+```text
+UNIQUE (subject_id) WHERE withdrawn_at IS NULL
+```
+
+会把 `superseded` 旧行仍当作占用者，新 active 行必然 `23505`。因此 **WP9.3 迁移必须替换 document/claim/entity 三张 grant 表的唯一索引**，不得依赖现有索引。
+
+WP9.3 `0016_review_decisions_and_grants` upgrade：
+
+1. 不修改 0002/0003 源文件。
+2. 对 `audit.document_publication_grants`、`claim_publication_grants`、`entity_publication_grants`：
+   - `DROP INDEX` `uq_document_grant_active` / `uq_claim_grant_active` / `uq_entity_grant_active`；
+   - `CREATE UNIQUE INDEX ... (subject_id) WHERE grant_status = 'active'`，名称分别为 `uq_document_grant_live` / `uq_claim_grant_live` / `uq_entity_grant_live`；
+   - 增加 CHECK：`active` 与 `superseded` 均要求 `withdrawn_at IS NULL AND withdrawn_by_decision_id IS NULL`；`withdrawn` 要求两者均非 NULL。
+3. `audit.relation_publication_grants` 的 `uq_relation_grant_active` **不改**（WP9 无 relation grant 成功路径）。
+4. 0003 `validate_publication_grant` 保持：`superseded` + 空撤回字段可通过；不得放宽 approve/revise/withdraw 绑定。
+
+downgrade：
+
+1. 若三张表任一存在 `grant_status='superseded'`，`RAISE` 拒绝降级（稳定码 `review_grant_superseded_blocks_downgrade`）。
+2. 否则 DROP 新 CHECK 与 `uq_*_grant_live`，重建原 `WHERE withdrawn_at IS NULL` 索引。
+
+同一 subject 在提交后至多一行 `grant_status='active'`。并发两个 `revise` 必须先 `SELECT ... FOR UPDATE` case 行；失败者或为 `40001`，或为 live 唯一索引 `23505`；不得出现两行 active。
 
 document / claim / entity 三张 grant 表均走此路径。relation grant 函数入口直接失败：`22023` / `knowledge_relation_review_not_in_wp9`。
 

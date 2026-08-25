@@ -1,6 +1,6 @@
 # WP9 审核、授权绑定与发布授权
 
-状态：`G9-FROZEN-20260825-01` 设计待 Codex 冻结；编码门禁关闭，直至项目负责人发出 WP9.1 启动口令。
+状态：`G9-FROZEN-20260825-02` 设计待 Codex 冻结（R2 整改）；编码门禁关闭，直至项目负责人发出 WP9.1 启动口令。
 父基线：G8-GATE-8.6 已签署 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`（PR #36，CI run 32834875538）。
 
 WP9 把 WP8 已物化的内部 Claim / Entity Candidate 纳入审核状态机：绑定登录会话与 `senior_reviewer` 授权、追加审核决定、签发/撤回 publication grant，并经 Outbox 通知 Publisher。不写 `public`，不交付公开 API 或搜索（WP10），不实现 AI relation 成功路径。
@@ -18,16 +18,19 @@ WP9 把 WP8 已物化的内部 Claim / Entity Candidate 纳入审核状态机：
 9. 同名不自动合并；candidate 晋升为 `core.entities` 必须显式、可审计。
 10. relation review / `resolve_relations` 成功路径仍关闭。
 11. WP9.x 串行独立验收；WP9.1 从本 docs-only 设计提交开始。
+12. 写函数幂等键为 `event_key` + `request_id`；grant live 唯一索引以 `grant_status='active'` 为准。
+13. Claim subject / 最后一条 evidence 只经 `record_review_decision` 私有副作用；AI supports 不变量不改。
 
 ## 文档
 
 | 文件 | 作用 |
 |---|---|
 | [BASELINE.md](BASELINE.md) | 固定父基线、设计提交与放行规则 |
+| [R2-REMEDIATION.md](R2-REMEDIATION.md) | 本轮 Codex 四项阻断的闭环 |
 | [TOPIC-INDEX.md](TOPIC-INDEX.md) | 冻结主题到 ADR / 用例的索引 |
 | [implementation-ticket.md](implementation-ticket.md) | WP9.1–9.6 实施边界和阶段链 |
 | [acceptance-ticket.md](acceptance-ticket.md) | 独立验收责任、证据和门禁 |
-| [acceptance-cases.md](acceptance-cases.md) | G9-01–G9-26 正反向验收用例 |
+| [acceptance-cases.md](acceptance-cases.md) | G9-01–G9-33 正反向验收用例 |
 | [adr/0014-review-session-and-write-authority.md](adr/0014-review-session-and-write-authority.md) | 会话 GUC、角色绑定与写权限 |
 | [adr/0015-review-case-and-decision-lifecycle.md](adr/0015-review-case-and-decision-lifecycle.md) | case 开闭、决定追加、职责分离 |
 | [adr/0016-publication-grants-and-outbox.md](adr/0016-publication-grants-and-outbox.md) | grant、撤回与 Publisher Outbox |

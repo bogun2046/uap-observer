@@ -1,6 +1,6 @@
 # ADR-0015：Review Case 与 Decision 生命周期
 
-- 状态：Proposed for `G9-FROZEN-20260825-01`
+- 状态：Proposed for `G9-FROZEN-20260825-02`
 - 日期：2026-08-25
 - 前置：0002 `audit.review_cases` / `review_decisions`、ADR-0014、ADR-0013
 
@@ -71,13 +71,27 @@ subject 列与 `case_type` 已由 0002 CHECK 对齐。API 查询参数 `subject_
 | withdraw | withdrawn |
 
 7. 自审隔离：若 case subject 是该 principal 经 `audit.create_manual_claim` 创建的 claim（`claims.created_by`），则 `42501` / `review_self_review_denied`。AI 物化 claim 的 `created_by` 为空，不适用本条。
-8. 追加 audit event。
+8. 追加 audit event，`event_key` 见 ADR-0014 §2.4。
+9. WP9.3 起，本函数在同一 PL/pgSQL 块内按决定类型调用私有副作用（ADR-0016 grant/outbox）。WP9.6 起，若 `p_structured_changes` 含冻结键，再调用私有 `_apply_claim_subject_bind` / `_replace_claim_evidence` / `_retire_manual_claim_supports`（ADR-0019）。这些私有函数无登录角色 EXECUTE，调用方不能事后单独执行。
 
-`p_reason` 最短 10 字符。`p_structured_changes` 必须是 object，禁止数组或标量。WP9.2 只允许 `{}`；WP9.3+ 由后续 ADR 扩展允许键。
+`p_reason` 最短 10 字符。`p_structured_changes` 必须是 object，禁止数组或标量。未知键 → `22023` / `review_structured_changes_unsupported`。
+
+允许键按阶段冻结：
+
+| 阶段 | 允许键 | 适用 decision |
+|---|---|---|
+| WP9.2 | 无，只 `{}` | 全部 |
+| WP9.3–9.5 | 只 `{}`；grant 由 decision 类型推导，不经 structured_changes | 全部 |
+| WP9.6 claim case | `bind_subject_entity_id` (uuid) | `approve` 或 `revise` |
+| WP9.6 claim case | `replace_supporting_span_ids` (uuid 数组，长度 ≥ 1) | 仅 `revise` |
+| WP9.6 claim case | `retire_supporting_evidence` (JSON `true`) | 仅 `reject` 或 `withdraw` |
+
+document/entity case 在 WP9 只允许 `{}`。relation case 不会进入本函数成功路径。
 
 ## 5. 不做
 
 - 把 entity_candidate 加成第五种 `review_case_type`；
 - 实现 relation case 成功路径；
 - 覆盖或删除历史 decision；
-- 让 Worker 自动打开 case（WP9 打开只经 `uap_api` 函数）。
+- 让 Worker 自动打开 case（WP9 打开只经 `uap_api` 函数）；
+- 向登录角色授予私有 `_apply_*` / `_replace_*` / `_retire_*` EXECUTE。

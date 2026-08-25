@@ -5,10 +5,10 @@
 - 父基线：G8-GATE-8.6 已签署 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`
 - 前置 PR：<https://github.com/bogun2046/uap-observer/pull/36>
 - 前置 CI：<https://github.com/bogun2046/uap-observer/actions/runs/32834875538>
-- 冻结标准：`G9-FROZEN-20260825-01`
+- 冻结标准：`G9-FROZEN-20260825-02`
 - 实施编号：`WP9-IMPL-20260825-01`
 - 验收编号：`WP9-ACCEPT-20260825-01`
-- 文档状态：**待 Codex 冻结；冻结前不得实施**
+- 文档状态：**R2 待 Codex 冻结；冻结前不得实施**
 - 编码门禁：**关闭，直至项目负责人发出 WP9.1 启动口令**
 
 ## 冻结提交与起点
