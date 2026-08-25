@@ -1,6 +1,6 @@
 # G9 冻结验收用例
 
-- 冻结编号：`G9-FROZEN-20260825-03`
+- 冻结编号：`G9-FROZEN-20260825-04`
 - 父基线：`8550b8fe2d3322428fc9487e91aeb830425b0ed1`
 - 用例：G9-01–G9-38
 - 维度：正向、反向、权限、幂等、状态机与可追溯性
@@ -186,15 +186,15 @@ python tools/wp9_runtime_probe.py
 
 ## G9-29 相同 request_id 重放不产生第二份决定（WP9.3）
 
-对同一 case 用相同 `uap.request_id` 与相同 `p_decision`/`p_reason`/`p_structured_changes` 连续两次 `record_review_decision`（可模拟超时后重试）。
+对同一 case 用相同 `uap.request_id` 与相同 `p_decision`/`p_reason`/`p_structured_changes` 连续两次 `record_review_decision`。`event_key` 必须为 `review.decision:{request_id}`，不含 `case_id`。
 
 预期：只一条 decision、一条 active grant、一条 granted outbox、一条 `audit_events` 对应该 event_key；第二次返回首次 id。
 
 ## G9-30 相同 request_id 不同 payload 冲突（WP9.3）
 
-同一 `request_id` 第二次改为不同 `p_reason` 或不同 decision。
+同一 `review.decision:{request_id}` 下分别：只改 `p_reason`；改 `p_case_id`；改 `p_decision` 或 `structured_changes`。
 
-预期：`23505` / `review_idempotency_payload_conflict`；原 decision/grant 不变。
+预期：均为 `23505` / `review_idempotency_payload_conflict`；原 decision/grant 不变；不得因改 case_id 而换出新 event_key。
 
 ## G9-31 写函数缺少 request_id（WP9.2）
 
@@ -216,32 +216,44 @@ approve 已提交后，`uap_api` 分别：调用 `_apply_claim_subject_bind`、`
 
 ## G9-34 open/assign 幂等重放与冲突（WP9.2）
 
-对 `open_review_case` 与 `assign_review_case` 分别：相同 `request_id`+相同权威输入重放；相同 `request_id`+改 `p_reason` 或改 `p_assignee_id`。
+`event_key` 为 `review.case.open:{request_id}` 与 `review.case.assign:{request_id}`。分别：
 
-预期：重放返回首次 case/assign 结果，不产生第二行 case，不改变 `assigned_to`；冲突为 `23505` / `review_idempotency_payload_conflict`。`require_active_role` 不在本用例内。
+1. 相同 `request_id` + 相同权威输入重放；
+2. 只改非身份字段：open 只改 `reason`（assign 无 reason，此步改为只改 `assignee_id` 的对照见第 3 步）；
+3. 改旧 event_key 曾包含的业务参数：open 改 `subject_id` 或 `case_type`；assign 改 `case_id` 与 `assignee_id` 各一次。
+
+预期：(1) 返回首次对象，不产生第二行 case、不改 `assigned_to`。(2)(3) 均为 `23505` / `review_idempotency_payload_conflict`，不得创建第二份业务状态，也不得因改 subject/assignee/case 生成不同 event_key。`require_active_role` 不在本用例内。不同 operation 复用同一 `request_id`（先 open 再 assign）必须被允许。
 
 ## G9-35 close 幂等重放与冲突（WP9.3）
 
-case 已 `approved` 后：相同 `request_id` 两次 `close_review_case`；另用不同 `p_reason` 配同一 `request_id`（在尚未 close 的新 case 上测冲突，或在首次 close 前测）。
+`event_key` 为 `review.case.close:{request_id}`。case 已 `approved` 后：
 
-预期：重放不更新 `closed_at`、不插第二 audit event；冲突 `review_idempotency_payload_conflict`。不同 `request_id` 对已 close case 失败，稳定码 `review_case_already_closed`。
+1. 相同 `request_id` 两次 close；
+2. 只改 `p_reason`；
+3. 改 `p_case_id`（旧键曾含 case_id）。
+
+预期：(1) 重放不更新 `closed_at`、不插第二 audit event。(2)(3) `review_idempotency_payload_conflict`，无第二份 close。不同 `request_id` 对已 close case 失败，稳定码 `review_case_already_closed`。
 
 ## G9-36 selection/candidate 写函数幂等（WP9.4）
 
-对 `select_analysis_result`、`accept_entity_candidate`、`bind_entity_candidate` 做与 G9-34 相同的两组调用。
+对 `select_analysis_result`、`accept_entity_candidate`、`bind_entity_candidate` 分别做：重放；只改 `reason`；改旧键业务参数（`analysis_result_id` / `candidate_id` / `entity_id`）。
 
-预期：重放不产生第二当前 selection、不插入第二实体、不改已 resolved candidate；冲突 `review_idempotency_payload_conflict`。`accept` 重放不得因同名再插 `core.entities`。
+预期：重放不产生第二当前 selection、不插入第二实体、不改已 resolved candidate。只改 reason 与改业务 id 均为 payload conflict，不能创建第二份业务状态。`accept` 重放不得因同名再插 `core.entities`。
 
 ## G9-37 merge/reverse 幂等（WP9.5）
 
-对 `apply_entity_merge` 与 `apply_entity_merge_reverse` 做相同两组调用。
+对 `apply_entity_merge` 与 `apply_entity_merge_reverse` 分别做：重放；只改 `reason`；改旧键业务参数（`source_entity_id`/`target_entity_id` 或 `merge_event_id`）。
 
-预期：重放返回首次 merge event id，不产生第二开边、不二次 reverse；冲突不改变图。核心 `core.merge_entities` 仍无登录 EXECUTE。
+预期：重放返回首次 merge event id，不产生第二开边、不二次 reverse。只改 reason 与改实体/event id 均为 payload conflict，图不变。核心 `core.merge_entities` 仍无登录 EXECUTE。
 
 ## G9-38 手工 Claim 幂等（WP9.6）
 
-对 `create_manual_claim` 做相同两组调用。
+`event_key` 为 `review.claim.manual:{request_id}`。分别：
 
-预期：重放返回首次 claim id，不插第二 claim/evidence；冲突不写新 claim。无 evidence 的失败路径仍走 G9-23，不产生 event_key。
+1. 相同权威输入重放；
+2. 只改 `attribution`（本函数无 reason）；
+3. 改旧键曾包含的业务参数：`document_version_id`、`claim_text`（从而 `fingerprint`）、`span_ids`。
+
+预期：(1) 返回首次 claim id，不插第二 claim/evidence。(2)(3) 均为 `review_idempotency_payload_conflict`，不写新 claim。无 evidence 的失败路径仍走 G9-23，不产生 event_key。
 
 

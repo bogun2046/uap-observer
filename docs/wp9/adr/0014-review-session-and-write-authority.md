@@ -1,6 +1,6 @@
 # ADR-0014：审核会话绑定与写入权威
 
-- 状态：Proposed for `G9-FROZEN-20260825-03`
+- 状态：Proposed for `G9-FROZEN-20260825-04`
 - 日期：2026-08-25
 - 前置：WP1 permissions、ADR-0011、ADR-0012、G8 已签署
 
@@ -74,32 +74,51 @@ nullif(current_setting('uap.principal_id', true), '')::uuid
 
 ### 2.4 写函数幂等
 
-每个写函数在成功路径插入恰好一条 `audit.audit_events`，`event_key` 冻结如下。`audit.audit_events.event_key` 已 UNIQUE。
+每个公开写函数在成功路径插入恰好一条 `audit.audit_events`。`audit.audit_events.event_key` 已 UNIQUE。
+
+`event_key` **只**由操作类型与 `uap.request_id` 组成，不得嵌入 subject、case、assignee、entity、fingerprint 或其它业务参数：
 
 | 函数 | event_key |
 |---|---|
-| `open_review_case` | `review.case.open:{case_type}:{subject_id}:{request_id}` |
-| `assign_review_case` | `review.case.assign:{case_id}:{assignee_id}:{request_id}` |
-| `close_review_case` | `review.case.close:{case_id}:{request_id}` |
-| `record_review_decision` | `review.decision:{case_id}:{request_id}` |
-| `select_analysis_result` | `review.selection:{document_version_id}:{result_type}:{request_id}` |
-| `accept_entity_candidate` | `review.candidate.accept:{candidate_id}:{request_id}` |
-| `bind_entity_candidate` | `review.candidate.bind:{candidate_id}:{entity_id}:{request_id}` |
-| `apply_entity_merge` | `review.entity.merge:{source_id}:{target_id}:{request_id}` |
-| `apply_entity_merge_reverse` | `review.entity.merge_reverse:{merge_event_id}:{request_id}` |
-| `create_manual_claim` | `review.claim.manual:{fingerprint}:{document_version_id}:{request_id}` |
+| `open_review_case` | `review.case.open:{request_id}` |
+| `assign_review_case` | `review.case.assign:{request_id}` |
+| `close_review_case` | `review.case.close:{request_id}` |
+| `record_review_decision` | `review.decision:{request_id}` |
+| `select_analysis_result` | `review.selection:{request_id}` |
+| `accept_entity_candidate` | `review.candidate.accept:{request_id}` |
+| `bind_entity_candidate` | `review.candidate.bind:{request_id}` |
+| `apply_entity_merge` | `review.entity.merge:{request_id}` |
+| `apply_entity_merge_reverse` | `review.entity.merge_reverse:{request_id}` |
+| `create_manual_claim` | `review.claim.manual:{request_id}` |
 
-`metadata` 必须含 `payload_sha256`：对函数权威输入（不含时钟）的 canonical JSON SHA-256。
+不同 operation 允许复用同一 `request_id`：键空间由前缀隔离。同一 operation 不得靠改业务参数换键。
 
-重复调用：
+`metadata.payload_sha256` 为该次调用权威输入的 canonical JSON SHA-256（UTF-8、对象键排序、无多余空白、UUID 小写；不含时钟、principal、GUC 以外的会话字段）。各函数必须纳入的字段：
 
-1. 已存在相同 `event_key` 且 `payload_sha256` 相同 → 不插新业务行，返回首次成功的 id（case/decision/claim/entity/event）；grant 与 outbox 也不再插。
-2. 已存在相同 `event_key` 且 `payload_sha256` 不同 → `23505` / `review_idempotency_payload_conflict`；不覆盖旧决定或旧 grant。
-3. 不同 `request_id` 视为新请求，走自然唯一约束（例如仍 open 的 subject → `review_case_already_open`）。
+| 函数 | canonical JSON 字段 |
+|---|---|
+| `open_review_case` | `op, case_type, subject_id, priority, reason` |
+| `assign_review_case` | `op, case_id, assignee_id` |
+| `close_review_case` | `op, case_id, reason` |
+| `record_review_decision` | `op, case_id, decision, reason, structured_changes` |
+| `select_analysis_result` | `op, analysis_result_id, reason` |
+| `accept_entity_candidate` | `op, candidate_id, reason` |
+| `bind_entity_candidate` | `op, candidate_id, entity_id, reason` |
+| `apply_entity_merge` | `op, source_entity_id, target_entity_id, reason` |
+| `apply_entity_merge_reverse` | `op, merge_event_id, reason` |
+| `create_manual_claim` | `op, document_version_id, claim_text, claim_type, assertion_status, attribution, span_ids, fingerprint` |
 
-私有 `_apply_*` 函数不暴露独立幂等键；它们只由 `record_review_decision` 在同一次成功路径调用，复用该 decision 的 `event_key`。
+`op` 取值等于上表 event_key 的操作前缀（`review.case.open` 等）。`fingerprint` 为 `core.compute_claim_fingerprint(claim_text)` 的结果，必须与 `claim_text` 一并纳入。
 
-每个 **上表列出的公开写函数** 都必须有“同 request_id 同 payload 重放”和“同 request_id 不同 payload 冲突”验收，按阶段映射：
+同一 `event_key`（即同一 operation + request_id）：
+
+1. `payload_sha256` 相同 → 返回首次成功对象，不新增业务行、audit、grant 或 outbox。
+2. `payload_sha256` 不同 → `23505` / `review_idempotency_payload_conflict`；不覆盖旧状态。
+3. 不同 `request_id` 视为新请求，走自然唯一约束。
+
+私有 `_apply_*` 不暴露独立幂等键；随 `record_review_decision` 的 `review.decision:{request_id}` 一起重放或冲突。
+
+每个上表公开写函数都必须验收：同 payload 重放；只改 `reason` 的冲突；以及修改曾被旧 event_key 嵌入的业务参数（subject_id / case_id / assignee_id / analysis_result_id / candidate_id / entity_id / source_entity_id / target_entity_id / merge_event_id / fingerprint / document_version_id / span_ids / structured_changes）的冲突。映射：
 
 | 函数 | 验收 |
 |---|---|
@@ -110,7 +129,7 @@ nullif(current_setting('uap.principal_id', true), '')::uuid
 | `apply_entity_merge`、`apply_entity_merge_reverse` | G9-37 |
 | `create_manual_claim` | G9-38 |
 
-`require_active_role` 只读，不在幂等矩阵内。私有 `_apply_*` 不单独测幂等，随 decision 重放覆盖。Outbox `event_key` 仍按 ADR-0016；decision 幂等重放不得产生第二条 outbox。
+`require_active_role` 只读，不在幂等矩阵内。Outbox `event_key` 仍按 ADR-0016 的 grant/decision 自然键；decision 幂等重放不得产生第二条 outbox。
 
 ## 3. 代码布局
 

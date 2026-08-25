@@ -1,6 +1,6 @@
 # ADR-0015：Review Case 与 Decision 生命周期
 
-- 状态：Proposed for `G9-FROZEN-20260825-03`
+- 状态：Proposed for `G9-FROZEN-20260825-04`
 - 日期：2026-08-25
 - 前置：0002 `audit.review_cases` / `review_decisions`、ADR-0014、ADR-0013
 

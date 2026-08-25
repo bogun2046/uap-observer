@@ -4,7 +4,7 @@
 
 - ADR-0014：GUC、`require_active_role`、无裸 DML、event_key
 - G9-01–G9-05、G9-29–G9-31、G9-34–G9-38
-- 结论：acting principal 只来自 `SET LOCAL uap.principal_id`；写函数强制 `request_id`；同键同摘要重放，同键异摘要冲突。
+- 结论：acting principal 只来自 `SET LOCAL uap.principal_id`；写函数强制 `request_id`；`event_key` 仅为操作类型+request_id；同键同摘要重放，同键异摘要冲突（含改业务参数）。
 
 ## 2. Review case 与决定
 
