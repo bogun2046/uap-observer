@@ -52,7 +52,7 @@ from uap_platform.object_registry import (  # noqa: E402
 )
 from uap_platform.object_store_init import build_client  # noqa: E402
 
-CURRENT_HEAD = "0014_review_session_authority"
+CURRENT_HEAD = "0015_review_case_lifecycle"
 FIXTURE_TEXT = "The craft hovered over the hangar at dawn."
 _FROZEN_G8_15_CODES = {
     "knowledge_payload_mismatch",

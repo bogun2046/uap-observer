@@ -123,8 +123,9 @@ def test_frozen_codes_cover_g9_01_to_05() -> None:
 
 
 def test_wp9_1_package_has_no_later_stage_functions() -> None:
-    root = Path(__file__).resolve().parents[1] / "src/uap_platform/review"
-    text = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+    session = (
+        Path(__file__).resolve().parents[1] / "src/uap_platform/review/session.py"
+    ).read_text(encoding="utf-8")
     for token in (
         "open_review_case",
         "assign_review_case",
@@ -135,4 +136,4 @@ def test_wp9_1_package_has_no_later_stage_functions() -> None:
         "apply_entity_merge",
         "create_manual_claim",
     ):
-        assert token not in text
+        assert token not in session

@@ -20,7 +20,7 @@ ROLE_PASSWORDS = {
     "uap_model_governance": "UAP_MODEL_GOVERNANCE_PASSWORD",
 }
 
-CURRENT_HEAD = "0014_review_session_authority"
+CURRENT_HEAD = "0015_review_case_lifecycle"
 EXPECTED_TABLE_COUNT = 50
 GRANTOR_ID = uuid.UUID("00000000-0000-7000-8000-000000000901")
 

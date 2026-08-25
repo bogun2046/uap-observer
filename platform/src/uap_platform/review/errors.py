@@ -12,6 +12,15 @@ REVIEW_SESSION_ROLE_DENIED: Final = "review_session_role_denied"
 REVIEW_ROLE_DENIED: Final = "review_role_denied"
 REVIEW_SCOPE_UNSUPPORTED: Final = "review_scope_unsupported"
 REVIEW_REQUEST_ID_MISSING: Final = "review_request_id_missing"
+REVIEW_CASE_ALREADY_OPEN: Final = "review_case_already_open"
+REVIEW_CASE_NOT_DECIDABLE: Final = "review_case_not_decidable"
+REVIEW_IDEMPOTENCY_PAYLOAD_CONFLICT: Final = "review_idempotency_payload_conflict"
+KNOWLEDGE_RELATION_REVIEW_NOT_IN_WP9: Final = "knowledge_relation_review_not_in_wp9"
+REVIEW_REASON_TOO_SHORT: Final = "review_reason_too_short"
+REVIEW_CASE_MISSING: Final = "review_case_missing"
+REVIEW_ASSIGNEE_INVALID: Final = "review_assignee_invalid"
+REVIEW_CASE_NOT_ASSIGNABLE: Final = "review_case_not_assignable"
+REVIEW_CASE_ALREADY_CLOSED: Final = "review_case_already_closed"
 
 FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -21,6 +30,15 @@ FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
         REVIEW_ROLE_DENIED,
         REVIEW_SCOPE_UNSUPPORTED,
         REVIEW_REQUEST_ID_MISSING,
+        REVIEW_CASE_ALREADY_OPEN,
+        REVIEW_CASE_NOT_DECIDABLE,
+        REVIEW_IDEMPOTENCY_PAYLOAD_CONFLICT,
+        KNOWLEDGE_RELATION_REVIEW_NOT_IN_WP9,
+        REVIEW_REASON_TOO_SHORT,
+        REVIEW_CASE_MISSING,
+        REVIEW_ASSIGNEE_INVALID,
+        REVIEW_CASE_NOT_ASSIGNABLE,
+        REVIEW_CASE_ALREADY_CLOSED,
     }
 )
 
@@ -45,4 +63,6 @@ def map_review_error(error: PsycopgError) -> ReviewSessionError:
         return ReviewSessionError(primary, sqlstate or "42501")
     if sqlstate == "42501":
         return ReviewSessionError(REVIEW_SESSION_ROLE_DENIED, sqlstate)
+    if sqlstate == "23505":
+        return ReviewSessionError(REVIEW_IDEMPOTENCY_PAYLOAD_CONFLICT, sqlstate)
     return ReviewSessionError("review_unclassified", sqlstate or "XX000")

@@ -24,7 +24,22 @@ def test_wp9_1_does_not_open_later_stages() -> None:
     assert "CREATE FUNCTION audit.open_review_case" not in migration
     assert "CREATE FUNCTION audit.record_review_decision" not in migration
     assert "CREATE TABLE" not in migration
-    assert "wp9_2" not in probe
     assert "open_review_case" not in probe
     orchestrator = (platform_root() / "tools/wp8_runtime_probe.py").read_text(encoding="utf-8")
     assert "wp9_1_runtime_probe.py" not in orchestrator
+    assert "wp9_2_runtime_probe.py" not in orchestrator
+
+
+def test_wp9_2_does_not_open_decision_stage() -> None:
+    migration = (
+        platform_root() / "alembic/versions/0015_review_case_lifecycle.py"
+    ).read_text(encoding="utf-8")
+    probe = (platform_root() / "tools/wp9_2_runtime_probe.py").read_text(encoding="utf-8")
+    assert "CREATE FUNCTION audit.open_review_case" in migration
+    assert "CREATE FUNCTION audit.assign_review_case" in migration
+    assert "CREATE FUNCTION audit.close_review_case" in migration
+    assert "CREATE FUNCTION audit.record_review_decision" not in migration
+    assert "CREATE TABLE" not in migration
+    assert "record_review_decision" not in probe
+    assert "g9_06" in probe and "g9_34" in probe
+
