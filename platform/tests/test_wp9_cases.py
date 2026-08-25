@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -20,8 +21,16 @@ from uap_platform.review.canonical import (
     FROZEN_COMPACT_SHA256,
     FROZEN_NESTED_JSON,
     FROZEN_NESTED_SHA256,
+    FROZEN_NUMBER_ARRAY_JSON,
+    FROZEN_NUMBER_ARRAY_SHA256,
+    FROZEN_NUMBER_ARRAY_SOURCE,
+    FROZEN_NUMBER_JSON,
+    FROZEN_NUMBER_SHA256,
+    FROZEN_NUMBER_SOURCE,
     canonical_json,
+    loads_canonical,
     payload_sha256,
+    payload_sha256_text,
 )
 from uap_platform.review.errors import (
     KNOWLEDGE_RELATION_REVIEW_NOT_IN_WP9,
@@ -102,6 +111,25 @@ def test_frozen_compact_canonical_sha256() -> None:
     )
     assert " " not in FROZEN_COMPACT_JSON
     assert "x y" in FROZEN_NESTED_JSON
+
+
+def test_frozen_number_canonical_sha256() -> None:
+    assert canonical_json(loads_canonical(FROZEN_NUMBER_SOURCE)) == FROZEN_NUMBER_JSON
+    assert payload_sha256_text(FROZEN_NUMBER_SOURCE) == FROZEN_NUMBER_SHA256
+    assert payload_sha256_text('{"e":100,"n":1,"small":0.0000001}') == FROZEN_NUMBER_SHA256
+    assert payload_sha256({"e": 100}) == payload_sha256({"e": Decimal("1e2")})
+    assert payload_sha256({"e": 100.0}) == payload_sha256({"e": 100})
+    assert canonical_json(1) == canonical_json(1.0) == "1"
+    assert canonical_json(0) == canonical_json(0.0) == "0"
+    assert canonical_json(Decimal("-1.50")) == "-1.5"
+    assert canonical_json(loads_canonical(FROZEN_NUMBER_ARRAY_SOURCE)) == (
+        FROZEN_NUMBER_ARRAY_JSON
+    )
+    assert payload_sha256_text(FROZEN_NUMBER_ARRAY_SOURCE) == FROZEN_NUMBER_ARRAY_SHA256
+    assert FROZEN_NUMBER_SHA256 == (
+        "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022"
+    )
+    assert FROZEN_NUMBER_JSON == '{"e":100,"n":1,"small":0.0000001}'
 
 
 def test_wp9_2_package_has_no_decision_functions() -> None:

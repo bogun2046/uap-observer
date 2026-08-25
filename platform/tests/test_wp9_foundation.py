@@ -44,4 +44,6 @@ def test_wp9_2_does_not_open_decision_stage() -> None:
     assert "g9_06" in probe and "g9_34" in probe
     assert "CREATE FUNCTION audit._canonical_json" in migration
     assert "p_payload::text" not in migration
+    assert "CREATE FUNCTION audit._canonical_json_number" in migration
     assert "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777" in probe
+    assert "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022" in probe

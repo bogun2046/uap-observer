@@ -16,7 +16,16 @@ from uap_platform.review.canonical import (
     FROZEN_COMPACT_JSON,
     FROZEN_COMPACT_SHA256,
     FROZEN_NESTED_SHA256,
+    FROZEN_NUMBER_ARRAY_JSON,
+    FROZEN_NUMBER_ARRAY_SHA256,
+    FROZEN_NUMBER_ARRAY_SOURCE,
+    FROZEN_NUMBER_JSON,
+    FROZEN_NUMBER_SHA256,
+    FROZEN_NUMBER_SOURCE,
+    canonical_json,
+    loads_canonical,
     payload_sha256,
+    payload_sha256_text,
 )
 
 ROLE_PASSWORDS = {
@@ -772,6 +781,43 @@ def assert_frozen_canonical(admin: psycopg.Connection[Any]) -> None:
         '{"z":[{"b":2,"a":1}, true, null], "m": {"d": "x y"}}',
     )
     require("frozen nested sha", nested, FROZEN_NESTED_SHA256)
+    sql_number = scalar(
+        admin, "SELECT audit._canonical_json(%s::jsonb)", FROZEN_NUMBER_SOURCE
+    )
+    py_number = canonical_json(loads_canonical(FROZEN_NUMBER_SOURCE))
+    require("number render sql", sql_number, FROZEN_NUMBER_JSON)
+    require("number render py", py_number, FROZEN_NUMBER_JSON)
+    require("number render match", sql_number, py_number)
+    sql_number_alt = scalar(
+        admin,
+        "SELECT audit._canonical_json(%s::jsonb)",
+        '{"e":100,"n":1,"small":0.0000001}',
+    )
+    require("number semantic 1e2==100", sql_number_alt, FROZEN_NUMBER_JSON)
+    sql_number_sha = scalar(
+        admin, "SELECT audit._payload_sha256(%s::jsonb)", FROZEN_NUMBER_SOURCE
+    )
+    require("number sha sql", sql_number_sha, FROZEN_NUMBER_SHA256)
+    require("number sha py", payload_sha256_text(FROZEN_NUMBER_SOURCE), FROZEN_NUMBER_SHA256)
+    require(
+        "number sha literal",
+        FROZEN_NUMBER_SHA256,
+        "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022",
+    )
+    sql_array = scalar(
+        admin, "SELECT audit._canonical_json(%s::jsonb)", FROZEN_NUMBER_ARRAY_SOURCE
+    )
+    require("number array sql", sql_array, FROZEN_NUMBER_ARRAY_JSON)
+    require(
+        "number array py",
+        canonical_json(loads_canonical(FROZEN_NUMBER_ARRAY_SOURCE)),
+        FROZEN_NUMBER_ARRAY_JSON,
+    )
+    require(
+        "number array sha",
+        scalar(admin, "SELECT audit._payload_sha256(%s::jsonb)", FROZEN_NUMBER_ARRAY_SOURCE),
+        FROZEN_NUMBER_ARRAY_SHA256,
+    )
     require(
         "api no execute canonical",
         scalar(

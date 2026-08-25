@@ -43,6 +43,30 @@ def upgrade() -> None:
         END
         $_review_request_id$;
 
+        CREATE FUNCTION audit._canonical_json_number(p_num numeric) RETURNS text
+        LANGUAGE plpgsql
+        IMMUTABLE
+        STRICT
+        SET search_path = pg_catalog
+        AS $_canonical_json_number$
+        DECLARE
+            v_text text;
+        BEGIN
+            IF p_num = 0 THEN
+                RETURN '0';
+            END IF;
+            IF p_num = trunc(p_num) THEN
+                RETURN trunc(p_num)::text;
+            END IF;
+            v_text := p_num::text;
+            IF position('.' IN v_text) > 0 THEN
+                v_text := rtrim(v_text, '0');
+                v_text := rtrim(v_text, '.');
+            END IF;
+            RETURN v_text;
+        END
+        $_canonical_json_number$;
+
         CREATE FUNCTION audit._canonical_json(p_value jsonb) RETURNS text
         LANGUAGE plpgsql
         IMMUTABLE
@@ -55,8 +79,10 @@ def upgrade() -> None:
             rec record;
         BEGIN
             v_type := jsonb_typeof(p_value);
-            IF v_type IN ('null', 'boolean', 'number', 'string') THEN
+            IF v_type IN ('null', 'boolean', 'string') THEN
                 RETURN p_value::text;
+            ELSIF v_type = 'number' THEN
+                RETURN audit._canonical_json_number((p_value #>> '{}')::numeric);
             ELSIF v_type = 'array' THEN
                 FOR rec IN
                     SELECT elem.value AS value
@@ -406,6 +432,7 @@ def upgrade() -> None:
         $close_review_case$;
 
         REVOKE ALL ON FUNCTION audit._review_request_id() FROM PUBLIC;
+        REVOKE ALL ON FUNCTION audit._canonical_json_number(numeric) FROM PUBLIC;
         REVOKE ALL ON FUNCTION audit._canonical_json(jsonb) FROM PUBLIC;
         REVOKE ALL ON FUNCTION audit._payload_sha256(jsonb) FROM PUBLIC;
         REVOKE ALL ON FUNCTION audit._existing_write_target(text, text) FROM PUBLIC;
@@ -438,6 +465,7 @@ def downgrade() -> None:
         DROP FUNCTION IF EXISTS audit._existing_write_target(text, text);
         DROP FUNCTION IF EXISTS audit._payload_sha256(jsonb);
         DROP FUNCTION IF EXISTS audit._canonical_json(jsonb);
+        DROP FUNCTION IF EXISTS audit._canonical_json_number(numeric);
         DROP FUNCTION IF EXISTS audit._review_request_id();
         """
     )

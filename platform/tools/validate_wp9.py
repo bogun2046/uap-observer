@@ -136,6 +136,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "GRANT EXECUTE ON FUNCTION audit.assign_review_case" in migration_15
             and "GRANT EXECUTE ON FUNCTION audit.close_review_case" in migration_15
             and "CREATE FUNCTION audit._canonical_json" in migration_15
+            and "CREATE FUNCTION audit._canonical_json_number" in migration_15
             and "p_payload::text" not in migration_15
             and "ORDER BY each.key COLLATE \"C\"" in migration_15,
             True,
@@ -161,6 +162,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "g9_34" in probe2
             and "record_review_decision" not in probe2
             and "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+            in probe2
+            and "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022"
             in probe2
             and "payload_sha256" in probe2,
             True,
@@ -188,6 +191,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "open_review_case" in case_tests
             and "FROZEN_COMPACT_SHA256" in case_tests
             and "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+            in case_tests
+            and "FROZEN_NUMBER_SHA256" in case_tests
+            and "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022"
             in case_tests,
             True,
         ),
