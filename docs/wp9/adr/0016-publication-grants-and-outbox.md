@@ -1,6 +1,6 @@
 # ADR-0016：Publication Grant 与 Publisher Outbox
 
-- 状态：Proposed for `G9-FROZEN-20260825-02`
+- 状态：Proposed for `G9-FROZEN-20260825-03`
 - 日期：2026-08-25
 - 前置：0002/0003 grant 表与 `validate_publication_grant`、ADR-0004 Outbox、ADR-0015、ADR-0006
 
@@ -21,7 +21,7 @@ WP9 必须在不破坏这些边界的前提下，把“审核通过”变成 Pub
 grant 字段：
 
 - `review_case_id` / subject id / `decision_id` 取自本事务新决定；
-- `revision_no`：该 subject 历史 grant 数 + 1；
+- `revision_no`：取得 case 行锁后，对该 subject 全部 grant 计算 `max(revision_no)+1`（无历史则为 1）。禁止使用锁前缓存的 revision。
 - `grant_status='active'`（非 withdraw）；
 - `publication_payload_sha256`：对冻结的最小投影信封做 SHA-256，信封只含 ID、类型、revision、subject 哈希，不含正文、Prompt、审核人显示名。
 
@@ -48,7 +48,16 @@ downgrade：
 1. 若三张表任一存在 `grant_status='superseded'`，`RAISE` 拒绝降级（稳定码 `review_grant_superseded_blocks_downgrade`）。
 2. 否则 DROP 新 CHECK 与 `uq_*_grant_live`，重建原 `WHERE withdrawn_at IS NULL` 索引。
 
-同一 subject 在提交后至多一行 `grant_status='active'`。并发两个 `revise` 必须先 `SELECT ... FOR UPDATE` case 行；失败者或为 `40001`，或为 live 唯一索引 `23505`；不得出现两行 active。
+同一 subject 在提交后至多一行 `grant_status='active'`。
+
+并发契约（PostgreSQL 默认 `READ COMMITTED`）冻结为 **串行双成功**，不使用 `expected_active_grant_id` 乐观失败：
+
+1. `record_review_decision` 必须先 `SELECT ... FOR UPDATE` **case 行**，再读取当前 `grant_status='active'` 的 grant（若 `revise`/`withdraw`）。
+2. 后到事务等待锁；前一事务提交后，后到事务看到的是新的 active grant 与已增加的 `max(revision_no)`。
+3. 两个不同 `request_id` 的并发 `revise` **都可以成功**：各追加一条 decision；revision_no 严格递增（例如 1→2 与 2→3）；最终恰好一行 active；较早 grant 均为 `superseded`。
+4. 不要求、也不允许把后到事务定义为必须 `40001` / `23505`。live 唯一索引只防止锁协议被绕过时的双 active，不是并发双方的预期终态。
+5. 无丢失更新：后到事务必须 supersede **锁后读到的** active 行，不得 supersede 锁前快照中的旧 grant id。
+6. 相同 `request_id` 的重放仍按 ADR-0014 §2.4，不得因串行化再插第二份 decision。
 
 document / claim / entity 三张 grant 表均走此路径。relation grant 函数入口直接失败：`22023` / `knowledge_relation_review_not_in_wp9`。
 

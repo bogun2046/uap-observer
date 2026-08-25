@@ -1,6 +1,6 @@
 # ADR-0019：手工 Claim、证据与 Subject 绑定
 
-- 状态：Proposed for `G9-FROZEN-20260825-02`
+- 状态：Proposed for `G9-FROZEN-20260825-03`
 - 日期：2026-08-25
 - 前置：ADR-0009、0010 `core.require_ai_claim_supports`、0002 `core.claims`、ADR-0014、ADR-0015、ADR-0017
 

@@ -1,6 +1,6 @@
 # ADR-0014：审核会话绑定与写入权威
 
-- 状态：Proposed for `G9-FROZEN-20260825-02`
+- 状态：Proposed for `G9-FROZEN-20260825-03`
 - 日期：2026-08-25
 - 前置：WP1 permissions、ADR-0011、ADR-0012、G8 已签署
 
@@ -99,7 +99,18 @@ nullif(current_setting('uap.principal_id', true), '')::uuid
 
 私有 `_apply_*` 函数不暴露独立幂等键；它们只由 `record_review_decision` 在同一次成功路径调用，复用该 decision 的 `event_key`。
 
-Outbox `event_key` 仍按 ADR-0016，以 grant/decision id 为自然键；decision 幂等重放不得产生第二条 outbox。
+每个 **上表列出的公开写函数** 都必须有“同 request_id 同 payload 重放”和“同 request_id 不同 payload 冲突”验收，按阶段映射：
+
+| 函数 | 验收 |
+|---|---|
+| `record_review_decision` | G9-29、G9-30 |
+| `open_review_case`、`assign_review_case` | G9-34 |
+| `close_review_case` | G9-35 |
+| `select_analysis_result`、`accept_entity_candidate`、`bind_entity_candidate` | G9-36 |
+| `apply_entity_merge`、`apply_entity_merge_reverse` | G9-37 |
+| `create_manual_claim` | G9-38 |
+
+`require_active_role` 只读，不在幂等矩阵内。私有 `_apply_*` 不单独测幂等，随 decision 重放覆盖。Outbox `event_key` 仍按 ADR-0016；decision 幂等重放不得产生第二条 outbox。
 
 ## 3. 代码布局
 

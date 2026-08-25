@@ -1,8 +1,8 @@
 # G9 冻结验收用例
 
-- 冻结编号：`G9-FROZEN-20260825-02`
+- 冻结编号：`G9-FROZEN-20260825-03`
 - 父基线：`8550b8fe2d3322428fc9487e91aeb830425b0ed1`
-- 用例：G9-01–G9-33
+- 用例：G9-01–G9-38
 - 维度：正向、反向、权限、幂等、状态机与可追溯性
 
 所有角色拒绝项使用真实登录连接。所有“行数为 0”指事务结束后的可见状态。
@@ -171,11 +171,18 @@ python tools/wp9_runtime_probe.py
 
 预期：旧 grant `grant_status='superseded'` 且 `withdrawn_at IS NULL`；新 grant `active`、`revision_no` + 1；两行 `withdrawn_at` 均为 NULL；`uq_*_grant_live` 不冲突；outbox 含 `publication.superseded` 与新 `publication.granted`；`public.*` 仍为 0。
 
-## G9-28 并发 revise 至多一行 active（WP9.3）
+## G9-28 并发 revise 串行双成功且无丢失更新（WP9.3）
 
-两连接同时对同一 case `revise`。
+两连接使用 **不同** `request_id`，在默认 `READ COMMITTED` 下同时对同一已 approve 的 claim case 调用 `revise`。
 
-预期：恰好一行最终 `grant_status='active'`；另一事务 `40001` 或 live 唯一索引 `23505`；不得两行 active。
+预期：
+
+- 两个事务最终都可以 `COMMIT`（后到者等待 case 行锁后继续，不要求 `40001`/`23505`）；
+- 两条 `revise` decision，`sequence_no` 为连续值；
+- grant `revision_no` 严格递增（approve=1 则两次 revise 为 2 与 3）；
+- 提交后恰好一行 `grant_status='active'`，其余为 `superseded` 且 `withdrawn_at IS NULL`；
+- 后到事务 supersede 的是前一事务新插入的 active grant，而不是锁前快照中的 approve grant；
+- `public.*` 仍为 0。
 
 ## G9-29 相同 request_id 重放不产生第二份决定（WP9.3）
 
@@ -206,4 +213,35 @@ approve 已提交后，`uap_api` 分别：调用 `_apply_claim_subject_bind`、`
 对 WP8 AI Claim `reject`，并尝试 `structured_changes={"retire_supporting_evidence": true}`。另用 owner 夹具直接删其最后一条 supports。无该键的纯 `reject` 作为对照。
 
 预期：带 retire 键的调用 `22023` / `review_ai_evidence_immutable`，无新 decision，evidence 仍 ≥1。owner 删除提交失败 `23514`（`require_ai_claim_supports`）。纯 reject 使 case `rejected` 且 evidence 保留。
+
+## G9-34 open/assign 幂等重放与冲突（WP9.2）
+
+对 `open_review_case` 与 `assign_review_case` 分别：相同 `request_id`+相同权威输入重放；相同 `request_id`+改 `p_reason` 或改 `p_assignee_id`。
+
+预期：重放返回首次 case/assign 结果，不产生第二行 case，不改变 `assigned_to`；冲突为 `23505` / `review_idempotency_payload_conflict`。`require_active_role` 不在本用例内。
+
+## G9-35 close 幂等重放与冲突（WP9.3）
+
+case 已 `approved` 后：相同 `request_id` 两次 `close_review_case`；另用不同 `p_reason` 配同一 `request_id`（在尚未 close 的新 case 上测冲突，或在首次 close 前测）。
+
+预期：重放不更新 `closed_at`、不插第二 audit event；冲突 `review_idempotency_payload_conflict`。不同 `request_id` 对已 close case 失败，稳定码 `review_case_already_closed`。
+
+## G9-36 selection/candidate 写函数幂等（WP9.4）
+
+对 `select_analysis_result`、`accept_entity_candidate`、`bind_entity_candidate` 做与 G9-34 相同的两组调用。
+
+预期：重放不产生第二当前 selection、不插入第二实体、不改已 resolved candidate；冲突 `review_idempotency_payload_conflict`。`accept` 重放不得因同名再插 `core.entities`。
+
+## G9-37 merge/reverse 幂等（WP9.5）
+
+对 `apply_entity_merge` 与 `apply_entity_merge_reverse` 做相同两组调用。
+
+预期：重放返回首次 merge event id，不产生第二开边、不二次 reverse；冲突不改变图。核心 `core.merge_entities` 仍无登录 EXECUTE。
+
+## G9-38 手工 Claim 幂等（WP9.6）
+
+对 `create_manual_claim` 做相同两组调用。
+
+预期：重放返回首次 claim id，不插第二 claim/evidence；冲突不写新 claim。无 evidence 的失败路径仍走 G9-23，不产生 event_key。
+
 

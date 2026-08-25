@@ -1,7 +1,7 @@
 # WP9 实施任务书：审核、授权绑定与发布授权
 
 - 实施编号：`WP9-IMPL-20260825-01`
-- 冻结标准：`G9-FROZEN-20260825-02`
+- 冻结标准：`G9-FROZEN-20260825-03`
 - 父基线：G8-GATE-8.6 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`
 - 实施起点：本设计目录所在 docs-only 提交 `G9_DESIGN_SHA`
 - 当前状态：**设计待 Codex 冻结；等待项目负责人授权 WP9.1**
@@ -79,25 +79,25 @@ G8 signed SHA 8550b8fe…
 
 起点：WP9.1 已验收 SHA。建议迁移：`0015_review_case_lifecycle`。
 
-必须交付：`open_review_case` / `assign_review_case` / `close_review_case`；写函数强制 `uap.request_id`；relation 拒绝；唯一开 case；G9-06–G9-09、G9-31。
+必须交付：`open_review_case` / `assign_review_case` / `close_review_case`；写函数强制 `uap.request_id`；relation 拒绝；唯一开 case；G9-06–G9-09、G9-31、G9-34。
 
 ### WP9.3：决定、Grant、Outbox
 
 起点：WP9.2 已验收 SHA。建议迁移：`0016_review_decisions_and_grants`。
 
-必须交付：`record_review_decision`；approve/revise→grant；withdraw→撤回 grant；`ops.enqueue_publication_outbox`；**替换 document/claim/entity 三张 grant 表 `WHERE withdrawn_at IS NULL` 唯一索引为 `WHERE grant_status='active'`，含 superseded 存在时拒绝 downgrade**；禁止 publish job 与 `public` 写入；自审隔离；幂等 event_key；G9-10–G9-16、G9-27–G9-30。
+必须交付：`record_review_decision`；approve/revise→grant；withdraw→撤回 grant；`ops.enqueue_publication_outbox`；**替换 document/claim/entity 三张 grant 表 `WHERE withdrawn_at IS NULL` 唯一索引为 `WHERE grant_status='active'`，含 superseded 存在时拒绝 downgrade**；并发 revise 为串行双成功；禁止 publish job 与 `public` 写入；自审隔离；幂等 event_key；G9-10–G9-16、G9-27–G9-30、G9-35。
 
 ### WP9.4：Selection 与晋升
 
 起点：WP9.3 已验收 SHA。建议迁移：`0017_selection_and_promotion`。
 
-必须交付：`select_analysis_result`；`accept_entity_candidate`；`bind_entity_candidate`；同名不自动合并；不读 selection 作为 WP8 物化前置；G9-17–G9-19。
+必须交付：`select_analysis_result`；`accept_entity_candidate`；`bind_entity_candidate`；同名不自动合并；不读 selection 作为 WP8 物化前置；G9-17–G9-19、G9-36。
 
 ### WP9.5：授权 Merge
 
 起点：WP9.4 已验收 SHA。建议迁移：`0018_authorized_entity_merge`。
 
-必须交付：`audit.apply_entity_merge` / `apply_entity_merge_reverse`；登录角色仍无核心 merge EXECUTE；G9-20–G9-22；G8-19 复跑。
+必须交付：`audit.apply_entity_merge` / `apply_entity_merge_reverse`；登录角色仍无核心 merge EXECUTE；G9-20–G9-22、G9-37；G8-19 复跑。
 
 ### WP9.6：手工 Claim、subject 绑定、应用服务与门禁
 
@@ -111,7 +111,7 @@ G8 signed SHA 8550b8fe…
 - `uap_platform/review/` 应用服务；
 - `wp9_runtime_probe.py` 与 orchestrator 接入 `WP3 -> … -> WP8 -> WP9`；
 - Makefile 与 `platform-ci.yml` 接入 WP9；
-- G9-01–G9-33 全量复跑，且 G8-16C 仍 fail-closed；
+- G9-01–G9-38 全量复跑，且 G8-16C 仍 fail-closed；
 - required `quality/security/integration/gate` 全绿。
 
 ## 5. 独立门禁映射
@@ -119,11 +119,11 @@ G8 signed SHA 8550b8fe…
 | 门禁 | 本阶段必须通过 | 通过后才可 |
 |---|---|---|
 | `G9-GATE-9.1` | G9-01–G9-05 | 授权 WP9.2 |
-| `G9-GATE-9.2` | G9-06–G9-09、G9-31 | 授权 WP9.3 |
-| `G9-GATE-9.3` | G9-10–G9-16、G9-27–G9-30 | 授权 WP9.4 |
-| `G9-GATE-9.4` | G9-17–G9-19 | 授权 WP9.5 |
-| `G9-GATE-9.5` | G9-20–G9-22 | 授权 WP9.6 |
-| `G9-GATE-9.6` | G9-23–G9-26、G9-32–G9-33，且 G9-01–G9-31 全量复跑 | 签署 G9、开启 WP10 |
+| `G9-GATE-9.2` | G9-06–G9-09、G9-31、G9-34 | 授权 WP9.3 |
+| `G9-GATE-9.3` | G9-10–G9-16、G9-27–G9-30、G9-35 | 授权 WP9.4 |
+| `G9-GATE-9.4` | G9-17–G9-19、G9-36 | 授权 WP9.5 |
+| `G9-GATE-9.5` | G9-20–G9-22、G9-37 | 授权 WP9.6 |
+| `G9-GATE-9.6` | G9-23–G9-26、G9-32–G9-33、G9-38，且 G9-01–G9-37 全量复跑 | 签署 G9、开启 WP10 |
 
 ## 6. 全阶段实现约束
 

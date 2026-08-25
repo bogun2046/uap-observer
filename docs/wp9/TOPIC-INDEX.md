@@ -3,7 +3,7 @@
 ## 1. 会话绑定、写权限与幂等
 
 - ADR-0014：GUC、`require_active_role`、无裸 DML、event_key
-- G9-01–G9-05、G9-29–G9-31
+- G9-01–G9-05、G9-29–G9-31、G9-34–G9-38
 - 结论：acting principal 只来自 `SET LOCAL uap.principal_id`；写函数强制 `request_id`；同键同摘要重放，同键异摘要冲突。
 
 ## 2. Review case 与决定
@@ -16,7 +16,7 @@
 
 - ADR-0016：approve/revise→grant，withdraw→撤回，live 唯一索引，只写 outbox
 - G9-11–G9-16、G9-27–G9-28
-- 结论：superseded 不填 `withdrawn_at`；唯一键改为 `grant_status='active'`；不写 `public.*`。
+- 结论：superseded 不填 `withdrawn_at`；唯一键改为 `grant_status='active'`；并发 revise 串行双成功；不写 `public.*`。
 
 ## 4. 分析选择与 candidate 晋升
 

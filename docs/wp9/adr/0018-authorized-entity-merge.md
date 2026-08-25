@@ -1,6 +1,6 @@
 # ADR-0018：授权的 Entity Merge / Reverse
 
-- 状态：Proposed for `G9-FROZEN-20260825-02`
+- 状态：Proposed for `G9-FROZEN-20260825-03`
 - 日期：2026-08-25
 - 前置：ADR-0012、ADR-0011、ADR-0014、G8-19
 
