@@ -463,8 +463,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "read_verified_object" in probe3
             and 'CURRENT_HEAD = "0013_entity_merge_state_machine"' in probe3
             and "def _close_claimed_resolve_job" in probe3
-            and "def _proven_complete_materialization" in probe3
+            and "There is no pre-handler succeeded bypass." in probe3
             and "Handler failures never fall back to succeeded." in probe3
+            and "def _proven_complete_materialization" not in probe3
+            and "def _finish_existing_materialization" not in probe3
             and "wp8-3-startup-drain" in probe3
             and "DELETE FROM ops.jobs" not in probe3
             and "TRUNCATE" not in probe3
@@ -542,8 +544,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "if payload is None:" in probe4
             and "admin, worker, world, tag, name, payload" in probe4
             and "def _close_claimed_resolve_job" in probe4
-            and "def _proven_complete_materialization" in probe4
+            and "There is no pre-handler succeeded bypass." in probe4
             and "Handler failures never fall back to succeeded." in probe4
+            and "def _proven_complete_materialization" not in probe4
+            and "def _finish_existing_materialization" not in probe4
             and "wp8-4-startup-drain" in probe4
             and "DELETE FROM ops.jobs" not in probe4
             and "TRUNCATE" not in probe4
@@ -652,9 +656,15 @@ def evaluate(platform: Path) -> list[Check]:
             in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
             and "test_close_claimed_entity_job_23503_with_rows_does_not_succeed"
             in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
-            and "test_close_claimed_job_proven_replay_finishes_succeeded_without_handler"
+            and "test_wrong_fingerprint_does_not_proven_succeed"
             in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
-            and "test_proven_complete_rejects_existing_rows_with_text_mismatch"
+            and "test_wrong_entity_type_does_not_proven_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_wrong_locator_span_same_count_does_not_proven_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_wrong_locator_ordinal_does_not_proven_succeed"
+            in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
+            and "test_no_pre_handler_succeeded_bypass_in_probes"
             in (platform / "tests/test_wp8_chain_drain.py").read_text(encoding="utf-8")
             and "put_verified(" in probe1
             and "expected_sha256=output_sha256" in probe1

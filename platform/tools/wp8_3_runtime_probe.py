@@ -6,7 +6,6 @@ import io
 import json
 import sys
 import uuid
-from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
@@ -282,216 +281,21 @@ def _claim_one_resolve(
     return None if row is None else tuple(row)
 
 
-def _payload_binding(payload: object, expected_result_type: str) -> dict[str, Any] | None:
-    if not isinstance(payload, Mapping):
-        return None
-    required = {
-        "payload_schema_version",
-        "analysis_result_id",
-        "analysis_result_sha256",
-        "analysis_schema_version",
-        "document_version_id",
-        "result_type",
-        "model_run_id",
-        "input_sha256",
-        "extraction_anchor_status",
-        "extraction_id",
-    }
-    if set(payload.keys()) < required:
-        return None
-    if payload.get("payload_schema_version") != "knowledge.v2":
-        return None
-    if payload.get("analysis_schema_version") != "ai.v1":
-        return None
-    if payload.get("result_type") != expected_result_type:
-        return None
-    if payload.get("extraction_anchor_status") != "matched":
-        return None
-    try:
-        return {
-            "analysis_id": uuid.UUID(str(payload["analysis_result_id"])),
-            "document_version_id": uuid.UUID(str(payload["document_version_id"])),
-            "extraction_id": uuid.UUID(str(payload["extraction_id"])),
-            "result_sha256": str(payload["analysis_result_sha256"]),
-            "input_sha256": str(payload["input_sha256"]),
-            "result_type": expected_result_type,
-        }
-    except (ValueError, TypeError, KeyError):
-        return None
-
-
-def _proven_complete_materialization(
-    conn: psycopg.Connection[Any],
-    payload: object,
-    *,
-    job_type: str,
-) -> dict[str, Any] | None:
-    """Return finish metrics only for a fully bound, complete prior materialization.
-
-    Proof happens before the production handler runs. Existing rows plus a later
-    handler failure (NoSuchKey, 42501, 23503, ...) never qualify.
-    """
-
-    expected_type = "claim_extraction" if job_type == "resolve_claims" else "entity_extraction"
-    bound = _payload_binding(payload, expected_type)
-    if bound is None:
-        return None
-    array_key = "claims" if job_type == "resolve_claims" else "entities"
-    text_key = "claim" if job_type == "resolve_claims" else "name"
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT analysis.result
-              FROM core.analysis_results AS analysis
-             WHERE analysis.id = %s
-               AND analysis.document_version_id = %s
-               AND analysis.result_sha256 = %s
-               AND analysis.result_type::text = %s
-               AND analysis.schema_version = 'ai.v1'
-               AND analysis.validation_status = 'valid'::core.validation_status
-            """,
-            (
-                bound["analysis_id"],
-                bound["document_version_id"],
-                bound["result_sha256"],
-                bound["result_type"],
-            ),
-        )
-        analysis_row = cast(tuple[Any, ...] | None, cursor.fetchone())
-        if analysis_row is None or not isinstance(analysis_row[0], Mapping):
-            return None
-        items = analysis_row[0].get(array_key)
-        if not isinstance(items, list) or len(items) == 0:
-            return None
-        cursor.execute(
-            """
-            SELECT 1
-              FROM core.extractions AS extraction
-              JOIN core.stored_objects AS stored
-                ON stored.id = extraction.text_object_id
-             WHERE extraction.id = %s
-               AND extraction.document_version_id = %s
-               AND extraction.outcome = 'succeeded'
-               AND extraction.output_sha256 = %s
-               AND stored.storage_domain = 'derived'
-               AND stored.content_sha256 = %s
-            """,
-            (
-                bound["extraction_id"],
-                bound["document_version_id"],
-                bound["input_sha256"],
-                bound["input_sha256"],
-            ),
-        )
-        if cursor.fetchone() is None:
-            return None
-        if job_type == "resolve_claims":
-            cursor.execute(
-                """
-                SELECT claim.ordinal, claim.claim_text, claim.claim_fingerprint,
-                       (
-                           SELECT count(*) FROM core.claim_evidence AS evidence
-                            WHERE evidence.claim_id = claim.id
-                       )
-                  FROM core.claims AS claim
-                 WHERE claim.origin_analysis_result_id = %s
-                 ORDER BY claim.ordinal
-                """,
-                (bound["analysis_id"],),
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT candidate.ordinal, candidate.proposed_name,
-                       candidate.proposed_entity_type::text,
-                       (
-                           SELECT count(*)
-                             FROM core.entity_candidate_evidence AS evidence
-                            WHERE evidence.entity_candidate_id = candidate.id
-                       )
-                  FROM core.entity_candidates AS candidate
-                 WHERE candidate.analysis_result_id = %s
-                 ORDER BY candidate.ordinal
-                """,
-                (bound["analysis_id"],),
-            )
-        rows = cast(list[tuple[Any, ...]], cursor.fetchall())
-    if len(rows) != len(items):
-        return None
-    if [int(row[0]) for row in rows] != list(range(len(items))):
-        return None
-    locator_total = 0
-    for index, item in enumerate(items):
-        if not isinstance(item, Mapping):
-            return None
-        expected_text = item.get(text_key)
-        if expected_text is None or str(expected_text) != str(rows[index][1]):
-            return None
-        identity = rows[index][2]
-        if identity is None or (job_type == "resolve_claims" and len(str(identity)) != 64):
-            return None
-        evidence = item.get("evidence") or []
-        if not isinstance(evidence, list) or len(evidence) < 1:
-            return None
-        actual_locators = int(rows[index][3])
-        if actual_locators != len(evidence):
-            return None
-        locator_total += actual_locators
-    return {
-        "schema_version": "knowledge-attempt-metrics.v1",
-        "input_candidates": len(items),
-        "materialized_candidates": len(items),
-        "input_locators": locator_total,
-        "materialized_locators": locator_total,
-        "rejected_candidates": 0,
-        "rejected_locators": 0,
-        "empty_valid_result": False,
-        "rejected_by_code": {},
-        "samples": [],
-    }
-
-
-def _finish_existing_materialization(
-    conn: psycopg.Connection[Any],
-    job_id: uuid.UUID,
-    attempt_id: uuid.UUID,
-    token: uuid.UUID,
-    metrics: dict[str, Any],
-) -> str:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT ops.finish_knowledge_job(
-                %s, %s, %s, 'succeeded'::ops.attempt_outcome,
-                NULL, NULL, NULL, NULL, %s
-            )
-            """,
-            (job_id, attempt_id, token, Jsonb(metrics)),
-        )
-        row = cast(tuple[Any, ...] | None, cursor.fetchone())
-    conn.commit()
-    return str(row[0]) if row else "succeeded"
-
-
 def _close_claimed_resolve_job(
     conn: psycopg.Connection[Any],
     claimed: tuple[Any, ...],
     handler: ResolveClaimsHandler | None = None,
 ) -> str:
-    """Close a claimed resolve_claims job through the real knowledge lifecycle.
+    """Close a claimed resolve_claims job through the production handler.
 
-    Finish-lost recovery is allowed only after a strict pre-handler proof.
-    Handler failures never fall back to succeeded.
+    There is no pre-handler succeeded bypass. Queued leftovers go to
+    ResolveClaimsHandler. Handler failures never fall back to succeeded.
     """
 
     job_id = uuid.UUID(str(claimed[0]))
     attempt_id = uuid.UUID(str(claimed[1]))
-    job_type = str(claimed[2])
     payload = claimed[3]
     token = uuid.UUID(str(claimed[4]))
-    proven = _proven_complete_materialization(conn, payload, job_type=job_type)
-    if proven is not None:
-        return _finish_existing_materialization(conn, job_id, attempt_id, token, proven)
     active = handler if handler is not None else ResolveClaimsHandler(conn, _client())
     try:
         return active.handle(job_id, attempt_id, token, payload)
@@ -500,6 +304,7 @@ def _close_claimed_resolve_job(
         if error.sqlstate == "40001":
             raise
         raise
+
 
 def _claim_target_job(
     conn: psycopg.Connection[Any],
