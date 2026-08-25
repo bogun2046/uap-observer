@@ -164,6 +164,13 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/validate_wp8.py
+      - name: WP9.1 review-session contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp9.py
       - name: WP8 evidence manifest scope
         run: >-
           docker run --rm
@@ -250,6 +257,9 @@ jobs:
       - name: Run WP8 knowledge probes WP8.1 through WP8.6
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp8_runtime_probe.py --from wp8.1
+      - name: Run WP9.1 review-session probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp9_1_runtime_probe.py
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json

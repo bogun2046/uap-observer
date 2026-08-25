@@ -30,7 +30,7 @@ from uap_platform.knowledge.job_types import claimable_job_types  # noqa: E402
 from uap_platform.knowledge.reasons import KNOWLEDGE_RELATION_TASK_NOT_IN_WP8  # noqa: E402
 from uap_platform.knowledge.worker import KnowledgeJobDispatcher  # noqa: E402
 
-CURRENT_HEAD = "0013_entity_merge_state_machine"
+CURRENT_HEAD = "0014_review_session_authority"
 
 
 def g8_16c(
