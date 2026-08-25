@@ -58,18 +58,26 @@ query "INSERT INTO audit.principals (id, principal_type, service_name, display_n
 
 alembic_step -x role=migrator upgrade head
 alembic_step -x role=migrator upgrade head
-test "$(query "SELECT version_num FROM public.alembic_version")" = "0013_entity_merge_state_machine"
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0014_review_session_authority"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "50"
 test "$(query "SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='core' AND tablename='entity_candidate_evidence')")" = "t"
 test "$(query "SELECT attnotnull FROM pg_attribute WHERE attrelid='core.claims'::regclass AND attname='document_version_id'")" = "t"
 test "$(query "SELECT count(*) FROM audit.principals WHERE id='00000000-0000-7000-8000-000000000777'")" = "1"
+
+alembic_step -x role=migrator downgrade 0013_entity_merge_state_machine
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0013_entity_merge_state_machine"
+test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "50"
+test "$(query "SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname='require_active_role' AND pronamespace = 'audit'::regnamespace)")" = "f"
+alembic_step -x role=migrator upgrade head
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0014_review_session_authority"
+test "$(query "SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname='require_active_role' AND pronamespace = 'audit'::regnamespace)")" = "t"
 
 alembic_step -x role=migrator downgrade 0009_model_governance_boundaries
 test "$(query "SELECT version_num FROM public.alembic_version")" = "0009_model_governance_boundaries"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "49"
 test "$(query "SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='core' AND tablename='entity_candidate_evidence')")" = "f"
 alembic_step -x role=migrator upgrade head
-test "$(query "SELECT version_num FROM public.alembic_version")" = "0013_entity_merge_state_machine"
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0014_review_session_authority"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "50"
 
 alembic_step -x role=migrator downgrade 0002_authoritative_schema
@@ -81,7 +89,7 @@ test "$(query "SELECT has_schema_privilege('uap_model_governance', 'ops', 'USAGE
 test "$(query "SELECT has_table_privilege('uap_model_governance', 'core.stored_objects', 'INSERT')")" = "f"
 test "$(query "SELECT has_table_privilege('uap_model_governance', 'core.extractions', 'SELECT')")" = "f"
 alembic_step -x role=migrator upgrade head
-test "$(query "SELECT version_num FROM public.alembic_version")" = "0013_entity_merge_state_machine"
+test "$(query "SELECT version_num FROM public.alembic_version")" = "0014_review_session_authority"
 test "$(query "SELECT count(*) FROM pg_tables WHERE schemaname IN ('ingest','core','ops','audit','public') AND tablename <> 'alembic_version'")" = "50"
 
 $compose exec -T postgres dropdb --if-exists --force \
@@ -109,4 +117,4 @@ $compose run --rm --no-deps --env "UAP_DATABASE_URL=$database_url" \
     object-store-init python tools/configure_roles.py disable-migrator
 test "$(query "SELECT rolcanlogin::text FROM pg_roles WHERE rolname='uap_migrator'")" = "false"
 
-echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004 -> 0005 -> 0006 -> 0007 -> 0008 -> 0009 -> 0010_knowledge_foundation -> 0011_claim_materialization -> 0012_entity_materialization -> 0013_entity_merge_state_machine, idempotent head, 0013 roundtrip, fail-closed backfill, downgrade smoke."
+echo "Migration chain verified: 0001 -> 0002 -> 0003 -> 0004 -> 0005 -> 0006 -> 0007 -> 0008 -> 0009 -> 0010_knowledge_foundation -> 0011_claim_materialization -> 0012_entity_materialization -> 0013_entity_merge_state_machine -> 0014_review_session_authority, idempotent head, 0014 roundtrip, fail-closed backfill, downgrade smoke."
