@@ -1,6 +1,6 @@
 # WP9 审核、授权绑定与发布授权
 
-状态：`G9-FROZEN-20260825-04` 设计待 Codex 冻结（R4 整改）；编码门禁关闭，直至项目负责人发出 WP9.1 启动口令。
+状态：`G9-FROZEN-20260825-05` 设计待 Codex 冻结（R5 整改）；编码门禁关闭，直至项目负责人发出 WP9.1 启动口令。
 父基线：G8-GATE-8.6 已签署 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`（PR #36，CI run 32834875538）。
 
 WP9 把 WP8 已物化的内部 Claim / Entity Candidate 纳入审核状态机：绑定登录会话与 `senior_reviewer` 授权、追加审核决定、签发/撤回 publication grant，并经 Outbox 通知 Publisher。不写 `public`，不交付公开 API 或搜索（WP10），不实现 AI relation 成功路径。
@@ -30,6 +30,7 @@ WP9 把 WP8 已物化的内部 Claim / Entity Candidate 纳入审核状态机：
 | [R2-REMEDIATION.md](R2-REMEDIATION.md) | R2：grant 索引 / evidence / 私有副作用 / 初版幂等 |
 | [R3-REMEDIATION.md](R3-REMEDIATION.md) | R3：并发串行双成功与全写函数幂等验收 |
 | [R4-REMEDIATION.md](R4-REMEDIATION.md) | R4：event_key 去业务参数，payload_sha256 覆盖冲突 |
+| [R5-REMEDIATION.md](R5-REMEDIATION.md) | R5：G9_DESIGN_ROOT_SHA 与最终 HEAD 身份规则 |
 | [TOPIC-INDEX.md](TOPIC-INDEX.md) | 冻结主题到 ADR / 用例的索引 |
 | [implementation-ticket.md](implementation-ticket.md) | WP9.1–9.6 实施边界和阶段链 |
 | [acceptance-ticket.md](acceptance-ticket.md) | 独立验收责任、证据和门禁 |

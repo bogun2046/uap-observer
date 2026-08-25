@@ -1,9 +1,10 @@
 # WP9 实施任务书：审核、授权绑定与发布授权
 
 - 实施编号：`WP9-IMPL-20260825-01`
-- 冻结标准：`G9-FROZEN-20260825-04`
+- 冻结标准：`G9-FROZEN-20260825-05`
 - 父基线：G8-GATE-8.6 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`
-- 实施起点：本设计目录所在 docs-only 提交 `G9_DESIGN_SHA`
+- 设计根：`G9_DESIGN_ROOT_SHA` = `984da00b52b39bb4f22c365a8792c3d607724733`
+- 实施起点：最终冻结 HEAD `G9_DESIGN_SHA`（ROOT 的第一父链后代，见 BASELINE）
 - 当前状态：**设计待 Codex 冻结；等待项目负责人授权 WP9.1**
 - 实施者：Grok（或项目负责人指定的实施工程师）
 - 架构与审核：Codex
@@ -41,7 +42,9 @@ WP9 不写 `public`，不交付公开 API/搜索，不交付 AI relation 成功�
 
 ```text
 G8 signed SHA 8550b8fe…
-  -> G9 docs-only design commit (G9_DESIGN_SHA)
+  -> G9_DESIGN_ROOT_SHA 984da00b…（第一父 = G8）
+  -> 普通追加的设计整改（R2–R5，无 merge）
+  -> G9_DESIGN_SHA（最终冻结 HEAD）
   -> WP9.1 accepted SHA
   -> WP9.2 accepted SHA
   -> WP9.3 accepted SHA
@@ -52,11 +55,12 @@ G8 signed SHA 8550b8fe…
 
 规则：
 
-1. WP9.1 只能从项目负责人启动口令中的 `G9_DESIGN_SHA` 开始。
+1. WP9.1 只能从项目负责人启动口令中的 **最终** `G9_DESIGN_SHA` 开始，不得从 ROOT 或中间整改 SHA 开工。
 2. 后续阶段只能从上一阶段的 Codex 已验收 SHA 开始。
 3. 一个阶段完成、提交固定 SHA 并交付审核包后立即停止；审核期间不得 amend 或 force-push。
 4. 审核不通过时只整改当前阶段，并形成新 SHA；不得开始下一阶段。
 5. 不得从 G8 或设计提交并行分叉多个 WP9.x 后再合并。
+6. `git diff 8550b8fe..G9_DESIGN_SHA` 在设计冻结时只能包含 `docs/wp9/**`。
 
 ## 4. 阶段交付
 

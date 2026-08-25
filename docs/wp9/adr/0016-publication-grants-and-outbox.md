@@ -1,6 +1,6 @@
 # ADR-0016：Publication Grant 与 Publisher Outbox
 
-- 状态：Proposed for `G9-FROZEN-20260825-04`
+- 状态：Proposed for `G9-FROZEN-20260825-05`
 - 日期：2026-08-25
 - 前置：0002/0003 grant 表与 `validate_publication_grant`、ADR-0004 Outbox、ADR-0015、ADR-0006
 

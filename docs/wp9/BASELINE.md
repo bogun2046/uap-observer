@@ -5,30 +5,35 @@
 - 父基线：G8-GATE-8.6 已签署 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`
 - 前置 PR：<https://github.com/bogun2046/uap-observer/pull/36>
 - 前置 CI：<https://github.com/bogun2046/uap-observer/actions/runs/32834875538>
-- 冻结标准：`G9-FROZEN-20260825-04`
+- 冻结标准：`G9-FROZEN-20260825-05`
 - 实施编号：`WP9-IMPL-20260825-01`
 - 验收编号：`WP9-ACCEPT-20260825-01`
-- 文档状态：**R4 待 Codex 冻结；冻结前不得实施**
+- 文档状态：**R5 待 Codex 冻结；冻结前不得实施**
 - 编码门禁：**关闭，直至项目负责人发出 WP9.1 启动口令**
 
 ## 冻结提交与起点
 
-本目录所在的 docs-only Git 提交是 WP9 的设计根，记为 `G9_DESIGN_SHA`。该 SHA 只能在提交形成后解析，因此不回写到本文件，避免 Git 自引用。
-
-WP9.1 的唯一合法起点是：
+设计链上有两个固定身份，均不得回写“当前 HEAD”到本文件（避免 Git 自引用）：
 
 ```text
-项目负责人启动口令中明确列出的 G9_DESIGN_SHA
+G9_DESIGN_ROOT_SHA = 984da00b52b39bb4f22c365a8792c3d607724733
+G9_DESIGN_SHA       = 本冻结编号最终签署的 docs-only HEAD
 ```
 
-它必须满足：
+`G9_DESIGN_ROOT_SHA` 是 WP9 设计根（R1 首份 docs-only 提交）。`G9_DESIGN_SHA` 是其后经 R2–R5 普通追加得到的最终冻结 HEAD，只能在该提交形成后由审核方解析。
 
-1. 提交的第一父提交为 `8550b8fe2d3322428fc9487e91aeb830425b0ed1`；
-2. 相对父提交只新增或修改 `docs/wp9/**`；
-3. `SHA256SUMS` 对除自身外的冻结文档逐项通过；
-4. 项目负责人将完整 SHA、阶段编号、任务书和验收用例一并发送给实施者。
+WP9.1 的唯一合法起点是项目负责人启动口令中明确列出的 `G9_DESIGN_SHA`。它必须满足：
 
-禁止 WP9.1 再从 WP8.6 之前的 SHA 分叉。WP9.2–WP9.6 只能从上一阶段的已验收 SHA 继续。
+1. `G9_DESIGN_ROOT_SHA^` = `8550b8fe2d3322428fc9487e91aeb830425b0ed1`；
+2. `G9_DESIGN_SHA` 是 `G9_DESIGN_ROOT_SHA` 的 **第一父链后代**（`git merge-base --is-ancestor ROOT SHA` 为真，且从 SHA 沿 `^` 能回到 ROOT）；
+3. `8550b8fe..G9_DESIGN_SHA` 全链 **不得有 merge**（每个提交恰好一个父提交）；
+4. `git diff --name-only 8550b8fe..G9_DESIGN_SHA` 只能包含 `docs/wp9/**`；
+5. `SHA256SUMS` 对除自身外的冻结文档逐项通过；
+6. 项目负责人将完整 SHA、阶段编号、任务书和验收用例一并发送给实施者。
+
+**不再要求** `G9_DESIGN_SHA^` 等于 G8 SHA。R2 及之后的整改必须普通追加在设计根之后，禁止 amend / rebase / force 去把最终 HEAD 的第一父改回 G8。
+
+禁止 WP9.1 再从 WP8.6 之前的 SHA 分叉，也禁止从 `G9_DESIGN_ROOT_SHA` 而不是最终 `G9_DESIGN_SHA` 开工。WP9.2–WP9.6 只能从上一阶段的已验收 SHA 继续。
 
 ## 本提交范围
 

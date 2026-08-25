@@ -1,6 +1,6 @@
 # ADR-0014：审核会话绑定与写入权威
 
-- 状态：Proposed for `G9-FROZEN-20260825-04`
+- 状态：Proposed for `G9-FROZEN-20260825-05`
 - 日期：2026-08-25
 - 前置：WP1 permissions、ADR-0011、ADR-0012、G8 已签署
 
