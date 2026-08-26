@@ -164,7 +164,7 @@ def g9_20(
     outbox_before = int(scalar(admin, "SELECT count(*) FROM ops.outbox_events"))
     public_before = int(scalar(admin, "SELECT count(*) FROM public.claims"))
     jobs_before = int(
-        scalar(admin, "SELECT count(*) FROM ops.jobs WHERE job_type LIKE 'publish_%'")
+        scalar(admin, "SELECT count(*) FROM ops.jobs WHERE job_type LIKE 'publish_%%'")
     )
     request = uuid.uuid4()
     event_id = call_api(api, senior, request, merge_sql(source, target))
@@ -219,7 +219,7 @@ def g9_20(
     )
     require(
         "g9-20 no publish jobs",
-        int(scalar(admin, "SELECT count(*) FROM ops.jobs WHERE job_type LIKE 'publish_%'")),
+        int(scalar(admin, "SELECT count(*) FROM ops.jobs WHERE job_type LIKE 'publish_%%'")),
         jobs_before,
     )
     return event_id

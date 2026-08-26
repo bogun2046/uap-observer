@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tools.validate_wp9 import evaluate
 
 
@@ -121,7 +123,30 @@ def test_wp9_5_does_not_open_later_stages() -> None:
     assert "g8_16c" in probe
     assert migration.count("pg_advisory_xact_lock(9175, hashtext(v_key))") >= 2
     assert "EVENT_KEY_LOCK_CLASS = 9175" in probe
+    assert probe.count("LIKE 'publish_%%'") == 2
+    assert "LIKE 'publish_%'" not in probe.replace("LIKE 'publish_%%'", "")
     dockerfile = (platform_root() / "Dockerfile").read_text(encoding="utf-8")
     assert "sqlite-libs>=3.53.4-r0" in dockerfile
     assert "libcrypto3>=3.5.8-r0" in dockerfile
     assert "libssl3>=3.5.8-r0" in dockerfile
+
+
+def test_wp9_5_probe_escapes_like_percent_for_psycopg() -> None:
+    """Psycopg treats a lone % in SQL as a placeholder. LIKE wildcards must be %%."""
+
+    from psycopg import ProgrammingError
+    from psycopg._queries import _split_query
+
+    probe = (platform_root() / "tools/wp9_5_runtime_probe.py").read_text(encoding="utf-8")
+    assert probe.count("LIKE 'publish_%%'") == 2
+    assert "LIKE 'publish_%'" not in probe.replace("LIKE 'publish_%%'", "")
+
+    broken = b"SELECT count(*) FROM ops.jobs WHERE job_type LIKE 'publish_%'"
+    with pytest.raises(ProgrammingError, match=r"only '%s', '%b', '%t' are allowed"):
+        _split_query(broken)
+
+    escaped = b"SELECT count(*) FROM ops.jobs WHERE job_type LIKE 'publish_%%'"
+    parts = _split_query(escaped)
+    rendered = b"".join(part.pre for part in parts)
+    assert b"LIKE 'publish_%'" in rendered
+    assert b"%%" not in rendered

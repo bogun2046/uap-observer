@@ -348,7 +348,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8_16c" in probe5
             and "create_manual_claim" not in probe5
             and "review_role_denied" in probe5
-            and "review_idempotency_payload_conflict" in probe5,
+            and "review_idempotency_payload_conflict" in probe5
+            and probe5.count("LIKE 'publish_%%'") == 2
+            and "LIKE 'publish_%'" not in probe5.replace("LIKE 'publish_%%'", ""),
             True,
         ),
         check(
