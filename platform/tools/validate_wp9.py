@@ -86,6 +86,29 @@ def check(name: str, passed: bool, actual: object, expected: object = True) -> C
     return Check(name, passed, actual, expected)
 
 
+def _event_key_lock_precedes_resource(sql: str) -> bool:
+    markers = (
+        "CREATE FUNCTION audit.select_analysis_result",
+        "CREATE FUNCTION audit.accept_entity_candidate",
+        "CREATE FUNCTION audit.bind_entity_candidate",
+    )
+    for marker in markers:
+        start = sql.find(marker)
+        if start < 0:
+            return False
+        body = sql[start:]
+        lock_at = body.find("pg_advisory_xact_lock(9175, hashtext(v_key))")
+        resource_at = body.find("FOR UPDATE")
+        if lock_at < 0 or resource_at < 0 or lock_at > resource_at:
+            return False
+        after_lock = body[lock_at:]
+        recheck = after_lock.find("_existing_write_target")
+        next_resource = after_lock.find("FOR UPDATE")
+        if recheck < 0 or next_resource < 0 or recheck > next_resource:
+            return False
+    return True
+
+
 def evaluate(platform: Path) -> list[Check]:
     platform = platform.resolve()
     repository = platform.parent
@@ -182,7 +205,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "review_candidate_evidence_missing" in migration_17
             and "review_bind_target_not_canonical" in migration_17
             and "FOR UPDATE" in migration_17
-            and migration_17.count("_existing_write_target") >= 6
+            and migration_17.count("_existing_write_target") >= 9
+            and migration_17.count("pg_advisory_xact_lock(9175, hashtext(v_key))") >= 3
+            and _event_key_lock_precedes_resource(migration_17)
             and "pg_advisory_xact_lock" in migration_17
             and "enqueue_job" not in migration_17
             and "publish_" not in migration_17
@@ -231,6 +256,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "g9_19" in probe4
             and "g9_36" in probe4
             and "extra_concurrent_same_request" in probe4
+            and "extra_concurrent_cross_resource" in probe4
+            and "EVENT_KEY_LOCK_CLASS = 9175" in probe4
             and "apply_entity_merge" not in probe4
             and "create_manual_claim" not in probe4
             and "select_analysis_result" not in probe3,

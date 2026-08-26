@@ -64,6 +64,12 @@ def upgrade() -> None:
                 RETURN v_existing;
             END IF;
 
+            PERFORM pg_advisory_xact_lock(9175, hashtext(v_key));
+            v_existing := audit._existing_write_target(v_key, v_sha);
+            IF v_existing IS NOT NULL THEN
+                RETURN v_existing;
+            END IF;
+
             SELECT result.document_version_id, result.result_type, result.validation_status
               INTO v_document, v_type, v_status
               FROM core.analysis_results AS result
@@ -161,6 +167,12 @@ def upgrade() -> None:
             );
             v_sha := audit._payload_sha256(v_payload);
             v_key := 'review.candidate.accept:' || v_request::text;
+            v_existing := audit._existing_write_target(v_key, v_sha);
+            IF v_existing IS NOT NULL THEN
+                RETURN v_existing;
+            END IF;
+
+            PERFORM pg_advisory_xact_lock(9175, hashtext(v_key));
             v_existing := audit._existing_write_target(v_key, v_sha);
             IF v_existing IS NOT NULL THEN
                 RETURN v_existing;
@@ -269,6 +281,12 @@ def upgrade() -> None:
             );
             v_sha := audit._payload_sha256(v_payload);
             v_key := 'review.candidate.bind:' || v_request::text;
+            v_existing := audit._existing_write_target(v_key, v_sha);
+            IF v_existing IS NOT NULL THEN
+                RETURN v_existing;
+            END IF;
+
+            PERFORM pg_advisory_xact_lock(9175, hashtext(v_key));
             v_existing := audit._existing_write_target(v_key, v_sha);
             IF v_existing IS NOT NULL THEN
                 RETURN v_existing;

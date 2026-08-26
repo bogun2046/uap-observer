@@ -44,6 +44,7 @@ SELECT_REASON = "select this analysis result"
 ACCEPT_REASON = "accept this entity candidate"
 BIND_REASON = "bind this entity candidate"
 CONFLICT_REASON = "a conflicting reason text"
+EVENT_KEY_LOCK_CLASS = 9175
 
 
 def select_sql(
@@ -98,16 +99,18 @@ def resolve_job_count(admin: psycopg.Connection[Any]) -> int:
 def current_selection(
     admin: psycopg.Connection[Any], document_version_id: uuid.UUID, result_type: str
 ) -> uuid.UUID | None:
-    value = scalar(
-        admin,
-        """
-        SELECT analysis_result_id FROM core.analysis_selections
-         WHERE document_version_id = %s AND result_type = %s AND superseded_at IS NULL
-        """,
-        document_version_id,
-        result_type,
-    )
-    return None if value is None else uuid.UUID(str(value))
+    with admin.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT analysis_result_id FROM core.analysis_selections
+             WHERE document_version_id = %s AND result_type = %s AND superseded_at IS NULL
+            """,
+            (document_version_id, result_type),
+        )
+        row = cursor.fetchone()
+    if row is None or row[0] is None:
+        return None
+    return uuid.UUID(str(row[0]))
 
 
 def current_selection_count(
@@ -1056,6 +1059,27 @@ def extra_concurrent_payload_conflict(
     )
 
 
+def extra_concurrent_cross_resource(
+    admin: psycopg.Connection[Any],
+    reviewer: uuid.UUID,
+    event_key: str,
+    first_statement: tuple[str, tuple[object, ...]],
+    second_statement: tuple[str, tuple[object, ...]],
+    request: uuid.UUID,
+    label: str,
+) -> None:
+    extra_concurrent_payload_conflict(
+        admin,
+        reviewer,
+        "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
+        (EVENT_KEY_LOCK_CLASS, event_key),
+        first_statement,
+        second_statement,
+        request,
+        f"cross-{label}",
+    )
+
+
 def run_concurrency(
     admin: psycopg.Connection[Any],
     reviewer: uuid.UUID,
@@ -1165,6 +1189,186 @@ def run_concurrency(
         ),
         target,
     )
+
+    doc_a, analysis_a, _other_a = seed_claim_pair(admin, uuid.uuid4().hex[:12])
+    doc_b, analysis_b, _other_b = seed_claim_pair(admin, uuid.uuid4().hex[:12])
+    cross_select_request = uuid.uuid4()
+    extra_concurrent_cross_resource(
+        admin,
+        reviewer,
+        f"review.selection:{cross_select_request}",
+        select_sql(analysis_a),
+        select_sql(analysis_b),
+        cross_select_request,
+        "select",
+    )
+    require(
+        "extra cross select events",
+        event_count(admin, f"review.selection:{cross_select_request}"),
+        1,
+    )
+    selected_a = current_selection(admin, doc_a, "claim_extraction")
+    selected_b = current_selection(admin, doc_b, "claim_extraction")
+    require(
+        "extra cross select one winner",
+        (selected_a is None) != (selected_b is None),
+        True,
+    )
+    if selected_a is not None:
+        require("extra cross select winner a", selected_a, analysis_a)
+        require("extra cross select loser b empty", selected_b, None)
+        require(
+            "extra cross select loser b rows",
+            current_selection_count(admin, doc_b, "claim_extraction"),
+            0,
+        )
+    else:
+        require("extra cross select winner b", selected_b, analysis_b)
+        require("extra cross select loser a empty", selected_a, None)
+        require(
+            "extra cross select loser a rows",
+            current_selection_count(admin, doc_a, "claim_extraction"),
+            0,
+        )
+
+    name_a = f"CrossA {uuid.uuid4().hex[:8]}"
+    name_b = f"CrossB {uuid.uuid4().hex[:8]}"
+    cand_a = seed_pending_candidate(admin, uuid.uuid4().hex[:12], name_a)[2]
+    cand_b = seed_pending_candidate(admin, uuid.uuid4().hex[:12], name_b)[2]
+    entities_before_a = int(
+        scalar(admin, "SELECT count(*) FROM core.entities WHERE canonical_name = %s", name_a)
+    )
+    entities_before_b = int(
+        scalar(admin, "SELECT count(*) FROM core.entities WHERE canonical_name = %s", name_b)
+    )
+    cross_accept_request = uuid.uuid4()
+    extra_concurrent_cross_resource(
+        admin,
+        reviewer,
+        f"review.candidate.accept:{cross_accept_request}",
+        accept_sql(cand_a),
+        accept_sql(cand_b),
+        cross_accept_request,
+        "accept",
+    )
+    require(
+        "extra cross accept events",
+        event_count(admin, f"review.candidate.accept:{cross_accept_request}"),
+        1,
+    )
+    status_a = str(
+        scalar(admin, "SELECT status::text FROM core.entity_candidates WHERE id = %s", cand_a)
+    )
+    status_b = str(
+        scalar(admin, "SELECT status::text FROM core.entity_candidates WHERE id = %s", cand_b)
+    )
+    require(
+        "extra cross accept one resolved",
+        (status_a == "resolved") != (status_b == "resolved"),
+        True,
+    )
+    require(
+        "extra cross accept one pending",
+        (status_a == "pending") != (status_b == "pending"),
+        True,
+    )
+    count_a = int(
+        scalar(admin, "SELECT count(*) FROM core.entities WHERE canonical_name = %s", name_a)
+    )
+    count_b = int(
+        scalar(admin, "SELECT count(*) FROM core.entities WHERE canonical_name = %s", name_b)
+    )
+    if status_a == "resolved":
+        require("extra cross accept winner a entity", count_a, entities_before_a + 1)
+        require("extra cross accept loser b entity", count_b, entities_before_b)
+        require("extra cross accept loser b pending", status_b, "pending")
+    else:
+        require("extra cross accept winner b entity", count_b, entities_before_b + 1)
+        require("extra cross accept loser a entity", count_a, entities_before_a)
+        require("extra cross accept loser a pending", status_a, "pending")
+
+    bind_a = seed_pending_candidate(
+        admin, uuid.uuid4().hex[:12], f"CrossBindA {uuid.uuid4().hex[:8]}"
+    )[2]
+    bind_b = seed_pending_candidate(
+        admin, uuid.uuid4().hex[:12], f"CrossBindB {uuid.uuid4().hex[:8]}"
+    )[2]
+    entity_a = insert_active_entity(admin, f"CrossTargetA {uuid.uuid4().hex[:8]}")
+    entity_b = insert_active_entity(admin, f"CrossTargetB {uuid.uuid4().hex[:8]}")
+    cross_bind_request = uuid.uuid4()
+    extra_concurrent_cross_resource(
+        admin,
+        reviewer,
+        f"review.candidate.bind:{cross_bind_request}",
+        bind_sql(bind_a, entity_a),
+        bind_sql(bind_b, entity_b),
+        cross_bind_request,
+        "bind",
+    )
+    require(
+        "extra cross bind events",
+        event_count(admin, f"review.candidate.bind:{cross_bind_request}"),
+        1,
+    )
+    bind_status_a = str(
+        scalar(admin, "SELECT status::text FROM core.entity_candidates WHERE id = %s", bind_a)
+    )
+    bind_status_b = str(
+        scalar(admin, "SELECT status::text FROM core.entity_candidates WHERE id = %s", bind_b)
+    )
+    require(
+        "extra cross bind one resolved",
+        (bind_status_a == "resolved") != (bind_status_b == "resolved"),
+        True,
+    )
+    if bind_status_a == "resolved":
+        require(
+            "extra cross bind winner a target",
+            uuid.UUID(
+                str(
+                    scalar(
+                        admin,
+                        "SELECT resolved_entity_id FROM core.entity_candidates WHERE id = %s",
+                        bind_a,
+                    )
+                )
+            ),
+            entity_a,
+        )
+        require("extra cross bind loser b pending", bind_status_b, "pending")
+        require(
+            "extra cross bind loser b unbound",
+            scalar(
+                admin,
+                "SELECT resolved_entity_id FROM core.entity_candidates WHERE id = %s",
+                bind_b,
+            ),
+            None,
+        )
+    else:
+        require(
+            "extra cross bind winner b target",
+            uuid.UUID(
+                str(
+                    scalar(
+                        admin,
+                        "SELECT resolved_entity_id FROM core.entity_candidates WHERE id = %s",
+                        bind_b,
+                    )
+                )
+            ),
+            entity_b,
+        )
+        require("extra cross bind loser a pending", bind_status_a, "pending")
+        require(
+            "extra cross bind loser a unbound",
+            scalar(
+                admin,
+                "SELECT resolved_entity_id FROM core.entity_candidates WHERE id = %s",
+                bind_a,
+            ),
+            None,
+        )
 
 
 def main() -> None:
