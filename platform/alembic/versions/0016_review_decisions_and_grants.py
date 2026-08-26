@@ -443,6 +443,10 @@ def upgrade() -> None:
             IF NOT FOUND THEN
                 RAISE EXCEPTION 'review_case_missing' USING ERRCODE = '23503';
             END IF;
+            v_existing := audit._existing_write_target(v_key, v_sha);
+            IF v_existing IS NOT NULL THEN
+                RETURN v_existing;
+            END IF;
             IF v_closed IS NOT NULL THEN
                 RAISE EXCEPTION 'review_case_already_closed' USING ERRCODE = '22023';
             END IF;

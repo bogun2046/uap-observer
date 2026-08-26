@@ -154,6 +154,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "uq_entity_grant_live" in migration_16
             and "uq_relation_grant_active" not in migration_16
             and "FOR UPDATE" in migration_16
+            and migration_16.count("_existing_write_target") >= 2
             and "enqueue_job" not in migration_16
             and "publish_" not in migration_16
             and "GRANT EXECUTE ON FUNCTION audit.record_review_decision" in migration_16
@@ -186,6 +187,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "g9_29" in probe3
             and "g9_30" in probe3
             and "g9_35" in probe3
+            and "extra_concurrent_same_request" in probe3
             and "select_analysis_result" not in probe3
             and "create_manual_claim" not in probe3,
             True,

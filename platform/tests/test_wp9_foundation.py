@@ -66,6 +66,8 @@ def test_wp9_3_does_not_open_later_stages() -> None:
     assert "select_analysis_result" not in probe
     assert "create_manual_claim" not in probe
     assert "g9_10" in probe and "g9_28" in probe and "g9_35" in probe
+    assert migration.count("_existing_write_target") >= 2
+    assert "extra_concurrent_same_request" in probe
     assert "sqlite-libs>=3.53.4-r0" in (
         platform_root() / "Dockerfile"
     ).read_text(encoding="utf-8")

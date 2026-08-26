@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import sys
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -693,6 +694,313 @@ def g9_35(
     )
 
 
+def _activity_wait_event(
+    admin: psycopg.Connection[Any], application_name: str
+) -> str | None:
+    with admin.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '')
+              FROM pg_stat_activity
+             WHERE application_name = %s
+             LIMIT 1
+            """,
+            (application_name,),
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None
+    return str(row[0])
+
+
+def _ungranted_locks_for(admin: psycopg.Connection[Any], application_name: str) -> int:
+    with admin.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT count(*)::int
+              FROM pg_locks AS lock_row
+              JOIN pg_stat_activity AS activity
+                ON activity.pid = lock_row.pid
+             WHERE activity.application_name = %s
+               AND NOT lock_row.granted
+            """,
+            (application_name,),
+        )
+        row = cursor.fetchone()
+    if row is None or row[0] is None:
+        return 0
+    return int(row[0])
+
+
+def _waiter_blocked(admin: psycopg.Connection[Any], application_name: str) -> bool:
+    if _ungranted_locks_for(admin, application_name) > 0:
+        return True
+    wait_event = _activity_wait_event(admin, application_name)
+    if wait_event is None:
+        return False
+    lowered = wait_event.lower()
+    return wait_event.startswith("Lock:") or "lock" in lowered
+
+
+def extra_concurrent_same_request(
+    admin: psycopg.Connection[Any],
+    reviewer: uuid.UUID,
+    claim_id: uuid.UUID,
+) -> None:
+    api_setup = connect("uap_api")
+    try:
+        case_id = open_case(api_setup, reviewer, "claim", claim_id)
+    finally:
+        api_setup.close()
+    request = uuid.uuid4()
+    tag = uuid.uuid4().hex[:8]
+    names = (f"wp93-same-{tag}-a", f"wp93-same-{tag}-b")
+    locker_held = threading.Event()
+    release = threading.Event()
+    errors: list[BaseException] = []
+    results: list[uuid.UUID] = []
+
+    def locker() -> None:
+        connection = connect()
+        connection.autocommit = False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id FROM audit.review_cases WHERE id = %s FOR UPDATE",
+                    (case_id,),
+                )
+            locker_held.set()
+            if not release.wait(timeout=20):
+                raise TimeoutError("workers did not block on case lock")
+            connection.commit()
+        except BaseException as error:
+            connection.rollback()
+            errors.append(error)
+        finally:
+            connection.close()
+
+    def worker(name: str) -> None:
+        if not locker_held.wait(timeout=10):
+            errors.append(TimeoutError("locker did not acquire case lock"))
+            return
+        connection = connect("uap_api")
+        connection.autocommit = False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT set_config('application_name', %s, false)",
+                    (name,),
+                )
+                for statement, params in [
+                    *guc(reviewer, request),
+                    decide_sql(case_id, "approve"),
+                ]:
+                    cursor.execute(statement, params)
+                row = cursor.fetchone()
+            connection.commit()
+            if row is None or row[0] is None:
+                raise RuntimeError("concurrent same request returned no id")
+            results.append(uuid.UUID(str(row[0])))
+        except BaseException as error:
+            connection.rollback()
+            errors.append(error)
+        finally:
+            connection.close()
+
+    locker_thread = threading.Thread(target=locker)
+    locker_thread.start()
+    if not locker_held.wait(timeout=10):
+        release.set()
+        locker_thread.join(timeout=5)
+        raise RuntimeError("locker failed to hold case row")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(worker, name) for name in names]
+        deadline = time.monotonic() + 15
+        blocked = False
+        while time.monotonic() < deadline:
+            if all(_waiter_blocked(admin, name) for name in names):
+                blocked = True
+                break
+            time.sleep(0.05)
+        require("extra concurrent same request waiters blocked", blocked, True)
+        release.set()
+        locker_thread.join(timeout=10)
+        for future in futures:
+            future.result(timeout=30)
+    require("extra concurrent same request errors", [str(item) for item in errors], [])
+    require("extra concurrent same request both", len(results), 2)
+    require("extra concurrent same request same id", results[0], results[1])
+    require(
+        "extra concurrent same request decisions",
+        int(
+            scalar(
+                admin,
+                "SELECT count(*) FROM audit.review_decisions WHERE review_case_id = %s",
+                case_id,
+            )
+        ),
+        1,
+    )
+    grants = claim_grants(admin, claim_id)
+    require("extra concurrent same request grants", len(grants), 1)
+    require("extra concurrent same request active", grants[0][2], "active")
+    require(
+        "extra concurrent same request outbox",
+        int(
+            scalar(
+                admin,
+                """
+                SELECT count(*) FROM ops.outbox_events
+                 WHERE payload ->> 'subject_id' = %s
+                   AND event_type = 'publication.granted'
+                """,
+                str(claim_id),
+            )
+        ),
+        1,
+    )
+    require(
+        "extra concurrent same request events",
+        int(
+            scalar(
+                admin,
+                "SELECT count(*) FROM audit.audit_events WHERE event_key = %s",
+                f"review.decision:{request}",
+            )
+        ),
+        1,
+    )
+
+
+def extra_concurrent_payload_conflict(
+    admin: psycopg.Connection[Any],
+    reviewer: uuid.UUID,
+    claim_id: uuid.UUID,
+) -> None:
+    api_setup = connect("uap_api")
+    try:
+        case_id = open_case(api_setup, reviewer, "claim", claim_id)
+    finally:
+        api_setup.close()
+    request = uuid.uuid4()
+    tag = uuid.uuid4().hex[:8]
+    names = (f"wp93-conf-{tag}-a", f"wp93-conf-{tag}-b")
+    reasons = (REASON, "a conflicting approve reason")
+    locker_held = threading.Event()
+    release = threading.Event()
+    errors: list[BaseException] = []
+    ids: list[uuid.UUID] = []
+    denied: list[tuple[str, str]] = []
+
+    def locker() -> None:
+        connection = connect()
+        connection.autocommit = False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id FROM audit.review_cases WHERE id = %s FOR UPDATE",
+                    (case_id,),
+                )
+            locker_held.set()
+            if not release.wait(timeout=20):
+                raise TimeoutError("conflict workers did not block on case lock")
+            connection.commit()
+        except BaseException as error:
+            connection.rollback()
+            errors.append(error)
+        finally:
+            connection.close()
+
+    def worker(name: str, reason: str) -> None:
+        if not locker_held.wait(timeout=10):
+            errors.append(TimeoutError("locker did not acquire case lock"))
+            return
+        connection = connect("uap_api")
+        connection.autocommit = False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT set_config('application_name', %s, false)",
+                    (name,),
+                )
+                for statement, params in [
+                    *guc(reviewer, request),
+                    decide_sql(case_id, "approve", reason),
+                ]:
+                    cursor.execute(statement, params)
+                row = cursor.fetchone()
+            connection.commit()
+            if row is None or row[0] is None:
+                raise RuntimeError("concurrent conflict returned no id")
+            ids.append(uuid.UUID(str(row[0])))
+        except psycopg.Error as error:
+            connection.rollback()
+            primary = ""
+            if error.diag is not None and error.diag.message_primary:
+                primary = error.diag.message_primary
+            denied.append((str(error.sqlstate), primary))
+        except BaseException as error:
+            connection.rollback()
+            errors.append(error)
+        finally:
+            connection.close()
+
+    locker_thread = threading.Thread(target=locker)
+    locker_thread.start()
+    if not locker_held.wait(timeout=10):
+        release.set()
+        locker_thread.join(timeout=5)
+        raise RuntimeError("locker failed to hold case row")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(worker, name, reason) for name, reason in zip(names, reasons, strict=True)
+        ]
+        deadline = time.monotonic() + 15
+        blocked = False
+        while time.monotonic() < deadline:
+            if all(_waiter_blocked(admin, name) for name in names):
+                blocked = True
+                break
+            time.sleep(0.05)
+        require("extra concurrent conflict waiters blocked", blocked, True)
+        release.set()
+        locker_thread.join(timeout=10)
+        for future in futures:
+            future.result(timeout=30)
+    require("extra concurrent conflict locker errors", [str(item) for item in errors], [])
+    require("extra concurrent conflict winner", len(ids), 1)
+    require("extra concurrent conflict loser count", len(denied), 1)
+    require("extra concurrent conflict state", denied[0][0], "23505")
+    require(
+        "extra concurrent conflict code",
+        denied[0][1],
+        "review_idempotency_payload_conflict",
+    )
+    require(
+        "extra concurrent conflict decisions",
+        int(
+            scalar(
+                admin,
+                "SELECT count(*) FROM audit.review_decisions WHERE review_case_id = %s",
+                case_id,
+            )
+        ),
+        1,
+    )
+    require("extra concurrent conflict grants", len(claim_grants(admin, claim_id)), 1)
+    require(
+        "extra concurrent conflict events",
+        int(
+            scalar(
+                admin,
+                "SELECT count(*) FROM audit.audit_events WHERE event_key = %s",
+                f"review.decision:{request}",
+            )
+        ),
+        1,
+    )
+
+
 def extra_cases(
     admin: psycopg.Connection[Any],
     api: psycopg.Connection[Any],
@@ -1118,8 +1426,16 @@ def main() -> None:
         g9_16(api, reviewer)
         g9_27(admin, api, reviewer, extras[5][1])
         g9_28(admin, reviewer, extras[6][1])
-        g9_29_30(admin, api, reviewer, extras[7][1], seed_subjects(admin, "g929")[1])
-        g9_35(admin, api, reviewer, seed_subjects(admin, "g935")[1])
+        g9_29_30(
+            admin, api, reviewer, extras[7][1], seed_subjects(admin, uuid.uuid4().hex[:8])[1]
+        )
+        g9_35(admin, api, reviewer, seed_subjects(admin, uuid.uuid4().hex[:8])[1])
+        extra_concurrent_same_request(
+            admin, reviewer, seed_subjects(admin, uuid.uuid4().hex[:8])[1]
+        )
+        extra_concurrent_payload_conflict(
+            admin, reviewer, seed_subjects(admin, uuid.uuid4().hex[:8])[1]
+        )
         extra_cases(
             admin, api, reviewer, other, senior, document_id, claim_id, entity_id
         )
