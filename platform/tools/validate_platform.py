@@ -153,6 +153,7 @@ def evaluate(root: Path) -> list[Check]:
                 and len(seaweedfs_commit) == 40
                 and seaweedfs_base_image.startswith("chrislusf/seaweedfs:4.41@sha256:")
                 and trivy_image.startswith("aquasec/trivy:0.73.0@sha256:")
+                and "sqlite-libs>=3.53.4-r0" in dockerfile
                 and all(
                     "@sha256:" in image
                     for image in (
