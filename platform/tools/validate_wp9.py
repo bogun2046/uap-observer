@@ -152,6 +152,7 @@ def evaluate(platform: Path) -> list[Check]:
     decision_tests = (platform / "tests/test_wp9_decisions.py").read_text(encoding="utf-8")
     promotion_tests = (platform / "tests/test_wp9_promotion.py").read_text(encoding="utf-8")
     makefile = (platform / "Makefile").read_text(encoding="utf-8")
+    dockerfile = (platform / "Dockerfile").read_text(encoding="utf-8")
     ci = (repository / ".github/workflows/platform-ci.yml").read_text(encoding="utf-8")
     chain = (platform / "scripts/verify-migration-chain.sh").read_text(encoding="utf-8")
     worker = (platform / "src/uap_platform/knowledge/worker.py").read_text(encoding="utf-8")
@@ -216,8 +217,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "GRANT EXECUTE ON FUNCTION audit.accept_entity_candidate" in migration_17
             and "GRANT EXECUTE ON FUNCTION audit.bind_entity_candidate" in migration_17
             and "REVOKE INSERT, UPDATE, DELETE ON core.analysis_selections" in migration_17
-            and "sqlite-libs>=3.53.4-r0"
-            in (platform / "Dockerfile").read_text(encoding="utf-8"),
+            and "sqlite-libs>=3.53.4-r0" in dockerfile
+            and "libcrypto3>=3.5.8-r0" in dockerfile
+            and "libssl3>=3.5.8-r0" in dockerfile,
             True,
         ),
         check(

@@ -217,7 +217,7 @@ jobs:
           image=$(sed -n 's/^UAP_GITLEAKS_IMAGE=//p' platform/.env.versions)
           docker run --rm -v "$PWD:/repo" "$image" detect --source=/repo --redact --no-banner
       - name: Deliberate security failure injection
-        if: ${{ inputs.failure_injection }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_injection }}
         run: exit 86
 
   integration:

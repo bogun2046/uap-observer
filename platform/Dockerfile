@@ -10,7 +10,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
     PATH=/app/.venv/bin:${PATH}
 
-RUN apk add --no-cache --upgrade 'sqlite-libs>=3.53.4-r0' \
+RUN apk add --no-cache --upgrade \
+        'sqlite-libs>=3.53.4-r0' \
+        'libcrypto3>=3.5.8-r0' \
+        'libssl3>=3.5.8-r0' \
     && addgroup -S -g 10001 uap \
     && adduser -S -D -H -u 10001 -G uap uap \
     && python -m pip install --no-cache-dir "uv==${UV_VERSION}"

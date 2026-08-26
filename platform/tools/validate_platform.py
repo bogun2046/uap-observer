@@ -128,6 +128,7 @@ def evaluate(root: Path) -> list[Check]:
     seaweedfs_base_image = versions.get("UAP_SEAWEEDFS_BASE_IMAGE", "")
     trivy_image = versions.get("UAP_TRIVY_IMAGE", "")
     postgres_dockerfile = (root / "postgres/Dockerfile").read_text(encoding="utf-8")
+    object_store_dockerfile = (root / "object-store/Dockerfile").read_text(encoding="utf-8")
     image_scan = (root / "scripts/scan-images.sh").read_text(encoding="utf-8")
     checks.extend(
         [
@@ -154,6 +155,12 @@ def evaluate(root: Path) -> list[Check]:
                 and seaweedfs_base_image.startswith("chrislusf/seaweedfs:4.41@sha256:")
                 and trivy_image.startswith("aquasec/trivy:0.73.0@sha256:")
                 and "sqlite-libs>=3.53.4-r0" in dockerfile
+                and "libcrypto3>=3.5.8-r0" in dockerfile
+                and "libssl3>=3.5.8-r0" in dockerfile
+                and "libcrypto3>=3.5.8-r0" in postgres_dockerfile
+                and "libssl3>=3.5.8-r0" in postgres_dockerfile
+                and "libcrypto3>=3.5.8-r0" in object_store_dockerfile
+                and "libssl3>=3.5.8-r0" in object_store_dockerfile
                 and all(
                     "@sha256:" in image
                     for image in (
@@ -335,7 +342,9 @@ def evaluate(root: Path) -> list[Check]:
                     )
                 )
                 and "--ignore-unfixed" not in image_scan
-                and "failure_injection" in workflow,
+                and "failure_injection" in workflow
+                and "github.event_name == 'workflow_dispatch'" in workflow
+                and "inputs.failure_injection" in workflow,
                 True,
             ),
             check(

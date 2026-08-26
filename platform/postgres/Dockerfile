@@ -6,6 +6,7 @@ FROM ${POSTGRES_IMAGE}
 # helper is unnecessary in the deployed image.
 USER root
 RUN rm -f /usr/local/bin/gosu \
+    && apk add --no-cache --upgrade 'libcrypto3>=3.5.8-r0' 'libssl3>=3.5.8-r0' \
     && if apk info -e sqlite-libs >/dev/null 2>&1; then \
          apk add --no-cache --upgrade sqlite-libs; \
        fi

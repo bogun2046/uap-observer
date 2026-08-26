@@ -68,9 +68,10 @@ def test_wp9_3_does_not_open_later_stages() -> None:
     assert "g9_10" in probe and "g9_28" in probe and "g9_35" in probe
     assert migration.count("_existing_write_target") >= 2
     assert "extra_concurrent_same_request" in probe
-    assert "sqlite-libs>=3.53.4-r0" in (
-        platform_root() / "Dockerfile"
-    ).read_text(encoding="utf-8")
+    dockerfile = (platform_root() / "Dockerfile").read_text(encoding="utf-8")
+    assert "sqlite-libs>=3.53.4-r0" in dockerfile
+    assert "libcrypto3>=3.5.8-r0" in dockerfile
+    assert "libssl3>=3.5.8-r0" in dockerfile
 
 
 def test_wp9_4_does_not_open_later_stages() -> None:
@@ -94,6 +95,7 @@ def test_wp9_4_does_not_open_later_stages() -> None:
     assert "extra_concurrent_same_request" in probe
     assert "extra_concurrent_cross_resource" in probe
     assert "EVENT_KEY_LOCK_CLASS = 9175" in probe
-    assert "sqlite-libs>=3.53.4-r0" in (
-        platform_root() / "Dockerfile"
-    ).read_text(encoding="utf-8")
+    dockerfile = (platform_root() / "Dockerfile").read_text(encoding="utf-8")
+    assert "sqlite-libs>=3.53.4-r0" in dockerfile
+    assert "libcrypto3>=3.5.8-r0" in dockerfile
+    assert "libssl3>=3.5.8-r0" in dockerfile

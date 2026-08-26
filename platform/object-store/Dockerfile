@@ -15,4 +15,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/weed ./
 
 FROM ${UAP_SEAWEEDFS_BASE_IMAGE}
 
+USER root
+RUN apk add --no-cache --upgrade 'libcrypto3>=3.5.8-r0' 'libssl3>=3.5.8-r0'
 COPY --from=builder --chmod=0755 /out/weed /usr/bin/weed
