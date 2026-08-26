@@ -35,7 +35,7 @@ from tools.wp9_2_runtime_probe import (  # noqa: E402
     sqlerror_tx,
 )
 
-CURRENT_HEAD = "0016_review_decisions_and_grants"
+CURRENT_HEAD = "0017_selection_and_promotion"
 REASON = "approve this reviewed claim"
 REVISE_REASON = "revise this reviewed claim"
 WITHDRAW_REASON = "withdraw this reviewed grant"

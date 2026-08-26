@@ -30,7 +30,7 @@ from uap_platform.knowledge.job_types import claimable_job_types  # noqa: E402
 from uap_platform.knowledge.reasons import KNOWLEDGE_RELATION_TASK_NOT_IN_WP8  # noqa: E402
 from uap_platform.knowledge.worker import KnowledgeJobDispatcher  # noqa: E402
 
-CURRENT_HEAD = "0016_review_decisions_and_grants"
+CURRENT_HEAD = "0017_selection_and_promotion"
 
 
 def g8_16c(

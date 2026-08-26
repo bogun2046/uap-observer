@@ -226,7 +226,7 @@ def test_wp8_5_merge_state_machine_present() -> None:
     assert "SELECT coalesce(wait_event_type" not in g8_18
     assert "if payload is None:" not in probe5
     assert "name[:8]" not in probe5
-    assert 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe5
+    assert 'CURRENT_HEAD = "0017_selection_and_promotion"' in probe5
 
 
 def test_wp8_6_relation_reject_present() -> None:
@@ -246,12 +246,12 @@ def test_wp8_6_relation_reject_present() -> None:
     assert "def g8_16c" in probe6
     assert "knowledge_relation_task_not_in_wp8" in probe6
     assert "name[:8]" not in probe6
-    assert 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe6
+    assert 'CURRENT_HEAD = "0017_selection_and_promotion"' in probe6
     orchestrator = (platform_root() / "tools/wp8_runtime_probe.py").read_text(encoding="utf-8")
     assert "wp3_runtime_probe.py" in orchestrator
     assert "wp8_6_runtime_probe.py" in orchestrator
     probe1 = (platform_root() / "tools/wp8_1_runtime_probe.py").read_text(encoding="utf-8")
-    assert 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe1
+    assert 'CURRENT_HEAD = "0017_selection_and_promotion"' in probe1
 
 
 def test_wp8_3_drain_closes_prior_queued_resolve_claims() -> None:

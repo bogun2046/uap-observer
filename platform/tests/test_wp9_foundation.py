@@ -71,3 +71,26 @@ def test_wp9_3_does_not_open_later_stages() -> None:
     assert "sqlite-libs>=3.53.4-r0" in (
         platform_root() / "Dockerfile"
     ).read_text(encoding="utf-8")
+
+
+def test_wp9_4_does_not_open_later_stages() -> None:
+    migration = (
+        platform_root() / "alembic/versions/0017_selection_and_promotion.py"
+    ).read_text(encoding="utf-8")
+    probe = (platform_root() / "tools/wp9_4_runtime_probe.py").read_text(encoding="utf-8")
+    assert "CREATE FUNCTION audit.select_analysis_result" in migration
+    assert "CREATE FUNCTION audit.accept_entity_candidate" in migration
+    assert "CREATE FUNCTION audit.bind_entity_candidate" in migration
+    assert "CREATE FUNCTION audit.apply_entity_merge" not in migration
+    assert "CREATE FUNCTION audit.create_manual_claim" not in migration
+    assert "CREATE TABLE" not in migration
+    assert "enqueue_job" not in migration
+    assert "core.merge_entities" not in migration
+    assert "apply_entity_merge" not in probe
+    assert "create_manual_claim" not in probe
+    assert "g9_17" in probe and "g9_19" in probe and "g9_36" in probe
+    assert migration.count("_existing_write_target") >= 6
+    assert "extra_concurrent_same_request" in probe
+    assert "sqlite-libs>=3.53.4-r0" in (
+        platform_root() / "Dockerfile"
+    ).read_text(encoding="utf-8")

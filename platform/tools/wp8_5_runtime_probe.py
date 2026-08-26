@@ -30,7 +30,7 @@ from tools.wp8_1_runtime_probe import (  # noqa: E402
     sqlstate,
 )
 
-CURRENT_HEAD = "0016_review_decisions_and_grants"
+CURRENT_HEAD = "0017_selection_and_promotion"
 MERGE_SIGNATURE = "core.merge_entities(uuid, uuid, uuid, text)"
 REVERSE_SIGNATURE = "core.reverse_entity_merge(uuid, uuid, text)"
 CANONICAL_SIGNATURE = "core.canonical_entity_id(uuid)"

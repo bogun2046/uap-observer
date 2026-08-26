@@ -49,7 +49,7 @@ from uap_platform.object_registry import (  # noqa: E402
 )
 from uap_platform.object_store_init import build_client  # noqa: E402
 
-CURRENT_HEAD = "0016_review_decisions_and_grants"
+CURRENT_HEAD = "0017_selection_and_promotion"
 FIXTURE_TEXT = "The craft hovered over the hangar at dawn."
 CLAIM_TEXT = "A craft hovered over the hangar."
 _FROZEN_G8_13_CODES = {

@@ -1,4 +1,4 @@
-"""Validate WP9.1-WP9.3 freeze. Later WP9.x functions must be absent."""
+"""Validate WP9.1-WP9.4 freeze. Later WP9.x functions must be absent."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ WP92_HEAD = "0015_review_case_lifecycle"
 WP92_PARENT = WP91_HEAD
 WP93_HEAD = "0016_review_decisions_and_grants"
 WP93_PARENT = WP92_HEAD
+WP94_HEAD = "0017_selection_and_promotion"
+WP94_PARENT = WP93_HEAD
 REQUIRED_FILES = (
     "docs/wp9/implementation-ticket.md",
     "docs/wp9/acceptance-ticket.md",
@@ -22,28 +24,30 @@ REQUIRED_FILES = (
     "docs/wp9/adr/0014-review-session-and-write-authority.md",
     "docs/wp9/adr/0015-review-case-and-decision-lifecycle.md",
     "docs/wp9/adr/0016-publication-grants-and-outbox.md",
+    "docs/wp9/adr/0017-analysis-selection-and-candidate-promotion.md",
     "platform/alembic/versions/0014_review_session_authority.py",
     "platform/alembic/versions/0015_review_case_lifecycle.py",
     "platform/alembic/versions/0016_review_decisions_and_grants.py",
+    "platform/alembic/versions/0017_selection_and_promotion.py",
     "platform/src/uap_platform/review/__init__.py",
     "platform/src/uap_platform/review/errors.py",
     "platform/src/uap_platform/review/session.py",
     "platform/src/uap_platform/review/cases.py",
     "platform/src/uap_platform/review/canonical.py",
     "platform/src/uap_platform/review/decisions.py",
+    "platform/src/uap_platform/review/promotion.py",
     "platform/tests/test_wp9_session.py",
     "platform/tests/test_wp9_cases.py",
     "platform/tests/test_wp9_decisions.py",
+    "platform/tests/test_wp9_promotion.py",
     "platform/tests/test_wp9_foundation.py",
     "platform/tools/validate_wp9.py",
     "platform/tools/wp9_1_runtime_probe.py",
     "platform/tools/wp9_2_runtime_probe.py",
     "platform/tools/wp9_3_runtime_probe.py",
+    "platform/tools/wp9_4_runtime_probe.py",
 )
 FORBIDDEN_STAGE_TOKENS = (
-    "CREATE FUNCTION audit.select_analysis_result",
-    "CREATE FUNCTION audit.accept_entity_candidate",
-    "CREATE FUNCTION audit.bind_entity_candidate",
     "CREATE FUNCTION audit.apply_entity_merge",
     "CREATE FUNCTION audit.apply_entity_merge_reverse",
     "CREATE FUNCTION audit.create_manual_claim",
@@ -57,12 +61,16 @@ FORBIDDEN_GRANTS = (
     "close_review_case(uuid, text) TO uap_worker",
     "record_review_decision(uuid, audit.review_decision, text, jsonb) TO uap_worker",
     "record_review_decision(uuid, audit.review_decision, text, jsonb) TO uap_publisher",
+    "select_analysis_result(uuid, text) TO uap_worker",
+    "accept_entity_candidate(uuid, text) TO uap_worker",
+    "bind_entity_candidate(uuid, uuid, text) TO uap_worker",
     "GRANT EXECUTE ON FUNCTION ops.enqueue_publication_outbox",
     "GRANT EXECUTE ON FUNCTION audit.append_audit_event",
     "GRANT INSERT ON audit.review_cases",
     "GRANT UPDATE ON audit.review_cases",
     "GRANT INSERT ON TABLE audit.review_cases",
     "GRANT INSERT ON TABLE ops.outbox_events",
+    "GRANT EXECUTE ON FUNCTION core.merge_entities",
 )
 
 
@@ -97,9 +105,15 @@ def evaluate(platform: Path) -> list[Check]:
     migration_16 = (platform / "alembic/versions/0016_review_decisions_and_grants.py").read_text(
         encoding="utf-8"
     )
+    migration_17 = (platform / "alembic/versions/0017_selection_and_promotion.py").read_text(
+        encoding="utf-8"
+    )
     session_py = (platform / "src/uap_platform/review/session.py").read_text(encoding="utf-8")
     cases_py = (platform / "src/uap_platform/review/cases.py").read_text(encoding="utf-8")
     decisions_py = (platform / "src/uap_platform/review/decisions.py").read_text(
+        encoding="utf-8"
+    )
+    promotion_py = (platform / "src/uap_platform/review/promotion.py").read_text(
         encoding="utf-8"
     )
     canonical_py = (platform / "src/uap_platform/review/canonical.py").read_text(
@@ -109,23 +123,33 @@ def evaluate(platform: Path) -> list[Check]:
     probe1 = (platform / "tools/wp9_1_runtime_probe.py").read_text(encoding="utf-8")
     probe2 = (platform / "tools/wp9_2_runtime_probe.py").read_text(encoding="utf-8")
     probe3 = (platform / "tools/wp9_3_runtime_probe.py").read_text(encoding="utf-8")
+    probe4 = (platform / "tools/wp9_4_runtime_probe.py").read_text(encoding="utf-8")
     tests = (platform / "tests/test_wp9_session.py").read_text(encoding="utf-8")
     case_tests = (platform / "tests/test_wp9_cases.py").read_text(encoding="utf-8")
     decision_tests = (platform / "tests/test_wp9_decisions.py").read_text(encoding="utf-8")
+    promotion_tests = (platform / "tests/test_wp9_promotion.py").read_text(encoding="utf-8")
     makefile = (platform / "Makefile").read_text(encoding="utf-8")
     ci = (repository / ".github/workflows/platform-ci.yml").read_text(encoding="utf-8")
     chain = (platform / "scripts/verify-migration-chain.sh").read_text(encoding="utf-8")
+    worker = (platform / "src/uap_platform/knowledge/worker.py").read_text(encoding="utf-8")
+    migration_11 = (platform / "alembic/versions/0011_claim_materialization.py").read_text(
+        encoding="utf-8"
+    )
+    migration_12 = (platform / "alembic/versions/0012_entity_materialization.py").read_text(
+        encoding="utf-8"
+    )
     missing = [path for path in REQUIRED_FILES if not (repository / path).is_file()]
-    combined = migration_14 + "\n" + migration_15 + "\n" + migration_16
+    combined = "\n".join([migration_14, migration_15, migration_16, migration_17])
     forbidden_hits = [token for token in FORBIDDEN_STAGE_TOKENS if token in combined]
     grant_hits = [token for token in FORBIDDEN_GRANTS if token in combined]
+    resolve_sources = migration_11 + "\n" + migration_12 + "\n" + worker
     return [
         check("required_files", not missing, missing, []),
         check(
-            "unique_wp9_3_head",
-            heads == [WP93_HEAD] and revision_ids[:2] == [WP93_HEAD, WP93_PARENT],
+            "unique_wp9_4_head",
+            heads == [WP94_HEAD] and revision_ids[:2] == [WP94_HEAD, WP94_PARENT],
             {"heads": heads, "prefix": revision_ids[:2]},
-            {"heads": [WP93_HEAD], "prefix": [WP93_HEAD, WP93_PARENT]},
+            {"heads": [WP94_HEAD], "prefix": [WP94_HEAD, WP94_PARENT]},
         ),
         check(
             "migration_links",
@@ -135,32 +159,46 @@ def evaluate(platform: Path) -> list[Check]:
             and f'down_revision = "{WP92_PARENT}"' in migration_15
             and f'revision = "{WP93_HEAD}"' in migration_16
             and f'down_revision = "{WP93_PARENT}"' in migration_16
+            and f'revision = "{WP94_HEAD}"' in migration_17
+            and f'down_revision = "{WP94_PARENT}"' in migration_17
             and "CREATE TABLE" not in migration_14
             and "CREATE TABLE" not in migration_15
             and "CREATE TABLE" not in migration_16
-            and "CREATE FUNCTION audit.record_review_decision" not in migration_15,
+            and "CREATE TABLE" not in migration_17
+            and "CREATE FUNCTION audit.record_review_decision" not in migration_15
+            and "CREATE FUNCTION audit.select_analysis_result" not in migration_16,
             True,
         ),
         check(
-            "decision_grant_contract",
-            "CREATE FUNCTION audit.record_review_decision" in migration_16
-            and "CREATE FUNCTION ops.enqueue_publication_outbox" in migration_16
-            and "review.decision:" in migration_16
-            and "review_self_review_denied" in migration_16
-            and "review_structured_changes_unsupported" in migration_16
-            and "review_grant_superseded_blocks_downgrade" in migration_16
-            and "uq_document_grant_live" in migration_16
-            and "uq_claim_grant_live" in migration_16
-            and "uq_entity_grant_live" in migration_16
-            and "uq_relation_grant_active" not in migration_16
-            and "FOR UPDATE" in migration_16
-            and migration_16.count("_existing_write_target") >= 2
-            and "enqueue_job" not in migration_16
-            and "publish_" not in migration_16
-            and "GRANT EXECUTE ON FUNCTION audit.record_review_decision" in migration_16
-            and "GRANT EXECUTE ON FUNCTION ops.enqueue_publication_outbox" not in migration_16
+            "selection_promotion_contract",
+            "CREATE FUNCTION audit.select_analysis_result" in migration_17
+            and "CREATE FUNCTION audit.accept_entity_candidate" in migration_17
+            and "CREATE FUNCTION audit.bind_entity_candidate" in migration_17
+            and "review.selection:" in migration_17
+            and "review.candidate.accept:" in migration_17
+            and "review.candidate.bind:" in migration_17
+            and "review_selection_type_unsupported" in migration_17
+            and "review_selection_not_valid" in migration_17
+            and "review_candidate_evidence_missing" in migration_17
+            and "review_bind_target_not_canonical" in migration_17
+            and "FOR UPDATE" in migration_17
+            and migration_17.count("_existing_write_target") >= 6
+            and "pg_advisory_xact_lock" in migration_17
+            and "enqueue_job" not in migration_17
+            and "publish_" not in migration_17
+            and "core.merge_entities" not in migration_17
+            and "GRANT EXECUTE ON FUNCTION audit.select_analysis_result" in migration_17
+            and "GRANT EXECUTE ON FUNCTION audit.accept_entity_candidate" in migration_17
+            and "GRANT EXECUTE ON FUNCTION audit.bind_entity_candidate" in migration_17
+            and "REVOKE INSERT, UPDATE, DELETE ON core.analysis_selections" in migration_17
             and "sqlite-libs>=3.53.4-r0"
             in (platform / "Dockerfile").read_text(encoding="utf-8"),
+            True,
+        ),
+        check(
+            "wp8_resolve_ignores_selections",
+            "JOIN core.analysis_selections" not in resolve_sources
+            and "FROM core.analysis_selections" not in resolve_sources,
             True,
         ),
         check("no_later_wp9_functions", not forbidden_hits, forbidden_hits, []),
@@ -173,6 +211,12 @@ def evaluate(platform: Path) -> list[Check]:
             and "record_review_decision" not in cases_py
             and "audit.record_review_decision" in decisions_py
             and "select_analysis_result" not in decisions_py
+            and "audit.select_analysis_result" in promotion_py
+            and "audit.accept_entity_candidate" in promotion_py
+            and "audit.bind_entity_candidate" in promotion_py
+            and "p_actor_id" not in promotion_py
+            and "apply_entity_merge" not in promotion_py
+            and "create_manual_claim" not in promotion_py
             and 'format(value, "f")' in canonical_py
             and "parse_int=Decimal" in canonical_py,
             True,
@@ -182,21 +226,25 @@ def evaluate(platform: Path) -> list[Check]:
             "g9_01" in probe1
             and "g9_06" in probe2
             and "g9_10" in probe3
-            and "g9_11" in probe3
-            and "g9_28" in probe3
-            and "g9_29" in probe3
-            and "g9_30" in probe3
-            and "g9_35" in probe3
-            and "extra_concurrent_same_request" in probe3
-            and "select_analysis_result" not in probe3
-            and "create_manual_claim" not in probe3,
+            and "g9_17" in probe4
+            and "g9_18" in probe4
+            and "g9_19" in probe4
+            and "g9_36" in probe4
+            and "extra_concurrent_same_request" in probe4
+            and "apply_entity_merge" not in probe4
+            and "create_manual_claim" not in probe4
+            and "select_analysis_result" not in probe3,
             True,
         ),
         check(
             "frozen_error_tokens",
             "review_self_review_denied" in errors_py
             and "review_structured_changes_unsupported" in errors_py
-            and "review_grant_not_active" in errors_py,
+            and "review_grant_not_active" in errors_py
+            and "review_selection_type_unsupported" in errors_py
+            and "review_selection_not_valid" in errors_py
+            and "review_candidate_evidence_missing" in errors_py
+            and "review_bind_target_not_canonical" in errors_py,
             True,
         ),
         check(
@@ -206,7 +254,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "wp9_1_runtime_probe.py" in ci
             and "wp9_2_runtime_probe.py" in ci
             and "wp9_3_runtime_probe.py" in ci
-            and f'= "{WP93_HEAD}"' in chain
+            and "wp9_4_runtime_probe.py" in ci
+            and f'= "{WP94_HEAD}"' in chain
             and '= "50"' in chain
             and "review_grant_superseded_blocks_downgrade" in chain,
             True,
@@ -216,6 +265,8 @@ def evaluate(platform: Path) -> list[Check]:
             "require_active_role" in tests
             and "open_review_case" in case_tests
             and "record_review_decision" in decision_tests
+            and "select_analysis_result" in promotion_tests
+            and "accept_entity_candidate" in promotion_tests
             and "FROZEN_COMPACT_SHA256" in case_tests,
             True,
         ),
@@ -228,8 +279,8 @@ def main() -> None:
     print(json.dumps([asdict(item) for item in results], indent=2))
     failed = [item.name for item in results if not item.passed]
     if failed:
-        raise SystemExit("WP9.3 contract failed: " + ", ".join(failed))
-    print("WP9.3 contract passed")
+        raise SystemExit("WP9.4 contract failed: " + ", ".join(failed))
+    print("WP9.4 contract passed")
 
 
 if __name__ == "__main__":

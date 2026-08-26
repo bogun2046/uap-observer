@@ -49,12 +49,17 @@ def test_structured_changes_code_is_frozen() -> None:
     assert mapped.sqlstate == "22023"
 
 
-def test_wp9_3_package_has_no_later_stage_functions() -> None:
+def test_wp9_3_clients_do_not_open_selection_stage() -> None:
     root = Path(__file__).resolve().parents[1] / "src/uap_platform/review"
-    text = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in root.glob("*.py")
+        if path.name in {"cases.py", "decisions.py", "session.py"}
+    )
     for token in (
         "select_analysis_result",
         "accept_entity_candidate",
+        "bind_entity_candidate",
         "apply_entity_merge",
         "create_manual_claim",
         "bind_claim_subject",
