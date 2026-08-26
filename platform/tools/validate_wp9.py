@@ -345,7 +345,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "extra_concurrent_same_request" in probe5
             and "extra_concurrent_cross_resource" in probe5
             and "EVENT_KEY_LOCK_CLASS = 9175" in probe5
-            and "g8_16c" in probe5
+            and "g8_16c" not in probe5
             and "create_manual_claim" not in probe5
             and "review_role_denied" in probe5
             and "review_idempotency_payload_conflict" in probe5

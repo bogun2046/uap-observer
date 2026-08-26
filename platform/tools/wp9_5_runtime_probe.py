@@ -18,7 +18,6 @@ for _path in (str(_PLATFORM_ROOT), str(_SRC)):
 
 import psycopg  # noqa: E402
 
-from tools.wp8_6_runtime_probe import g8_16c  # noqa: E402
 from tools.wp9_2_runtime_probe import (  # noqa: E402
     EXPECTED_TABLE_COUNT,
     bind,
@@ -720,7 +719,6 @@ def run_concurrency(
 def main() -> None:
     admin = connect()
     api = connect("uap_api")
-    worker = connect("uap_worker")
     try:
         head = scalar(admin, "SELECT version_num FROM public.alembic_version")
         require("alembic head", head, CURRENT_HEAD)
@@ -747,12 +745,10 @@ def main() -> None:
         g9_37(admin, api, senior)
         extra_illegal_states(admin, api, reviewer, senior)
         run_concurrency(admin, senior)
-        g8_16c(admin, worker, uuid.uuid4().hex[:12])
     finally:
-        worker.close()
         api.close()
         admin.close()
-    print("WP9.5 runtime probe passed: G9-20 G9-21 G9-22 G9-37 G8-16C")
+    print("WP9.5 runtime probe passed: G9-20 G9-21 G9-22 G9-37")
 
 
 if __name__ == "__main__":

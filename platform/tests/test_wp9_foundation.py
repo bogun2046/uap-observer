@@ -120,7 +120,8 @@ def test_wp9_5_does_not_open_later_stages() -> None:
     assert "g9_20" in probe and "g9_21" in probe and "g9_22" in probe and "g9_37" in probe
     assert "extra_concurrent_same_request" in probe
     assert "extra_concurrent_cross_resource" in probe
-    assert "g8_16c" in probe
+    assert "g8_16c" not in probe
+    assert "WP9.5 runtime probe passed: G9-20 G9-21 G9-22 G9-37" in probe
     assert migration.count("pg_advisory_xact_lock(9175, hashtext(v_key))") >= 2
     assert "EVENT_KEY_LOCK_CLASS = 9175" in probe
     assert probe.count("LIKE 'publish_%%'") == 2
