@@ -21,6 +21,15 @@ REVIEW_CASE_MISSING: Final = "review_case_missing"
 REVIEW_ASSIGNEE_INVALID: Final = "review_assignee_invalid"
 REVIEW_CASE_NOT_ASSIGNABLE: Final = "review_case_not_assignable"
 REVIEW_CASE_ALREADY_CLOSED: Final = "review_case_already_closed"
+REVIEW_SELF_REVIEW_DENIED: Final = "review_self_review_denied"
+REVIEW_STRUCTURED_CHANGES_UNSUPPORTED: Final = "review_structured_changes_unsupported"
+REVIEW_GRANT_NOT_ACTIVE: Final = "review_grant_not_active"
+REVIEW_GRANT_ALREADY_ACTIVE: Final = "review_grant_already_active"
+REVIEW_DECISION_NOT_ALLOWED: Final = "review_decision_not_allowed"
+REVIEW_ASSIGNEE_MISMATCH: Final = "review_assignee_mismatch"
+REVIEW_GRANT_SUPERSEDED_BLOCKS_DOWNGRADE: Final = (
+    "review_grant_superseded_blocks_downgrade"
+)
 
 FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -39,6 +48,13 @@ FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
         REVIEW_ASSIGNEE_INVALID,
         REVIEW_CASE_NOT_ASSIGNABLE,
         REVIEW_CASE_ALREADY_CLOSED,
+        REVIEW_SELF_REVIEW_DENIED,
+        REVIEW_STRUCTURED_CHANGES_UNSUPPORTED,
+        REVIEW_GRANT_NOT_ACTIVE,
+        REVIEW_GRANT_ALREADY_ACTIVE,
+        REVIEW_DECISION_NOT_ALLOWED,
+        REVIEW_ASSIGNEE_MISMATCH,
+        REVIEW_GRANT_SUPERSEDED_BLOCKS_DOWNGRADE,
     }
 )
 

@@ -29,7 +29,7 @@ ROLE_PASSWORDS = {
     "uap_backup": "UAP_BACKUP_PASSWORD",
 }
 
-CURRENT_HEAD = "0015_review_case_lifecycle"
+CURRENT_HEAD = "0016_review_decisions_and_grants"
 EXPECTED_TABLE_COUNT = 50
 WP3_ORIGINAL_TABLE_COUNT = 49
 _OBJECTS: ObjectClient | None = None

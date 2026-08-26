@@ -41,7 +41,7 @@ ROLE_PASSWORDS = {
     "uap_worker": "UAP_WORKER_PASSWORD",
 }
 
-CURRENT_HEAD = "0015_review_case_lifecycle"
+CURRENT_HEAD = "0016_review_decisions_and_grants"
 EXPECTED_TABLE_COUNT = 50
 GRANTOR_ID = uuid.UUID("00000000-0000-7000-8000-000000000901")
 REASON = "open review case for wp9.2"

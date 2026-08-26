@@ -323,7 +323,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "len(actual_tables) == 49" in wp3_validator
             and "WP3_ORIGINAL_TABLE_COUNT = 49" in wp3_probe
             and "EXPECTED_TABLE_COUNT = 50" in wp3_probe
-            and 'CURRENT_HEAD = "0015_review_case_lifecycle"' in wp3_probe
+            and 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in wp3_probe
             and "document_version_id" in wp3_probe,
             True,
         ),
@@ -463,7 +463,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "g8-13 all attempts closed" in probe3
             and "ThreadPoolExecutor" in probe3
             and "read_verified_object" in probe3
-            and 'CURRENT_HEAD = "0015_review_case_lifecycle"' in probe3
+            and 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe3
             and "def _close_claimed_resolve_job" in probe3
             and "There is no pre-handler succeeded bypass." in probe3
             and "Handler failures never fall back to succeeded." in probe3
@@ -537,7 +537,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "evidence_span_id" in probe4
             and "core.entities" in probe4
             and "subject_entity_id" in probe4
-            and 'CURRENT_HEAD = "0015_review_case_lifecycle"' in probe4
+            and 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe4
             and "g8-14 pending" in probe4
             and "g8-15 race at most one claim" in probe4
             and "g8-15 expired first 40001" in probe4
@@ -614,7 +614,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "name[:8]" not in probe5
             and "SET content_sha256" not in probe5
             and "fixture_extraction_text" not in probe5
-            and 'CURRENT_HEAD = "0015_review_case_lifecycle"' in probe5
+            and 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe5
             and "table count remains 50" in probe5,
             True,
         ),
@@ -634,8 +634,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "ops.claim_job" in probe6
             and "name[:8]" not in probe6
             and "SET content_sha256" not in probe6
-            and 'CURRENT_HEAD = "0015_review_case_lifecycle"' in probe6
-            and 'CURRENT_HEAD = "0015_review_case_lifecycle"' in probe1
+            and 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe6
+            and 'CURRENT_HEAD = "0016_review_decisions_and_grants"' in probe1
             and "wp3_runtime_probe.py" in orchestrator
             and "wp8_6_runtime_probe.py" in orchestrator
             and "WP3 -> WP4 -> WP5 -> WP6 -> WP7 -> WP8" in orchestrator
