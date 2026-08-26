@@ -84,6 +84,9 @@ def evaluate(platform: Path) -> list[Check]:
     )
     session_py = (platform / "src/uap_platform/review/session.py").read_text(encoding="utf-8")
     cases_py = (platform / "src/uap_platform/review/cases.py").read_text(encoding="utf-8")
+    canonical_py = (platform / "src/uap_platform/review/canonical.py").read_text(
+        encoding="utf-8"
+    )
     errors_py = (platform / "src/uap_platform/review/errors.py").read_text(encoding="utf-8")
     probe1 = (platform / "tools/wp9_1_runtime_probe.py").read_text(encoding="utf-8")
     probe2 = (platform / "tools/wp9_2_runtime_probe.py").read_text(encoding="utf-8")
@@ -148,7 +151,12 @@ def evaluate(platform: Path) -> list[Check]:
             "set_config('uap.principal_id'" in session_py
             and "p_actor_id" not in session_py
             and "audit.open_review_case" in cases_py
-            and "record_review_decision" not in cases_py,
+            and "record_review_decision" not in cases_py
+            and 'format(value, "f")' in canonical_py
+            and "parse_int=Decimal" in canonical_py
+            and "str(int(" not in canonical_py
+            and "d4e22924ae5b055f946dfeea48d109a17a5aa86b2edbc2340fcdb5361c19ed90"
+            in canonical_py,
             True,
         ),
         check(
@@ -164,6 +172,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
             in probe2
             and "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022"
+            in probe2
+            and "d4e22924ae5b055f946dfeea48d109a17a5aa86b2edbc2340fcdb5361c19ed90"
             in probe2
             and "payload_sha256" in probe2,
             True,
@@ -194,6 +204,9 @@ def evaluate(platform: Path) -> list[Check]:
             in case_tests
             and "FROZEN_NUMBER_SHA256" in case_tests
             and "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022"
+            in case_tests
+            and "FROZEN_HUGE_SHA256" in case_tests
+            and "d4e22924ae5b055f946dfeea48d109a17a5aa86b2edbc2340fcdb5361c19ed90"
             in case_tests,
             True,
         ),

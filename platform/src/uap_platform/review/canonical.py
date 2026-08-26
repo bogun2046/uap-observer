@@ -8,6 +8,8 @@ Number rule (value-based, unique):
 - non-integers emit as plain decimals, no exponent, no trailing zeros:
   1e-7 -> 0.0000001, 1.50 -> 1.5
 - signed zero is 0
+- integers use format(value, "f"), never int(), so values beyond Python's
+  4300-digit int-to-str limit (1e5000) still match SQL
 """
 
 from __future__ import annotations
@@ -35,13 +37,25 @@ FROZEN_NUMBER_ARRAY_JSON: Final = '{"z":[100,-1.5,0,0.0000001]}'
 FROZEN_NUMBER_ARRAY_SHA256: Final = (
     "083128b312e13d5eb6940862ae77d7ebb86e0dfdacedd0b35f1cd300179e6c3a"
 )
+FROZEN_HUGE_SOURCE: Final = "1e5000"
+FROZEN_HUGE_JSON: Final = "1" + ("0" * 5000)
+FROZEN_HUGE_SHA256: Final = (
+    "d4e22924ae5b055f946dfeea48d109a17a5aa86b2edbc2340fcdb5361c19ed90"
+)
+FROZEN_PRECISION_SOURCE: Final = "1.23456789012345678901234567890123456789"
+FROZEN_PRECISION_JSON: Final = "1.23456789012345678901234567890123456789"
+FROZEN_PRECISION_SHA256: Final = (
+    "0bcebfcee59a792961cd281b05ce5d428b3962c99776cd0b0a23765721a311a6"
+)
+FROZEN_WIDE_INT_JSON: Final = "9" * 80
+FROZEN_WIDE_INT_SHA256: Final = (
+    "7ddb73c1a93e35ddf8e7bf98fddf75c614f1678405e4c5eefa60d453c81293e9"
+)
 
 
 def _canonical_number(value: Decimal) -> str:
     if value == 0:
         return "0"
-    if value == value.to_integral_value():
-        return str(int(value))
     text = format(value, "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")
@@ -81,9 +95,9 @@ def canonical_json(value: Any) -> str:
 
 
 def loads_canonical(text: str) -> Any:
-    """Parse JSON text with exact decimals so 1e2 and 1e-7 keep their values."""
+    """Parse JSON text with exact decimals so 1e2, 1e-7, and 1e5000 keep their values."""
 
-    return json.loads(text, parse_float=Decimal, parse_int=int)
+    return json.loads(text, parse_float=Decimal, parse_int=Decimal)
 
 
 def payload_sha256(value: Any) -> str:

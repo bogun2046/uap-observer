@@ -15,6 +15,9 @@ from uap_platform.config import load_settings
 from uap_platform.review.canonical import (
     FROZEN_COMPACT_JSON,
     FROZEN_COMPACT_SHA256,
+    FROZEN_HUGE_JSON,
+    FROZEN_HUGE_SHA256,
+    FROZEN_HUGE_SOURCE,
     FROZEN_NESTED_SHA256,
     FROZEN_NUMBER_ARRAY_JSON,
     FROZEN_NUMBER_ARRAY_SHA256,
@@ -22,6 +25,11 @@ from uap_platform.review.canonical import (
     FROZEN_NUMBER_JSON,
     FROZEN_NUMBER_SHA256,
     FROZEN_NUMBER_SOURCE,
+    FROZEN_PRECISION_JSON,
+    FROZEN_PRECISION_SHA256,
+    FROZEN_PRECISION_SOURCE,
+    FROZEN_WIDE_INT_JSON,
+    FROZEN_WIDE_INT_SHA256,
     canonical_json,
     loads_canonical,
     payload_sha256,
@@ -818,9 +826,59 @@ def assert_frozen_canonical(admin: psycopg.Connection[Any]) -> None:
         scalar(admin, "SELECT audit._payload_sha256(%s::jsonb)", FROZEN_NUMBER_ARRAY_SOURCE),
         FROZEN_NUMBER_ARRAY_SHA256,
     )
+    sql_huge = scalar(admin, "SELECT audit._canonical_json(%s::jsonb)", FROZEN_HUGE_SOURCE)
+    py_huge = canonical_json(loads_canonical(FROZEN_HUGE_SOURCE))
+    require("huge render sql", sql_huge, FROZEN_HUGE_JSON)
+    require("huge render py", py_huge, FROZEN_HUGE_JSON)
+    require("huge length", len(sql_huge), 5001)
     require(
-        "api no execute canonical",
-        scalar(
+        "huge sha sql",
+        scalar(admin, "SELECT audit._payload_sha256(%s::jsonb)", FROZEN_HUGE_SOURCE),
+        FROZEN_HUGE_SHA256,
+    )
+    require("huge sha py", payload_sha256_text(FROZEN_HUGE_SOURCE), FROZEN_HUGE_SHA256)
+    require(
+        "huge sha literal",
+        FROZEN_HUGE_SHA256,
+        "d4e22924ae5b055f946dfeea48d109a17a5aa86b2edbc2340fcdb5361c19ed90",
+    )
+    require("huge int token", payload_sha256_text(FROZEN_HUGE_JSON), FROZEN_HUGE_SHA256)
+    require(
+        "huge int sql",
+        scalar(admin, "SELECT audit._canonical_json(%s::jsonb)", FROZEN_HUGE_JSON),
+        FROZEN_HUGE_JSON,
+    )
+    sql_prec = scalar(
+        admin, "SELECT audit._canonical_json(%s::jsonb)", FROZEN_PRECISION_SOURCE
+    )
+    require("precision render sql", sql_prec, FROZEN_PRECISION_JSON)
+    require(
+        "precision render py",
+        canonical_json(loads_canonical(FROZEN_PRECISION_SOURCE)),
+        FROZEN_PRECISION_JSON,
+    )
+    require(
+        "precision sha",
+        scalar(admin, "SELECT audit._payload_sha256(%s::jsonb)", FROZEN_PRECISION_SOURCE),
+        FROZEN_PRECISION_SHA256,
+    )
+    require(
+        "wide int sql",
+        scalar(admin, "SELECT audit._canonical_json(%s::jsonb)", FROZEN_WIDE_INT_JSON),
+        FROZEN_WIDE_INT_JSON,
+    )
+    require(
+        "wide int py",
+        canonical_json(loads_canonical(FROZEN_WIDE_INT_JSON)),
+        FROZEN_WIDE_INT_JSON,
+    )
+    require(
+        "wide int sha",
+        scalar(admin, "SELECT audit._payload_sha256(%s::jsonb)", FROZEN_WIDE_INT_JSON),
+        FROZEN_WIDE_INT_SHA256,
+    )
+    require(
+        "api no execute canonical",        scalar(
             admin,
             """
             SELECT has_function_privilege(

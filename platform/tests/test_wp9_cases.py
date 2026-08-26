@@ -19,6 +19,9 @@ from uap_platform.review import (
 from uap_platform.review.canonical import (
     FROZEN_COMPACT_JSON,
     FROZEN_COMPACT_SHA256,
+    FROZEN_HUGE_JSON,
+    FROZEN_HUGE_SHA256,
+    FROZEN_HUGE_SOURCE,
     FROZEN_NESTED_JSON,
     FROZEN_NESTED_SHA256,
     FROZEN_NUMBER_ARRAY_JSON,
@@ -27,6 +30,11 @@ from uap_platform.review.canonical import (
     FROZEN_NUMBER_JSON,
     FROZEN_NUMBER_SHA256,
     FROZEN_NUMBER_SOURCE,
+    FROZEN_PRECISION_JSON,
+    FROZEN_PRECISION_SHA256,
+    FROZEN_PRECISION_SOURCE,
+    FROZEN_WIDE_INT_JSON,
+    FROZEN_WIDE_INT_SHA256,
     canonical_json,
     loads_canonical,
     payload_sha256,
@@ -130,6 +138,30 @@ def test_frozen_number_canonical_sha256() -> None:
         "2c39cedbb91a51d5591b068931c00b4204cf539bed72ca2508566841726a5022"
     )
     assert FROZEN_NUMBER_JSON == '{"e":100,"n":1,"small":0.0000001}'
+
+
+def test_frozen_huge_and_precision_canonical_sha256() -> None:
+    assert canonical_json(loads_canonical(FROZEN_HUGE_SOURCE)) == FROZEN_HUGE_JSON
+    assert len(FROZEN_HUGE_JSON) == 5001
+    assert payload_sha256_text(FROZEN_HUGE_SOURCE) == FROZEN_HUGE_SHA256
+    assert payload_sha256_text(FROZEN_HUGE_JSON) == FROZEN_HUGE_SHA256
+    assert FROZEN_HUGE_SHA256 == (
+        "d4e22924ae5b055f946dfeea48d109a17a5aa86b2edbc2340fcdb5361c19ed90"
+    )
+    assert canonical_json(loads_canonical(FROZEN_PRECISION_SOURCE)) == FROZEN_PRECISION_JSON
+    assert payload_sha256_text(FROZEN_PRECISION_SOURCE) == FROZEN_PRECISION_SHA256
+    assert payload_sha256_text(FROZEN_PRECISION_SOURCE + "00") == FROZEN_PRECISION_SHA256
+    assert FROZEN_PRECISION_SHA256 == (
+        "0bcebfcee59a792961cd281b05ce5d428b3962c99776cd0b0a23765721a311a6"
+    )
+    assert canonical_json(loads_canonical(FROZEN_WIDE_INT_JSON)) == FROZEN_WIDE_INT_JSON
+    assert payload_sha256_text(FROZEN_WIDE_INT_JSON) == FROZEN_WIDE_INT_SHA256
+    assert canonical_json(Decimal("1e5000")) == FROZEN_HUGE_JSON
+    assert canonical_json(10**5000) == FROZEN_HUGE_JSON
+    assert canonical_json(Decimal("-1e5000")) == "-" + FROZEN_HUGE_JSON
+    assert "str(int(" not in Path(__file__).resolve().parents[1].joinpath(
+        "src/uap_platform/review/canonical.py"
+    ).read_text(encoding="utf-8")
 
 
 def test_wp9_2_package_has_no_decision_functions() -> None:
