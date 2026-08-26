@@ -27,10 +27,7 @@ def test_select_analysis_result_calls_definer() -> None:
     cursor.fetchone.return_value = (selection_id,)
     connection.cursor.return_value.__enter__.return_value = cursor
     analysis_id = uuid.uuid4()
-    assert (
-        select_analysis_result(connection, analysis_id, "select this analysis")
-        == selection_id
-    )
+    assert select_analysis_result(connection, analysis_id, "select this analysis") == selection_id
     sql = cursor.execute.call_args.args[0]
     assert "audit.select_analysis_result" in sql
     assert "p_actor_id" not in sql
@@ -46,14 +43,10 @@ def test_accept_and_bind_call_definers() -> None:
     cursor.fetchone.return_value = (entity_id,)
     connection.cursor.return_value.__enter__.return_value = cursor
     candidate_id = uuid.uuid4()
-    assert (
-        accept_entity_candidate(connection, candidate_id, "accept this candidate")
-        == entity_id
-    )
+    assert accept_entity_candidate(connection, candidate_id, "accept this candidate") == entity_id
     bind_id = uuid.uuid4()
     assert (
-        bind_entity_candidate(connection, candidate_id, bind_id, "bind this candidate")
-        == entity_id
+        bind_entity_candidate(connection, candidate_id, bind_id, "bind this candidate") == entity_id
     )
     sql = " ".join(call.args[0] for call in cursor.execute.call_args_list)
     assert "audit.accept_entity_candidate" in sql
@@ -77,8 +70,9 @@ def test_selection_codes_are_frozen() -> None:
 
 
 def test_wp9_4_package_has_no_later_stage_functions() -> None:
-    root = Path(__file__).resolve().parents[1] / "src/uap_platform/review"
-    text = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+    promotion = (
+        Path(__file__).resolve().parents[1] / "src/uap_platform/review/promotion.py"
+    ).read_text(encoding="utf-8")
     for token in (
         "apply_entity_merge",
         "apply_entity_merge_reverse",
@@ -86,4 +80,10 @@ def test_wp9_4_package_has_no_later_stage_functions() -> None:
         "bind_claim_subject",
         "publish_document",
     ):
-        assert token not in text
+        assert token not in promotion
+    package = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (Path(__file__).resolve().parents[1] / "src/uap_platform/review").glob("*.py")
+    )
+    for token in ("create_manual_claim", "bind_claim_subject", "publish_document"):
+        assert token not in package

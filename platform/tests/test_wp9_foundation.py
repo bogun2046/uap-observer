@@ -1,4 +1,4 @@
-"""Static WP9.1 freeze checks."""
+"""Static WP9 freeze checks."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ def test_wp9_1_static_contract() -> None:
 
 
 def test_wp9_1_does_not_open_later_stages() -> None:
-    migration = (
-        platform_root() / "alembic/versions/0014_review_session_authority.py"
-    ).read_text(encoding="utf-8")
+    migration = (platform_root() / "alembic/versions/0014_review_session_authority.py").read_text(
+        encoding="utf-8"
+    )
     probe = (platform_root() / "tools/wp9_1_runtime_probe.py").read_text(encoding="utf-8")
     assert "CREATE FUNCTION audit.open_review_case" not in migration
     assert "CREATE FUNCTION audit.record_review_decision" not in migration
@@ -31,9 +31,9 @@ def test_wp9_1_does_not_open_later_stages() -> None:
 
 
 def test_wp9_2_does_not_open_decision_stage() -> None:
-    migration = (
-        platform_root() / "alembic/versions/0015_review_case_lifecycle.py"
-    ).read_text(encoding="utf-8")
+    migration = (platform_root() / "alembic/versions/0015_review_case_lifecycle.py").read_text(
+        encoding="utf-8"
+    )
     probe = (platform_root() / "tools/wp9_2_runtime_probe.py").read_text(encoding="utf-8")
     assert "CREATE FUNCTION audit.open_review_case" in migration
     assert "CREATE FUNCTION audit.assign_review_case" in migration
@@ -75,9 +75,9 @@ def test_wp9_3_does_not_open_later_stages() -> None:
 
 
 def test_wp9_4_does_not_open_later_stages() -> None:
-    migration = (
-        platform_root() / "alembic/versions/0017_selection_and_promotion.py"
-    ).read_text(encoding="utf-8")
+    migration = (platform_root() / "alembic/versions/0017_selection_and_promotion.py").read_text(
+        encoding="utf-8"
+    )
     probe = (platform_root() / "tools/wp9_4_runtime_probe.py").read_text(encoding="utf-8")
     assert "CREATE FUNCTION audit.select_analysis_result" in migration
     assert "CREATE FUNCTION audit.accept_entity_candidate" in migration
@@ -94,6 +94,32 @@ def test_wp9_4_does_not_open_later_stages() -> None:
     assert migration.count("pg_advisory_xact_lock(9175, hashtext(v_key))") >= 3
     assert "extra_concurrent_same_request" in probe
     assert "extra_concurrent_cross_resource" in probe
+    assert "EVENT_KEY_LOCK_CLASS = 9175" in probe
+    dockerfile = (platform_root() / "Dockerfile").read_text(encoding="utf-8")
+    assert "sqlite-libs>=3.53.4-r0" in dockerfile
+    assert "libcrypto3>=3.5.8-r0" in dockerfile
+    assert "libssl3>=3.5.8-r0" in dockerfile
+
+
+def test_wp9_5_does_not_open_later_stages() -> None:
+    migration = (platform_root() / "alembic/versions/0018_authorized_entity_merge.py").read_text(
+        encoding="utf-8"
+    )
+    probe = (platform_root() / "tools/wp9_5_runtime_probe.py").read_text(encoding="utf-8")
+    assert "CREATE FUNCTION audit.apply_entity_merge" in migration
+    assert "CREATE FUNCTION audit.apply_entity_merge_reverse" in migration
+    assert "CREATE FUNCTION audit._require_openable_entity_subject" in migration
+    assert "CREATE FUNCTION audit.create_manual_claim" not in migration
+    assert "CREATE TABLE" not in migration
+    assert "enqueue_job" not in migration
+    assert "GRANT EXECUTE ON FUNCTION core.merge_entities" not in migration
+    assert "GRANT EXECUTE ON FUNCTION core.reverse_entity_merge" not in migration
+    assert "create_manual_claim" not in probe
+    assert "g9_20" in probe and "g9_21" in probe and "g9_22" in probe and "g9_37" in probe
+    assert "extra_concurrent_same_request" in probe
+    assert "extra_concurrent_cross_resource" in probe
+    assert "g8_16c" in probe
+    assert migration.count("pg_advisory_xact_lock(9175, hashtext(v_key))") >= 2
     assert "EVENT_KEY_LOCK_CLASS = 9175" in probe
     dockerfile = (platform_root() / "Dockerfile").read_text(encoding="utf-8")
     assert "sqlite-libs>=3.53.4-r0" in dockerfile

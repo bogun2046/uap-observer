@@ -27,9 +27,7 @@ REVIEW_GRANT_NOT_ACTIVE: Final = "review_grant_not_active"
 REVIEW_GRANT_ALREADY_ACTIVE: Final = "review_grant_already_active"
 REVIEW_DECISION_NOT_ALLOWED: Final = "review_decision_not_allowed"
 REVIEW_ASSIGNEE_MISMATCH: Final = "review_assignee_mismatch"
-REVIEW_GRANT_SUPERSEDED_BLOCKS_DOWNGRADE: Final = (
-    "review_grant_superseded_blocks_downgrade"
-)
+REVIEW_GRANT_SUPERSEDED_BLOCKS_DOWNGRADE: Final = "review_grant_superseded_blocks_downgrade"
 REVIEW_SELECTION_TYPE_UNSUPPORTED: Final = "review_selection_type_unsupported"
 REVIEW_SELECTION_NOT_VALID: Final = "review_selection_not_valid"
 REVIEW_SELECTION_MISSING: Final = "review_selection_missing"
@@ -40,6 +38,8 @@ REVIEW_CANDIDATE_ORIGIN_INVALID: Final = "review_candidate_origin_invalid"
 REVIEW_ENTITY_MISSING: Final = "review_entity_missing"
 REVIEW_BIND_TARGET_NOT_ACTIVE: Final = "review_bind_target_not_active"
 REVIEW_BIND_TARGET_NOT_CANONICAL: Final = "review_bind_target_not_canonical"
+REVIEW_SUBJECT_NOT_ACTIVE: Final = "review_subject_not_active"
+REVIEW_SUBJECT_NOT_CANONICAL: Final = "review_subject_not_canonical"
 
 FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -75,6 +75,8 @@ FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
         REVIEW_ENTITY_MISSING,
         REVIEW_BIND_TARGET_NOT_ACTIVE,
         REVIEW_BIND_TARGET_NOT_CANONICAL,
+        REVIEW_SUBJECT_NOT_ACTIVE,
+        REVIEW_SUBJECT_NOT_CANONICAL,
     }
 )
 

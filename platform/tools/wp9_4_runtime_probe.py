@@ -39,7 +39,7 @@ from tools.wp9_2_runtime_probe import (  # noqa: E402
     sqlerror_tx,
 )
 
-CURRENT_HEAD = "0017_selection_and_promotion"
+CURRENT_HEAD = "0018_authorized_entity_merge"
 SELECT_REASON = "select this analysis result"
 ACCEPT_REASON = "accept this entity candidate"
 BIND_REASON = "bind this entity candidate"

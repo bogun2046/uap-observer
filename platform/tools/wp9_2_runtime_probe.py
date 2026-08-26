@@ -41,7 +41,7 @@ ROLE_PASSWORDS = {
     "uap_worker": "UAP_WORKER_PASSWORD",
 }
 
-CURRENT_HEAD = "0017_selection_and_promotion"
+CURRENT_HEAD = "0018_authorized_entity_merge"
 EXPECTED_TABLE_COUNT = 50
 GRANTOR_ID = uuid.UUID("00000000-0000-7000-8000-000000000901")
 REASON = "open review case for wp9.2"
