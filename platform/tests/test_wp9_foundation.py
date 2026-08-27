@@ -151,3 +151,32 @@ def test_wp9_5_probe_escapes_like_percent_for_psycopg() -> None:
     rendered = b"".join(part.pre for part in parts)
     assert b"LIKE 'publish_%'" in rendered
     assert b"%%" not in rendered
+
+
+def test_wp9_6_manual_claims_contract() -> None:
+    migration = (
+        platform_root() / "alembic/versions/0019_manual_claims_and_subject_binding.py"
+    ).read_text(encoding="utf-8")
+    probe = (platform_root() / "tools/wp9_6_runtime_probe.py").read_text(encoding="utf-8")
+    orchestrator = (platform_root() / "tools/wp9_runtime_probe.py").read_text(encoding="utf-8")
+    assert 'down_revision = "0018_authorized_entity_merge"' in migration
+    assert "CREATE FUNCTION audit.create_manual_claim" in migration
+    assert "CREATE FUNCTION core.require_manual_claim_supports" in migration
+    assert "CREATE FUNCTION audit._apply_claim_subject_bind" in migration
+    assert "CREATE FUNCTION audit._replace_claim_evidence" in migration
+    assert "CREATE FUNCTION audit._retire_manual_claim_supports" in migration
+    assert "CREATE OR REPLACE FUNCTION audit.record_review_decision" in migration
+    assert "require_ai_claim_supports" not in migration
+    assert "bind_claim_subject_entity" not in migration
+    assert "CREATE TABLE" not in migration
+    assert "enqueue_job" not in migration
+    assert "GRANT EXECUTE ON FUNCTION audit._apply_claim_subject_bind" not in migration
+    assert "g9_23" in probe and "g9_24" in probe and "g9_25" in probe
+    assert "g9_32" in probe and "g9_33" in probe and "g9_38" in probe
+    assert "g8_16c" not in probe
+    assert "WP9.6 runtime probe passed: G9-23 G9-24 G9-25 G9-32 G9-33 G9-38" in probe
+    assert "wp9_6_runtime_probe.py" in orchestrator
+    dockerfile = (platform_root() / "Dockerfile").read_text(encoding="utf-8")
+    assert "sqlite-libs>=3.53.4-r0" in dockerfile
+    assert "libcrypto3>=3.5.8-r0" in dockerfile
+    assert "libssl3>=3.5.8-r0" in dockerfile

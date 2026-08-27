@@ -1,4 +1,4 @@
-"""Validate WP9.1-WP9.5 freeze. Later WP9.x functions must be absent."""
+"""Validate WP9.1-WP9.6 freeze. WP10 functions must be absent."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ WP94_HEAD = "0017_selection_and_promotion"
 WP94_PARENT = WP93_HEAD
 WP95_HEAD = "0018_authorized_entity_merge"
 WP95_PARENT = WP94_HEAD
+WP96_HEAD = "0019_manual_claims_binding"
+WP96_PARENT = WP95_HEAD
 REQUIRED_FILES = (
     "docs/wp9/implementation-ticket.md",
     "docs/wp9/acceptance-ticket.md",
@@ -28,11 +30,13 @@ REQUIRED_FILES = (
     "docs/wp9/adr/0016-publication-grants-and-outbox.md",
     "docs/wp9/adr/0017-analysis-selection-and-candidate-promotion.md",
     "docs/wp9/adr/0018-authorized-entity-merge.md",
+    "docs/wp9/adr/0019-manual-claims-and-subject-binding.md",
     "platform/alembic/versions/0014_review_session_authority.py",
     "platform/alembic/versions/0015_review_case_lifecycle.py",
     "platform/alembic/versions/0016_review_decisions_and_grants.py",
     "platform/alembic/versions/0017_selection_and_promotion.py",
     "platform/alembic/versions/0018_authorized_entity_merge.py",
+    "platform/alembic/versions/0019_manual_claims_and_subject_binding.py",
     "platform/src/uap_platform/review/__init__.py",
     "platform/src/uap_platform/review/errors.py",
     "platform/src/uap_platform/review/session.py",
@@ -41,11 +45,13 @@ REQUIRED_FILES = (
     "platform/src/uap_platform/review/decisions.py",
     "platform/src/uap_platform/review/promotion.py",
     "platform/src/uap_platform/review/merge.py",
+    "platform/src/uap_platform/review/claims.py",
     "platform/tests/test_wp9_session.py",
     "platform/tests/test_wp9_cases.py",
     "platform/tests/test_wp9_decisions.py",
     "platform/tests/test_wp9_promotion.py",
     "platform/tests/test_wp9_merge.py",
+    "platform/tests/test_wp9_claims.py",
     "platform/tests/test_wp9_foundation.py",
     "platform/tools/validate_wp9.py",
     "platform/tools/wp9_1_runtime_probe.py",
@@ -53,6 +59,8 @@ REQUIRED_FILES = (
     "platform/tools/wp9_3_runtime_probe.py",
     "platform/tools/wp9_4_runtime_probe.py",
     "platform/tools/wp9_5_runtime_probe.py",
+    "platform/tools/wp9_6_runtime_probe.py",
+    "platform/tools/wp9_runtime_probe.py",
 )
 FORBIDDEN_STAGE_TOKENS = (
     "CREATE FUNCTION audit.create_manual_claim",
@@ -83,6 +91,14 @@ FORBIDDEN_GRANTS = (
     "GRANT INSERT ON TABLE ops.outbox_events",
     "GRANT EXECUTE ON FUNCTION core.merge_entities",
     "GRANT EXECUTE ON FUNCTION core.reverse_entity_merge",
+    (
+        "create_manual_claim(uuid, text, core.claim_type, core.assertion_status, "
+        "text, uuid[]) TO uap_worker"
+    ),
+    "GRANT EXECUTE ON FUNCTION audit._apply_claim_subject_bind",
+    "GRANT EXECUTE ON FUNCTION audit._replace_claim_evidence",
+    "GRANT EXECUTE ON FUNCTION audit._retire_manual_claim_supports",
+    "GRANT EXECUTE ON FUNCTION audit._require_current_claim_decision",
 )
 
 
@@ -143,6 +159,21 @@ def _event_key_lock_precedes_core(sql: str) -> bool:
     return True
 
 
+def _event_key_lock_precedes_manual(sql: str) -> bool:
+    start = sql.find("CREATE FUNCTION audit.create_manual_claim")
+    if start < 0:
+        return False
+    body = sql[start:]
+    lock_at = body.find("pg_advisory_xact_lock(9175, hashtext(v_key))")
+    insert_at = body.find("INSERT INTO core.claims")
+    if lock_at < 0 or insert_at < 0 or lock_at > insert_at:
+        return False
+    after_lock = body[lock_at:]
+    recheck = after_lock.find("_existing_write_target")
+    next_insert = after_lock.find("INSERT INTO core.claims")
+    return recheck >= 0 and next_insert >= 0 and recheck < next_insert
+
+
 def evaluate(platform: Path) -> list[Check]:
     platform = platform.resolve()
     repository = platform.parent
@@ -168,11 +199,15 @@ def evaluate(platform: Path) -> list[Check]:
     migration_18 = (platform / "alembic/versions/0018_authorized_entity_merge.py").read_text(
         encoding="utf-8"
     )
+    migration_19 = (
+        platform / "alembic/versions/0019_manual_claims_and_subject_binding.py"
+    ).read_text(encoding="utf-8")
     session_py = (platform / "src/uap_platform/review/session.py").read_text(encoding="utf-8")
     cases_py = (platform / "src/uap_platform/review/cases.py").read_text(encoding="utf-8")
     decisions_py = (platform / "src/uap_platform/review/decisions.py").read_text(encoding="utf-8")
     promotion_py = (platform / "src/uap_platform/review/promotion.py").read_text(encoding="utf-8")
     merge_py = (platform / "src/uap_platform/review/merge.py").read_text(encoding="utf-8")
+    claims_py = (platform / "src/uap_platform/review/claims.py").read_text(encoding="utf-8")
     canonical_py = (platform / "src/uap_platform/review/canonical.py").read_text(encoding="utf-8")
     errors_py = (platform / "src/uap_platform/review/errors.py").read_text(encoding="utf-8")
     probe1 = (platform / "tools/wp9_1_runtime_probe.py").read_text(encoding="utf-8")
@@ -180,11 +215,14 @@ def evaluate(platform: Path) -> list[Check]:
     probe3 = (platform / "tools/wp9_3_runtime_probe.py").read_text(encoding="utf-8")
     probe4 = (platform / "tools/wp9_4_runtime_probe.py").read_text(encoding="utf-8")
     probe5 = (platform / "tools/wp9_5_runtime_probe.py").read_text(encoding="utf-8")
+    probe6 = (platform / "tools/wp9_6_runtime_probe.py").read_text(encoding="utf-8")
+    orchestrator = (platform / "tools/wp9_runtime_probe.py").read_text(encoding="utf-8")
     tests = (platform / "tests/test_wp9_session.py").read_text(encoding="utf-8")
     case_tests = (platform / "tests/test_wp9_cases.py").read_text(encoding="utf-8")
     decision_tests = (platform / "tests/test_wp9_decisions.py").read_text(encoding="utf-8")
     promotion_tests = (platform / "tests/test_wp9_promotion.py").read_text(encoding="utf-8")
     merge_tests = (platform / "tests/test_wp9_merge.py").read_text(encoding="utf-8")
+    claim_tests = (platform / "tests/test_wp9_claims.py").read_text(encoding="utf-8")
     makefile = (platform / "Makefile").read_text(encoding="utf-8")
     dockerfile = (platform / "Dockerfile").read_text(encoding="utf-8")
     ci = (repository / ".github/workflows/platform-ci.yml").read_text(encoding="utf-8")
@@ -197,19 +235,23 @@ def evaluate(platform: Path) -> list[Check]:
         encoding="utf-8"
     )
     missing = [path for path in REQUIRED_FILES if not (repository / path).is_file()]
-    combined = "\n".join([migration_14, migration_15, migration_16, migration_17, migration_18])
-    prior = "\n".join([migration_14, migration_15, migration_16, migration_17])
-    forbidden_hits = [token for token in FORBIDDEN_STAGE_TOKENS if token in combined]
-    prior_merge_hits = [token for token in FORBIDDEN_PRIOR_MERGE_TOKENS if token in prior]
+    prior = "\n".join([migration_14, migration_15, migration_16, migration_17, migration_18])
+    combined = prior + "\n" + migration_19
+    forbidden_hits = [token for token in FORBIDDEN_STAGE_TOKENS if token in prior]
+    prior_merge_hits = [
+        token
+        for token in FORBIDDEN_PRIOR_MERGE_TOKENS
+        if token in "\n".join([migration_14, migration_15, migration_16, migration_17])
+    ]
     grant_hits = [token for token in FORBIDDEN_GRANTS if token in combined]
     resolve_sources = migration_11 + "\n" + migration_12 + "\n" + worker
     return [
         check("required_files", not missing, missing, []),
         check(
-            "unique_wp9_5_head",
-            heads == [WP95_HEAD] and revision_ids[:2] == [WP95_HEAD, WP95_PARENT],
+            "unique_wp9_6_head",
+            heads == [WP96_HEAD] and revision_ids[:2] == [WP96_HEAD, WP95_HEAD],
             {"heads": heads, "prefix": revision_ids[:2]},
-            {"heads": [WP95_HEAD], "prefix": [WP95_HEAD, WP95_PARENT]},
+            {"heads": [WP96_HEAD], "prefix": [WP96_HEAD, WP95_HEAD]},
         ),
         check(
             "migration_links",
@@ -223,14 +265,18 @@ def evaluate(platform: Path) -> list[Check]:
             and f'down_revision = "{WP94_PARENT}"' in migration_17
             and f'revision = "{WP95_HEAD}"' in migration_18
             and f'down_revision = "{WP95_PARENT}"' in migration_18
+            and f'revision = "{WP96_HEAD}"' in migration_19
+            and f'down_revision = "{WP96_PARENT}"' in migration_19
             and "CREATE TABLE" not in migration_14
             and "CREATE TABLE" not in migration_15
             and "CREATE TABLE" not in migration_16
             and "CREATE TABLE" not in migration_17
             and "CREATE TABLE" not in migration_18
+            and "CREATE TABLE" not in migration_19
             and "CREATE FUNCTION audit.record_review_decision" not in migration_15
             and "CREATE FUNCTION audit.select_analysis_result" not in migration_16
-            and "CREATE FUNCTION audit.apply_entity_merge" not in migration_17,
+            and "CREATE FUNCTION audit.apply_entity_merge" not in migration_17
+            and "CREATE FUNCTION audit.create_manual_claim" not in migration_18,
             True,
         ),
         check(
@@ -292,6 +338,39 @@ def evaluate(platform: Path) -> list[Check]:
             True,
         ),
         check(
+            "manual_claims_contract",
+            "CREATE FUNCTION core.require_manual_claim_supports" in migration_19
+            and "DEFERRABLE INITIALLY DEFERRED" in migration_19
+            and "manual_claim_requires_supports" in migration_19
+            and "CREATE FUNCTION audit.create_manual_claim" in migration_19
+            and "review.claim.manual:" in migration_19
+            and "CREATE FUNCTION audit._apply_claim_subject_bind" in migration_19
+            and "CREATE FUNCTION audit._replace_claim_evidence" in migration_19
+            and "CREATE FUNCTION audit._retire_manual_claim_supports" in migration_19
+            and "CREATE OR REPLACE FUNCTION audit.record_review_decision" in migration_19
+            and "bind_subject_entity_id" in migration_19
+            and "replace_supporting_span_ids" in migration_19
+            and "retire_supporting_evidence" in migration_19
+            and "review_ai_evidence_immutable" in migration_19
+            and "review_subject_already_bound" in migration_19
+            and "review_decision_not_in_transaction" in migration_19
+            and "pg_advisory_xact_lock(9175, hashtext(v_key))" in migration_19
+            and _event_key_lock_precedes_manual(migration_19)
+            and "GRANT EXECUTE ON FUNCTION audit.create_manual_claim" in migration_19
+            and "GRANT EXECUTE ON FUNCTION audit._apply_claim_subject_bind" not in migration_19
+            and "GRANT EXECUTE ON FUNCTION audit._replace_claim_evidence" not in migration_19
+            and "GRANT EXECUTE ON FUNCTION audit._retire_manual_claim_supports" not in migration_19
+            and "require_ai_claim_supports" not in migration_19
+            and "bind_claim_subject_entity" not in migration_19
+            and "CREATE TABLE" not in migration_19
+            and "enqueue_job" not in migration_19
+            and "p_structured_changes <> '{}'::jsonb" in migration_19
+            and "sqlite-libs>=3.53.4-r0" in dockerfile
+            and "libcrypto3>=3.5.8-r0" in dockerfile
+            and "libssl3>=3.5.8-r0" in dockerfile,
+            True,
+        ),
+        check(
             "wp8_resolve_ignores_selections",
             "JOIN core.analysis_selections" not in resolve_sources
             and "FROM core.analysis_selections" not in resolve_sources,
@@ -319,6 +398,10 @@ def evaluate(platform: Path) -> list[Check]:
             and "p_actor_id" not in merge_py
             and "create_manual_claim" not in merge_py
             and "core.merge_entities" not in merge_py
+            and "audit.create_manual_claim" in claims_py
+            and "p_actor_id" not in claims_py
+            and "fingerprint" not in claims_py
+            and "audit._apply_claim_subject_bind" not in claims_py
             and 'format(value, "f")' in canonical_py
             and "parse_int=Decimal" in canonical_py,
             True,
@@ -350,7 +433,19 @@ def evaluate(platform: Path) -> list[Check]:
             and "review_role_denied" in probe5
             and "review_idempotency_payload_conflict" in probe5
             and probe5.count("LIKE 'publish_%%'") == 2
-            and "LIKE 'publish_%'" not in probe5.replace("LIKE 'publish_%%'", ""),
+            and "LIKE 'publish_%'" not in probe5.replace("LIKE 'publish_%%'", "")
+            and "g9_23" in probe6
+            and "g9_24" in probe6
+            and "g9_25" in probe6
+            and "g9_26" in probe6
+            and "g9_32" in probe6
+            and "g9_33" in probe6
+            and "g9_38" in probe6
+            and "g8_16c" not in probe6
+            and "review.claim.manual:" in probe6
+            and "WP9.6 runtime probe passed: G9-23 G9-24 G9-25 G9-32 G9-33 G9-38" in probe6
+            and "wp9_6_runtime_probe.py" in orchestrator
+            and "wp9.6" in orchestrator,
             True,
         ),
         check(
@@ -363,7 +458,11 @@ def evaluate(platform: Path) -> list[Check]:
             and "review_candidate_evidence_missing" in errors_py
             and "review_bind_target_not_canonical" in errors_py
             and "review_subject_not_active" in errors_py
-            and "review_subject_not_canonical" in errors_py,
+            and "review_subject_not_canonical" in errors_py
+            and "manual_claim_requires_supports" in errors_py
+            and "review_ai_evidence_immutable" in errors_py
+            and "review_subject_already_bound" in errors_py
+            and "review_decision_not_in_transaction" in errors_py,
             True,
         ),
         check(
@@ -375,10 +474,13 @@ def evaluate(platform: Path) -> list[Check]:
             and "wp9_3_runtime_probe.py" in ci
             and "wp9_4_runtime_probe.py" in ci
             and "wp9_5_runtime_probe.py" in ci
+            and "wp9_6_runtime_probe.py" in ci
             and f'= "{WP95_HEAD}"' in chain
+            and f'= "{WP96_HEAD}"' in chain
             and '= "50"' in chain
             and "review_grant_superseded_blocks_downgrade" in chain
-            and "apply_entity_merge" in chain,
+            and "apply_entity_merge" in chain
+            and "create_manual_claim" in chain,
             True,
         ),
         check(
@@ -390,7 +492,9 @@ def evaluate(platform: Path) -> list[Check]:
             and "accept_entity_candidate" in promotion_tests
             and "FROZEN_COMPACT_SHA256" in case_tests
             and "apply_entity_merge" in merge_tests
-            and "apply_entity_merge_reverse" in merge_tests,
+            and "apply_entity_merge_reverse" in merge_tests
+            and "create_manual_claim" in claim_tests
+            and "audit._apply_claim_subject_bind" in claim_tests,
             True,
         ),
     ]
@@ -402,8 +506,8 @@ def main() -> None:
     print(json.dumps([asdict(item) for item in results], indent=2))
     failed = [item.name for item in results if not item.passed]
     if failed:
-        raise SystemExit("WP9.5 contract failed: " + ", ".join(failed))
-    print("WP9.5 contract passed")
+        raise SystemExit("WP9.6 contract failed: " + ", ".join(failed))
+    print("WP9.6 contract passed")
 
 
 if __name__ == "__main__":

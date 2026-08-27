@@ -18,7 +18,7 @@ from uap_platform.object_store_init import build_client
 
 EXPECTED_TABLE_COUNT = 50
 WP3_ORIGINAL_TABLE_COUNT = 49
-CURRENT_HEAD = "0018_authorized_entity_merge"
+CURRENT_HEAD = "0019_manual_claims_binding"
 EXPECTED_FOREIGN_KEYS = 115
 ROLE_PASSWORDS = {
     "uap_migrator": "UAP_MIGRATOR_PASSWORD",
@@ -116,9 +116,9 @@ def prepare_semantic_fixture(connection: psycopg.Connection[Any]) -> None:
                 """,
                 (entity_id, name),
             )
-        for claim_id, claim_text, fingerprint in (
-            (identifier(24), "WP3 valid public claim", "5"),
-            (identifier(58), "WP3 orphan-claim guard probe", "6"),
+        for claim_id, claim_text, fingerprint, span_id in (
+            (identifier(24), "WP3 valid public claim", "5", identifier(23)),
+            (identifier(58), "WP3 orphan-claim guard probe", "6", identifier(64)),
         ):
             cursor.execute(
                 """
@@ -129,6 +129,20 @@ def prepare_semantic_fixture(connection: psycopg.Connection[Any]) -> None:
                 ON CONFLICT (id) DO NOTHING
                 """,
                 (claim_id, document_version, claim_text, fingerprint, principal),
+            )
+            cursor.execute(
+                """
+                INSERT INTO core.claim_evidence (
+                    id, claim_id, evidence_span_id, document_version_id, support_type
+                ) VALUES (%s, %s, %s, %s, 'supports')
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (
+                    identifier(70 if claim_id == identifier(24) else 71),
+                    claim_id,
+                    span_id,
+                    document_version,
+                ),
             )
         for relation_id, predicate in (
             (identifier(28), "supports"),

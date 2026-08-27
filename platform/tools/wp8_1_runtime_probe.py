@@ -29,7 +29,7 @@ ROLE_PASSWORDS = {
     "uap_backup": "UAP_BACKUP_PASSWORD",
 }
 
-CURRENT_HEAD = "0018_authorized_entity_merge"
+CURRENT_HEAD = "0019_manual_claims_binding"
 EXPECTED_TABLE_COUNT = 50
 WP3_ORIGINAL_TABLE_COUNT = 49
 _OBJECTS: ObjectClient | None = None

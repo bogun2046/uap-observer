@@ -40,6 +40,10 @@ REVIEW_BIND_TARGET_NOT_ACTIVE: Final = "review_bind_target_not_active"
 REVIEW_BIND_TARGET_NOT_CANONICAL: Final = "review_bind_target_not_canonical"
 REVIEW_SUBJECT_NOT_ACTIVE: Final = "review_subject_not_active"
 REVIEW_SUBJECT_NOT_CANONICAL: Final = "review_subject_not_canonical"
+MANUAL_CLAIM_REQUIRES_SUPPORTS: Final = "manual_claim_requires_supports"
+REVIEW_AI_EVIDENCE_IMMUTABLE: Final = "review_ai_evidence_immutable"
+REVIEW_SUBJECT_ALREADY_BOUND: Final = "review_subject_already_bound"
+REVIEW_DECISION_NOT_IN_TRANSACTION: Final = "review_decision_not_in_transaction"
 
 FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
     {
@@ -77,6 +81,10 @@ FROZEN_REVIEW_CODES: Final[frozenset[str]] = frozenset(
         REVIEW_BIND_TARGET_NOT_CANONICAL,
         REVIEW_SUBJECT_NOT_ACTIVE,
         REVIEW_SUBJECT_NOT_CANONICAL,
+        MANUAL_CLAIM_REQUIRES_SUPPORTS,
+        REVIEW_AI_EVIDENCE_IMMUTABLE,
+        REVIEW_SUBJECT_ALREADY_BOUND,
+        REVIEW_DECISION_NOT_IN_TRANSACTION,
     }
 )
 

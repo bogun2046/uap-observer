@@ -12,6 +12,7 @@ on:
       - "docs/wp6/**"
       - "docs/wp7/**"
       - "docs/wp8/**"
+      - "docs/wp9/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   push:
@@ -26,6 +27,7 @@ on:
       - "docs/wp6/**"
       - "docs/wp7/**"
       - "docs/wp8/**"
+      - "docs/wp9/**"
       - ".github/workflows/platform-ci.yml"
       - "Makefile"
   workflow_dispatch:
@@ -164,7 +166,7 @@ jobs:
           --workdir /repo/platform
           "$UAP_APP_IMAGE"
           python tools/validate_wp8.py
-      - name: WP9.1 review-session contract checks
+      - name: WP9 review contract checks
         run: >-
           docker run --rm
           --volume "$GITHUB_WORKSPACE:/repo:ro"
@@ -272,6 +274,9 @@ jobs:
       - name: Run WP9.5 authorized-entity-merge probe
         working-directory: platform
         run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp9_5_runtime_probe.py
+      - name: Run WP9.6 manual-claims probe
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml run --rm object-store-init python tools/wp9_6_runtime_probe.py
       - name: Verify database, buckets, and health endpoint
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/healthz > /tmp/health.json

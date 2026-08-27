@@ -1,6 +1,7 @@
-"""WP9 review session, case, decision, promotion, and authorized merge writes."""
+"""WP9 review session, case, decision, promotion, merge, and manual claims."""
 
 from .cases import assign_review_case, close_review_case, open_review_case
+from .claims import create_manual_claim
 from .decisions import record_review_decision
 from .errors import ReviewSessionError, map_review_error
 from .merge import apply_entity_merge, apply_entity_merge_reverse
@@ -20,6 +21,7 @@ __all__ = [
     "bind_entity_candidate",
     "bind_review_session",
     "close_review_case",
+    "create_manual_claim",
     "map_review_error",
     "open_review_case",
     "record_review_decision",

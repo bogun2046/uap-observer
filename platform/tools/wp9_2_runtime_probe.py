@@ -41,7 +41,7 @@ ROLE_PASSWORDS = {
     "uap_worker": "UAP_WORKER_PASSWORD",
 }
 
-CURRENT_HEAD = "0018_authorized_entity_merge"
+CURRENT_HEAD = "0019_manual_claims_binding"
 EXPECTED_TABLE_COUNT = 50
 GRANTOR_ID = uuid.UUID("00000000-0000-7000-8000-000000000901")
 REASON = "open review case for wp9.2"
@@ -302,20 +302,46 @@ def seed_subjects(
         sha256_text(f"doc-{tag}"),
     )
     claim_text = f"wp9.2 claim {tag}"
-    execute(
-        admin,
-        """
-        INSERT INTO core.claims (
-            id, document_version_id, claim_text, claim_fingerprint, claim_type,
-            assertion_status, created_by
-        ) VALUES (%s, %s, %s, %s, 'observation', 'reported', %s)
-        """,
-        claim_id,
-        document_version_id,
-        claim_text,
-        sha256_text(claim_text),
-        principal_id,
-    )
+    span_id = uuid.uuid4()
+    with admin.transaction():
+        execute(
+            admin,
+            """
+            INSERT INTO core.evidence_spans (
+                id, document_version_id, evidence_text, locator_type,
+                char_start, char_end, locator, locator_sha256
+            ) VALUES (%s, %s, 'span', 'text', 0, 4, '{}'::jsonb, %s)
+            """,
+            span_id,
+            document_version_id,
+            sha256_text(f"wp9-2-span-{tag}"),
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.claims (
+                id, document_version_id, claim_text, claim_fingerprint, claim_type,
+                assertion_status, created_by
+            ) VALUES (%s, %s, %s, %s, 'observation', 'reported', %s)
+            """,
+            claim_id,
+            document_version_id,
+            claim_text,
+            sha256_text(claim_text),
+            principal_id,
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.claim_evidence (
+                id, claim_id, evidence_span_id, document_version_id, support_type
+            ) VALUES (%s, %s, %s, %s, 'supports')
+            """,
+            uuid.uuid4(),
+            claim_id,
+            span_id,
+            document_version_id,
+        )
     execute(
         admin,
         """

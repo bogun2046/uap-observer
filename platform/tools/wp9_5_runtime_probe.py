@@ -39,7 +39,7 @@ from tools.wp9_4_runtime_probe import (  # noqa: E402
     insert_active_entity,
 )
 
-CURRENT_HEAD = "0018_authorized_entity_merge"
+CURRENT_HEAD = "0019_manual_claims_binding"
 EVENT_KEY_LOCK_CLASS = 9175
 MERGE_REASON = "authorize merge of duplicate entities"
 REVERSE_REASON = "authorize reverse of entity merge"

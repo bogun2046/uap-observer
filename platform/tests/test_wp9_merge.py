@@ -113,7 +113,11 @@ def test_merge_codes_are_frozen() -> None:
 
 def test_wp9_5_package_has_no_later_stage_functions() -> None:
     root = Path(__file__).resolve().parents[1] / "src/uap_platform/review"
-    text = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in root.glob("*.py")
+        if path.name not in {"claims.py", "__init__.py"}
+    )
     for token in (
         "create_manual_claim",
         "bind_claim_subject",
@@ -125,3 +129,6 @@ def test_wp9_5_package_has_no_later_stage_functions() -> None:
     assert "audit.apply_entity_merge" in merge
     assert "audit.apply_entity_merge_reverse" in merge
     assert "p_actor_id" not in merge
+    package = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+    assert "audit._apply_claim_subject_bind" not in package
+    assert "bind_claim_subject_entity" not in package

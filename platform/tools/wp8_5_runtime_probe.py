@@ -30,7 +30,7 @@ from tools.wp8_1_runtime_probe import (  # noqa: E402
     sqlstate,
 )
 
-CURRENT_HEAD = "0018_authorized_entity_merge"
+CURRENT_HEAD = "0019_manual_claims_binding"
 MERGE_SIGNATURE = "core.merge_entities(uuid, uuid, uuid, text)"
 REVERSE_SIGNATURE = "core.reverse_entity_merge(uuid, uuid, text)"
 CANONICAL_SIGNATURE = "core.canonical_entity_id(uuid)"
@@ -322,21 +322,49 @@ def g8_17(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
     )
     claim_id = uuid.uuid4()
     claim_text = f"The craft hovered [{tag}]"
-    execute(
-        admin,
-        """
-        INSERT INTO core.claims (
-            id, document_version_id, subject_entity_id, claim_text, claim_fingerprint,
-            claim_type, assertion_status, created_by
-        ) VALUES (%s, %s, %s, %s, %s, 'observation', 'reported', %s)
-        """,
-        claim_id,
-        document_version_id,
-        entity_a,
-        claim_text,
-        sha256_text(claim_text),
-        principal,
-    )
+    span_id = uuid.uuid4()
+    locator = {"locator_schema_version": "evidence-locator.v2", "locator_type": "text"}
+    with admin.transaction():
+        execute(
+            admin,
+            """
+            INSERT INTO core.claims (
+                id, document_version_id, subject_entity_id, claim_text, claim_fingerprint,
+                claim_type, assertion_status, created_by
+            ) VALUES (%s, %s, %s, %s, %s, 'observation', 'reported', %s)
+            """,
+            claim_id,
+            document_version_id,
+            entity_a,
+            claim_text,
+            sha256_text(claim_text),
+            principal,
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.evidence_spans (
+                id, document_version_id, evidence_text, locator_type, char_start, char_end,
+                locator, locator_sha256
+            ) VALUES (%s, %s, 'craft', 'text', 4, 9, %s::jsonb, %s)
+            """,
+            span_id,
+            document_version_id,
+            json.dumps(locator, separators=(",", ":")),
+            sha256_text(f"{tag}-span"),
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.claim_evidence (
+                id, claim_id, evidence_span_id, document_version_id, support_type
+            ) VALUES (%s, %s, %s, %s, 'supports')
+            """,
+            uuid.uuid4(),
+            claim_id,
+            span_id,
+            document_version_id,
+        )
     relation_id = uuid.uuid4()
     execute(
         admin,
@@ -350,33 +378,6 @@ def g8_17(admin: psycopg.Connection[Any], tag: str) -> dict[str, Any]:
         entity_a,
         entity_c,
         principal,
-    )
-    span_id = uuid.uuid4()
-    locator = {"locator_schema_version": "evidence-locator.v2", "locator_type": "text"}
-    execute(
-        admin,
-        """
-        INSERT INTO core.evidence_spans (
-            id, document_version_id, evidence_text, locator_type, char_start, char_end,
-            locator, locator_sha256
-        ) VALUES (%s, %s, 'craft', 'text', 4, 9, %s::jsonb, %s)
-        """,
-        span_id,
-        document_version_id,
-        json.dumps(locator, separators=(",", ":")),
-        sha256_text(f"{tag}-span"),
-    )
-    execute(
-        admin,
-        """
-        INSERT INTO core.claim_evidence (
-            id, claim_id, evidence_span_id, document_version_id, support_type
-        ) VALUES (%s, %s, %s, %s, 'supports')
-        """,
-        uuid.uuid4(),
-        claim_id,
-        span_id,
-        document_version_id,
     )
 
     self_state, self_msg = sqlerror(

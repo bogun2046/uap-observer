@@ -35,7 +35,7 @@ from tools.wp9_2_runtime_probe import (  # noqa: E402
     sqlerror_tx,
 )
 
-CURRENT_HEAD = "0018_authorized_entity_merge"
+CURRENT_HEAD = "0019_manual_claims_binding"
 REASON = "approve this reviewed claim"
 REVISE_REASON = "revise this reviewed claim"
 WITHDRAW_REASON = "withdraw this reviewed grant"
@@ -229,21 +229,47 @@ def insert_self_claim(
     tag: str,
 ) -> uuid.UUID:
     claim_id = uuid.uuid4()
+    span_id = uuid.uuid4()
     text = f"manual self claim {tag}"
-    execute(
-        admin,
-        """
-        INSERT INTO core.claims (
-            id, document_version_id, claim_text, claim_fingerprint, claim_type,
-            assertion_status, created_by
-        ) VALUES (%s, %s, %s, %s, 'observation', 'reported', %s)
-        """,
-        claim_id,
-        document_version_id,
-        text,
-        hashlib.sha256(text.encode()).hexdigest(),
-        actor,
-    )
+    with admin.transaction():
+        execute(
+            admin,
+            """
+            INSERT INTO core.evidence_spans (
+                id, document_version_id, evidence_text, locator_type,
+                char_start, char_end, locator, locator_sha256
+            ) VALUES (%s, %s, 'span', 'text', 0, 4, '{}'::jsonb, %s)
+            """,
+            span_id,
+            document_version_id,
+            hashlib.sha256(f"self-span-{tag}".encode()).hexdigest(),
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.claims (
+                id, document_version_id, claim_text, claim_fingerprint, claim_type,
+                assertion_status, created_by
+            ) VALUES (%s, %s, %s, %s, 'observation', 'reported', %s)
+            """,
+            claim_id,
+            document_version_id,
+            text,
+            hashlib.sha256(text.encode()).hexdigest(),
+            actor,
+        )
+        execute(
+            admin,
+            """
+            INSERT INTO core.claim_evidence (
+                id, claim_id, evidence_span_id, document_version_id, support_type
+            ) VALUES (%s, %s, %s, %s, 'supports')
+            """,
+            uuid.uuid4(),
+            claim_id,
+            span_id,
+            document_version_id,
+        )
     return claim_id
 
 
