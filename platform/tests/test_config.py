@@ -24,4 +24,17 @@ def test_settings_hide_secrets_and_normalize_buckets() -> None:
     assert "access-secret" not in rendered
     assert "object-secret" not in rendered
     assert "database-secret" not in summary
-    assert settings.bucket_names == ("raw", "derived", "model-io", "public-assets")
+    assert settings.bucket_names == ("raw", "derived", "model-io", "public-assets", "backups")
+
+
+def test_psycopg_database_url_removes_sqlalchemy_driver() -> None:
+    settings = make_settings()
+    object.__setattr__(
+        settings,
+        "database_url",
+        SecretStr("postgresql+psycopg://user:database-secret@postgres/db"),
+    )
+
+    assert settings.psycopg_database_url == (
+        "postgresql://user:database-secret@postgres/db"
+    )

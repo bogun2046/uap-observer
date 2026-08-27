@@ -10,7 +10,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
     PATH=/app/.venv/bin:${PATH}
 
-RUN addgroup -S -g 10001 uap \
+RUN apk add --no-cache --upgrade \
+        'sqlite-libs>=3.53.4-r0' \
+        'libcrypto3>=3.5.8-r0' \
+        'libssl3>=3.5.8-r0' \
+    && addgroup -S -g 10001 uap \
     && adduser -S -D -H -u 10001 -G uap uap \
     && python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
@@ -22,6 +26,7 @@ RUN uv sync --frozen --all-groups --no-install-project
 COPY src ./src
 COPY tests ./tests
 COPY tools ./tools
+COPY scripts/migrate-platform.sh ./scripts/
 COPY alembic.ini ./
 COPY alembic ./alembic
 RUN uv sync --frozen --all-groups \
@@ -32,6 +37,8 @@ CMD ["uap-platform-dev"]
 FROM base AS runtime
 RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
+COPY tools/configure_roles.py tools/ensure_model_governance_role.py tools/object_backup.py tools/wp3_runtime_probe.py tools/reconcile_object_storage.py tools/wp6_runtime_probe.py ./tools/
+COPY scripts/migrate-platform.sh ./scripts/
 COPY alembic.ini ./
 COPY alembic ./alembic
 RUN uv sync --frozen --no-dev \

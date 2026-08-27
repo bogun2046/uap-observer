@@ -1,0 +1,240 @@
+{
+  "files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "547f59603028195ff9f8a87d04c4651551e8bd0d68f075257dfd549cd846b25b",
+      "size": 13
+    },
+    {
+      "path": ".github/workflows/platform-ci.yml",
+      "sha256": "9bdb11a761e22ab350c046f8b547bbdc6fbb98081d84fbc820c44ae95e3d8ecc",
+      "size": 9777
+    },
+    {
+      "path": "docs/wp6/README.md",
+      "sha256": "7e6d5e9fcaad607fdb0048af118c8fb169e2bbe77cc6d34ad71dfa5088329b78",
+      "size": 1504
+    },
+    {
+      "path": "docs/wp6/acceptance-cases.md",
+      "sha256": "16005542638589f1fba7336c4959f09b9b0f66814fcc4c5dd05b42e48c7c9f47",
+      "size": 2924
+    },
+    {
+      "path": "docs/wp6/acceptance-ticket.md",
+      "sha256": "1117790c14e152f765fbec4cb8b2c3e1fb96d5028001bf97395b695428ea2697",
+      "size": 1396
+    },
+    {
+      "path": "docs/wp6/development-self-review.md",
+      "sha256": "31a9a44cc636c24f8815d1d6c8311cccb4d1f0fb350d6f85b3a6da5a8d73b505",
+      "size": 1444
+    },
+    {
+      "path": "docs/wp6/implementation-ticket.md",
+      "sha256": "940c8ba97a81c31d2556d6fabc3c49b2a5f7813c8e416ae91503873517e3bf41",
+      "size": 3256
+    },
+    {
+      "path": "platform/Dockerfile",
+      "sha256": "9879bf81d820ee0f09fd98d5aa3a023a7731fb331fc4352866b36e79ef78e5ee",
+      "size": 1238
+    },
+    {
+      "path": "platform/Makefile",
+      "sha256": "13a0ef660172bd103fb36604dd869244f9f127ea6dc6ddbd3077e9f74e80caec",
+      "size": 1055
+    },
+    {
+      "path": "platform/alembic/env.py",
+      "sha256": "a9ff9c6e3def66c1955c460c00637120d596ec202a217b1aab96d559471fecee",
+      "size": 2057
+    },
+    {
+      "path": "platform/alembic/versions/0001_roles_and_schemas.py",
+      "sha256": "586de3330c6fa357a50ed929ab73eeb56b151d488c72707c078b9ea17d2f3bc7",
+      "size": 2530
+    },
+    {
+      "path": "platform/alembic/versions/0002_authoritative_schema.py",
+      "sha256": "5a8b070c01312aad574c549a6f0c5b0dd16d4be790f86855052eb72fc7f33e2f",
+      "size": 41866
+    },
+    {
+      "path": "platform/alembic/versions/0003_permissions_and_guards.py",
+      "sha256": "0435f5f18ef8f2f23e648505ce7f9ca51d0afd2d573eeff63867ede223acf371",
+      "size": 8987
+    },
+    {
+      "path": "platform/alembic/versions/0004_g3_semantic_repairs.py",
+      "sha256": "86b18cc1f23d60f354ba5ff3743b42b1e1e94420fdde36d4e05c4522982e11eb",
+      "size": 9018
+    },
+    {
+      "path": "platform/alembic/versions/0005_durable_jobs.py",
+      "sha256": "e3bc023af944088b0a1ebb11b45e62c932c10ce592556f1ba905aa089796d595",
+      "size": 32749
+    },
+    {
+      "path": "platform/alembic/versions/0006_collectors.py",
+      "sha256": "6d32afe5978bd3686e25248d63fbdf61a0d4848e9de8efff57e0474de4013559",
+      "size": 2935
+    },
+    {
+      "path": "platform/alembic/versions/0007_source_run_lease_guard.py",
+      "sha256": "51f99eb1e887f518f5793f94f4a991275525709cff91dfff49d701b731591d3f",
+      "size": 2734
+    },
+    {
+      "path": "platform/pyproject.toml",
+      "sha256": "61ec4bcdc30858f16d828e047f960a0ff98f0f562f1cd8c2b162df88cb081cbf",
+      "size": 1589
+    },
+    {
+      "path": "platform/src/uap_platform/documents/__init__.py",
+      "sha256": "7a337984000dd733f936537aa9d8bdfc0cb9489dc2656458287ab036fdbe8f35",
+      "size": 731
+    },
+    {
+      "path": "platform/src/uap_platform/documents/contracts.py",
+      "sha256": "a482121c6be3162c6a6fa5e8ce6ad4056bd6edb8c875ab4e9ad35bc8f4691f5e",
+      "size": 4856
+    },
+    {
+      "path": "platform/src/uap_platform/documents/html.py",
+      "sha256": "7006e8427f824a17bc5fab2d8fdcdd90ebb6b04302dc1309165e19aaf2c19b9f",
+      "size": 8675
+    },
+    {
+      "path": "platform/src/uap_platform/documents/pdf.py",
+      "sha256": "f016f3eea5f05261b6246aca02fe5b43b3636af33d4a19c0d53f845183b26142",
+      "size": 6109
+    },
+    {
+      "path": "platform/src/uap_platform/documents/persistence.py",
+      "sha256": "b98f3809e4699ab9249590b340fcfaa8be1b598137e798a94025e243286086c2",
+      "size": 11828
+    },
+    {
+      "path": "platform/src/uap_platform/documents/subtitles.py",
+      "sha256": "07416bcef7ae6913ef51493654525f2d5d004ec62b4fc94b0a0d7e8ef9a78c86",
+      "size": 9145
+    },
+    {
+      "path": "platform/src/uap_platform/documents/workflow.py",
+      "sha256": "62563e99712dffcf2b115f05c0b31cd263f5a758c5432acb0fb1a79b235d3dd6",
+      "size": 4009
+    },
+    {
+      "path": "platform/src/uap_platform/object_registry.py",
+      "sha256": "f4e6b16068c9d2218c09e254019a1097c70b9320be1a46b79eb64b1376378d88",
+      "size": 11261
+    },
+    {
+      "path": "platform/tests/fixtures/documents/sample.html",
+      "sha256": "b595bf2c2c31b62b0e4b6ab96ec7411e5a86e2a3932afccdf3d8df423eab000e",
+      "size": 328
+    },
+    {
+      "path": "platform/tests/fixtures/documents/sample.pdf",
+      "sha256": "e7fcb31c5facdbd434cf657753cd19855fa05cb1bbea3bd4ddc35095b86d5b2b",
+      "size": 733
+    },
+    {
+      "path": "platform/tests/fixtures/documents/sample.srt",
+      "sha256": "ac4242260ab0cf9afb71a9420218b43ccb9d96e470e54b39fc179d06c7f12c56",
+      "size": 97
+    },
+    {
+      "path": "platform/tests/fixtures/documents/sample.vtt",
+      "sha256": "e9c3074cdb593583a7ff2c6190957ab6d92dfabdfd87cdd278b152072a285537",
+      "size": 113
+    },
+    {
+      "path": "platform/tests/test_document_extraction.py",
+      "sha256": "c5e688d73168865e5462bd1801a8d3f4256c0388092fdcd3b8ace99ea513fd23",
+      "size": 4447
+    },
+    {
+      "path": "platform/tests/test_document_persistence.py",
+      "sha256": "7c4d986745a52f279b592a05976fb2c17cc1e55a1c12695f4d6171b2eaf29648",
+      "size": 9407
+    },
+    {
+      "path": "platform/tests/test_document_workflow.py",
+      "sha256": "a0593104580b7bd532ded79520725ff85c73e69c868fbe3dc62677d9f38f3d13",
+      "size": 2970
+    },
+    {
+      "path": "platform/tests/test_pdf_extraction.py",
+      "sha256": "05f0f69dba26bcb2d2f8592d55e9273c00267bc254c5e28464249c91a111100e",
+      "size": 1953
+    },
+    {
+      "path": "platform/tests/test_subtitle_extraction.py",
+      "sha256": "29c365eab3fa53a56a12b48afa74d1eb08bbf7d84b87e490ca44b51f1af3cc67",
+      "size": 2800
+    },
+    {
+      "path": "platform/tools/build_wp6_evidence.py",
+      "sha256": "37248b33e9c96862b9c4aad3129c8f083cde05bd6e818b5c066232c0cf03bbf3",
+      "size": 4243
+    },
+    {
+      "path": "platform/tools/reconcile_object_storage.py",
+      "sha256": "565cd4724c81d1fa32b527db8e44e4e6020b278fb9b71d99bac86067b085caa8",
+      "size": 745
+    },
+    {
+      "path": "platform/tools/validate_platform.py",
+      "sha256": "537e298e3baa412bae3596e742b33937587beff95ac73029490ca9f91a0dd3b0",
+      "size": 16094
+    },
+    {
+      "path": "platform/tools/validate_wp3.py",
+      "sha256": "baae79a500e9efbe94be486314cdcced31fc645a3b3bfcad71948d3840f03e7e",
+      "size": 8766
+    },
+    {
+      "path": "platform/tools/validate_wp4.py",
+      "sha256": "fb6f38521d8dc70212a5b3ba5142821343aa30d3083fa30391f350960dfd9494",
+      "size": 3641
+    },
+    {
+      "path": "platform/tools/validate_wp5.py",
+      "sha256": "f6f81ec91a6443455a51999011fc17dfbad130a24306acbaadb2daa91ea3873e",
+      "size": 4129
+    },
+    {
+      "path": "platform/tools/validate_wp6.py",
+      "sha256": "b8051ab15ce5e9172ae161c5ff322ec6a08b32f21fa5a9b249bde5298fc163ad",
+      "size": 7005
+    },
+    {
+      "path": "platform/tools/wp3_runtime_probe.py",
+      "sha256": "a21c16f92a6a0891b5cf26ad49c97efd98342cc3258ebc720fe15063619422d1",
+      "size": 33120
+    },
+    {
+      "path": "platform/tools/wp4_runtime_probe.py",
+      "sha256": "fc2fe43003a00dad6da4b0b6812448db8d55c3577d71985d44de248aba836fcd",
+      "size": 19037
+    },
+    {
+      "path": "platform/tools/wp5_runtime_probe.py",
+      "sha256": "6799ca693bf0052ec94ae1ffab4b491ff0759d8423bf9106b3eaab935b594a9c",
+      "size": 12332
+    },
+    {
+      "path": "platform/tools/wp6_runtime_probe.py",
+      "sha256": "f6a05a840f5ee5284cb890ce466c88f2937185dbb67d32a78b0926bc5036d284",
+      "size": 16438
+    },
+    {
+      "path": "platform/uv.lock",
+      "sha256": "8c765baccfbcf241220c8287200f9ffe97292272acddd3cc0c0d3b8211948108",
+      "size": 107923
+    }
+  ],
+  "freeze": "G6-FROZEN-20260819-01"
+}

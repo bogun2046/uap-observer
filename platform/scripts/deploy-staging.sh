@@ -42,6 +42,5 @@ compose() {
 compose config --quiet
 compose up --build --detach postgres object-store
 compose up --build --abort-on-container-exit --exit-code-from object-store-init object-store-init
-compose run --rm app alembic upgrade head
 compose up --build --detach --wait
 compose ps
