@@ -330,7 +330,6 @@ def upgrade() -> None:
               FROM core.claims AS claim
              WHERE claim.id = v_claim
              FOR UPDATE;
-            DELETE FROM core.claim_evidence WHERE claim_id = v_claim;
             FOREACH v_span IN ARRAY p_span_ids LOOP
                 IF NOT EXISTS (
                     SELECT 1
@@ -340,6 +339,11 @@ def upgrade() -> None:
                 ) THEN
                     RAISE EXCEPTION 'review_subject_missing' USING ERRCODE = '23503';
                 END IF;
+            END LOOP;
+            DELETE FROM core.claim_evidence
+             WHERE claim_id = v_claim
+               AND support_type = 'supports'::core.support_type;
+            FOREACH v_span IN ARRAY p_span_ids LOOP
                 INSERT INTO core.claim_evidence (
                     id, claim_id, evidence_span_id, document_version_id, support_type
                 ) VALUES (

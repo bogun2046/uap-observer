@@ -143,6 +143,49 @@ def permissions(admin: psycopg.Connection[Any]) -> None:
     )
 
 
+def evidence_snapshot(
+    admin: psycopg.Connection[Any], claim_id: uuid.UUID
+) -> list[tuple[uuid.UUID, uuid.UUID, str]]:
+    with admin.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id, evidence_span_id, support_type::text
+              FROM core.claim_evidence
+             WHERE claim_id = %s
+             ORDER BY id
+            """,
+            (claim_id,),
+        )
+        rows = cursor.fetchall()
+    return [
+        (uuid.UUID(str(row[0])), uuid.UUID(str(row[1])), str(row[2])) for row in rows
+    ]
+
+
+def insert_typed_evidence(
+    admin: psycopg.Connection[Any],
+    claim_id: uuid.UUID,
+    span_id: uuid.UUID,
+    document_id: uuid.UUID,
+    support_type: str,
+) -> uuid.UUID:
+    evidence_id = uuid.uuid4()
+    execute(
+        admin,
+        """
+        INSERT INTO core.claim_evidence (
+            id, claim_id, evidence_span_id, document_version_id, support_type
+        ) VALUES (%s, %s, %s, %s, %s::core.support_type)
+        """,
+        evidence_id,
+        claim_id,
+        span_id,
+        document_id,
+        support_type,
+    )
+    return evidence_id
+
+
 def g9_23(
     admin: psycopg.Connection[Any],
     api: psycopg.Connection[Any],
@@ -633,6 +676,124 @@ def g9_38(
     )
 
 
+def g9_replace_preserves_nonsupport(
+    admin: psycopg.Connection[Any],
+    api: psycopg.Connection[Any],
+    author: uuid.UUID,
+    senior: uuid.UUID,
+) -> None:
+    tag = uuid.uuid4().hex[:8]
+    _principal, document_id, _source = seed_document(admin, f"g9rep-{tag}")
+    support_span = insert_span(admin, document_id, sha256_text(f"g9rep-s-{tag}"))
+    context_span = insert_span(admin, document_id, sha256_text(f"g9rep-c-{tag}"))
+    contradicts_span = insert_span(admin, document_id, sha256_text(f"g9rep-x-{tag}"))
+    new_span = insert_span(admin, document_id, sha256_text(f"g9rep-n-{tag}"))
+    _p2, other_doc, _s2 = seed_document(admin, f"g9rep-o-{tag}")
+    other_span = insert_span(admin, other_doc, sha256_text(f"g9rep-o-{tag}"))
+    claim_id = call_api(
+        api,
+        author,
+        uuid.uuid4(),
+        manual_sql(
+            document_id, f"{MANUAL_TEXT} replace {tag}", "witness", [support_span]
+        ),
+    )
+    support_id = uuid.UUID(
+        str(
+            scalar(
+                admin,
+                """
+                SELECT id FROM core.claim_evidence
+                 WHERE claim_id = %s AND support_type = 'supports'
+                """,
+                claim_id,
+            )
+        )
+    )
+    context_id = insert_typed_evidence(
+        admin, claim_id, context_span, document_id, "context"
+    )
+    contradicts_id = insert_typed_evidence(
+        admin, claim_id, contradicts_span, document_id, "contradicts"
+    )
+    before = evidence_snapshot(admin, claim_id)
+    require("replace fixture rows", len(before), 3)
+    require(
+        "replace fixture types",
+        sorted(row[2] for row in before),
+        ["context", "contradicts", "supports"],
+    )
+    case_id = call_api(api, senior, uuid.uuid4(), open_sql("claim", claim_id, REASON))
+    call_api(api, senior, uuid.uuid4(), decide_sql(case_id, "approve"))
+    decisions_before = int(scalar(admin, "SELECT count(*) FROM audit.review_decisions"))
+
+    empty_state, empty_primary = sqlerror_tx(
+        api,
+        [
+            *bind(senior, uuid.uuid4()),
+            decide_sql(case_id, "revise", {"replace_supporting_span_ids": []}),
+        ],
+    )
+    require("replace empty sqlstate", empty_state, "22023")
+    require(
+        "replace empty token", empty_primary, "review_structured_changes_unsupported"
+    )
+
+    missing_state, missing_primary = sqlerror_tx(
+        api,
+        [
+            *bind(senior, uuid.uuid4()),
+            decide_sql(
+                case_id,
+                "revise",
+                {"replace_supporting_span_ids": [str(uuid.uuid4())]},
+            ),
+        ],
+    )
+    require("replace missing sqlstate", missing_state, "23503")
+    require("replace missing token", missing_primary, "review_subject_missing")
+
+    cross_state, cross_primary = sqlerror_tx(
+        api,
+        [
+            *bind(senior, uuid.uuid4()),
+            decide_sql(
+                case_id,
+                "revise",
+                {"replace_supporting_span_ids": [str(other_span)]},
+            ),
+        ],
+    )
+    require("replace cross-doc sqlstate", cross_state, "23503")
+    require("replace cross-doc token", cross_primary, "review_subject_missing")
+    require("replace illegal evidence", evidence_snapshot(admin, claim_id), before)
+    require(
+        "replace illegal no decision",
+        int(scalar(admin, "SELECT count(*) FROM audit.review_decisions")),
+        decisions_before,
+    )
+
+    call_api(
+        api,
+        senior,
+        uuid.uuid4(),
+        decide_sql(case_id, "revise", {"replace_supporting_span_ids": [str(new_span)]}),
+    )
+    after = evidence_snapshot(admin, claim_id)
+    supports = [row for row in after if row[2] == "supports"]
+    contexts = [row for row in after if row[2] == "context"]
+    contradicts = [row for row in after if row[2] == "contradicts"]
+    require("replace supports count", len(supports), 1)
+    require("replace new support span", supports[0][1], new_span)
+    require("replace old support gone", supports[0][0] != support_id, True)
+    require("replace context id", contexts[0][0], context_id)
+    require("replace context span", contexts[0][1], context_span)
+    require("replace context type", contexts[0][2], "context")
+    require("replace contradicts id", contradicts[0][0], contradicts_id)
+    require("replace contradicts span", contradicts[0][1], contradicts_span)
+    require("replace contradicts type", contradicts[0][2], "contradicts")
+
+
 def g9_26(admin: psycopg.Connection[Any]) -> None:
     require(
         "g9-26 head",
@@ -686,6 +847,7 @@ def main() -> None:
         g9_26(admin)
         document_id, span, _claim = g9_23(admin, api, author)
         g9_24(admin, api, author, senior, document_id, span)
+        g9_replace_preserves_nonsupport(admin, api, author, senior)
         g9_32(admin, api, author, senior, document_id, span)
         g9_33(admin, api, senior)
         g9_38(admin, api, author)

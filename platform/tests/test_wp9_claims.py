@@ -93,3 +93,21 @@ def test_wp9_6_python_does_not_call_private_binders() -> None:
     claims = (root / "claims.py").read_text(encoding="utf-8")
     assert "p_actor_id" not in claims
     assert "fingerprint" not in claims
+
+
+def test_replace_claim_evidence_deletes_supports_only() -> None:
+    platform = Path(__file__).resolve().parents[1]
+    migration = (
+        platform / "alembic/versions/0019_manual_claims_and_subject_binding.py"
+    ).read_text(encoding="utf-8")
+    start = migration.find("CREATE FUNCTION audit._replace_claim_evidence")
+    end = migration.find("$_replace_claim_evidence$;")
+    body = migration[start:end]
+    assert start > 0 and end > start
+    assert "DELETE FROM core.claim_evidence WHERE claim_id = v_claim;" not in body
+    assert "AND support_type = 'supports'::core.support_type" in body
+    probe = (platform / "tools/wp9_6_runtime_probe.py").read_text(encoding="utf-8")
+    assert "g9_replace_preserves_nonsupport" in probe
+    assert "support_type = 'context'" in probe or "\"context\"" in probe
+    assert "contradicts" in probe
+    assert "replace_supporting_span_ids" in probe

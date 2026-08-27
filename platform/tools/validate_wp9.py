@@ -174,6 +174,20 @@ def _event_key_lock_precedes_manual(sql: str) -> bool:
     return recheck >= 0 and next_insert >= 0 and recheck < next_insert
 
 
+def _replace_deletes_supports_only(sql: str) -> bool:
+    start = sql.find("CREATE FUNCTION audit._replace_claim_evidence")
+    end = sql.find("$_replace_claim_evidence$;")
+    if start < 0 or end < 0 or end <= start:
+        return False
+    body = sql[start:end]
+    if "DELETE FROM core.claim_evidence WHERE claim_id = v_claim;" in body:
+        return False
+    return (
+        "DELETE FROM core.claim_evidence" in body
+        and "AND support_type = 'supports'::core.support_type" in body
+    )
+
+
 def evaluate(platform: Path) -> list[Check]:
     platform = platform.resolve()
     repository = platform.parent
@@ -356,6 +370,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "review_decision_not_in_transaction" in migration_19
             and "pg_advisory_xact_lock(9175, hashtext(v_key))" in migration_19
             and _event_key_lock_precedes_manual(migration_19)
+            and _replace_deletes_supports_only(migration_19)
             and "GRANT EXECUTE ON FUNCTION audit.create_manual_claim" in migration_19
             and "GRANT EXECUTE ON FUNCTION audit._apply_claim_subject_bind" not in migration_19
             and "GRANT EXECUTE ON FUNCTION audit._replace_claim_evidence" not in migration_19
@@ -441,6 +456,7 @@ def evaluate(platform: Path) -> list[Check]:
             and "g9_32" in probe6
             and "g9_33" in probe6
             and "g9_38" in probe6
+            and "g9_replace_preserves_nonsupport" in probe6
             and "g8_16c" not in probe6
             and "review.claim.manual:" in probe6
             and "WP9.6 runtime probe passed: G9-23 G9-24 G9-25 G9-32 G9-33 G9-38" in probe6
@@ -494,7 +510,8 @@ def evaluate(platform: Path) -> list[Check]:
             and "apply_entity_merge" in merge_tests
             and "apply_entity_merge_reverse" in merge_tests
             and "create_manual_claim" in claim_tests
-            and "audit._apply_claim_subject_bind" in claim_tests,
+            and "audit._apply_claim_subject_bind" in claim_tests
+            and "g9_replace_preserves_nonsupport" in claim_tests,
             True,
         ),
     ]

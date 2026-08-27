@@ -164,6 +164,12 @@ def test_wp9_6_manual_claims_contract() -> None:
     assert "CREATE FUNCTION core.require_manual_claim_supports" in migration
     assert "CREATE FUNCTION audit._apply_claim_subject_bind" in migration
     assert "CREATE FUNCTION audit._replace_claim_evidence" in migration
+    replace_start = migration.find("CREATE FUNCTION audit._replace_claim_evidence")
+    replace_end = migration.find("$_replace_claim_evidence$;")
+    replace_body = migration[replace_start:replace_end]
+    assert replace_start > 0 and replace_end > replace_start
+    assert "DELETE FROM core.claim_evidence WHERE claim_id = v_claim;" not in replace_body
+    assert "AND support_type = 'supports'::core.support_type" in replace_body
     assert "CREATE FUNCTION audit._retire_manual_claim_supports" in migration
     assert "CREATE OR REPLACE FUNCTION audit.record_review_decision" in migration
     assert "require_ai_claim_supports" not in migration
@@ -173,6 +179,7 @@ def test_wp9_6_manual_claims_contract() -> None:
     assert "GRANT EXECUTE ON FUNCTION audit._apply_claim_subject_bind" not in migration
     assert "g9_23" in probe and "g9_24" in probe and "g9_25" in probe
     assert "g9_32" in probe and "g9_33" in probe and "g9_38" in probe
+    assert "g9_replace_preserves_nonsupport" in probe
     assert "g8_16c" not in probe
     assert "WP9.6 runtime probe passed: G9-23 G9-24 G9-25 G9-32 G9-33 G9-38" in probe
     assert "wp9_6_runtime_probe.py" in orchestrator
