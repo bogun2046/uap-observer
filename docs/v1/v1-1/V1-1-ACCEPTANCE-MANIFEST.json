@@ -1,0 +1,11 @@
+{
+  "record_type": "uap.v1-1.acceptance",
+  "status": "PASS / ACCEPTED / CLOSED",
+  "accepted_at": "2026-09-17",
+  "repository": "recovery/r0-20260907-Sk1qtq/recovered-repo",
+  "baseline_commit": "4a14b368c96808edf9dfbc1dfd5fc0ce9fbf6638",
+  "record_file": "V1-1-ACCEPTANCE-RECORD.md",
+  "record_sha256": "b12ffa1849b1e35a2b9a791700c18ffcfbc13e952104e3a72b8660eaef3ccb53",
+  "scope": "read-only final V1-1 acceptance archive; no code, prompt, schema, validator, provider, migration, publication, WAR.GOV, or WP11 changes",
+  "post_acceptance_rule": "V1-1 is closed; only regression defects may reopen it; resolve_claims and resolve_entities proceed in later stages"
+}
