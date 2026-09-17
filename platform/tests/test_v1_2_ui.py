@@ -28,6 +28,8 @@ def test_internal_library_has_frozen_views_and_actions() -> None:
         "Adopt AI Summary",
         "Adopt AI Claims",
         "Adopt AI Entities",
+        "Adopt claim #",
+        "Adopt entity #",
     ):
         assert label in html
     for task in ("classification", "summary", "claim_extraction", "entity_extraction"):
