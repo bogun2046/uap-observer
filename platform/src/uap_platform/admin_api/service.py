@@ -35,6 +35,8 @@ from .contracts import (
     AuditHistoryEvent,
     AuditHistoryPage,
     DocumentDetail,
+    DocumentListPage,
+    DocumentListSummary,
     EditorialContent,
     EditorialPatchRequest,
     EditorialRevisionSummary,
@@ -218,6 +220,148 @@ class AdminQueryService:
             return ReviewCaseDetail(
                 **summary.model_dump(), decisions=decisions, publication=publication
             )
+
+    def list_documents(
+        self,
+        *,
+        principal_id: UUID,
+        query: str | None,
+        limit: int,
+        cursor: str | None,
+    ) -> DocumentListPage:
+        """Return the normal Internal Library projection, excluding trash."""
+
+        clean_query = query.strip() if query else None
+        filters = {"q": clean_query}
+        digest = filters_digest(filters)
+        last_created, last_id = self._created_cursor(cursor, "documents", digest)
+        search = f"%{clean_query}%" if clean_query else None
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as db_cursor:
+                db_cursor.execute(
+                    """
+                    SELECT d.id AS document_id, dv.id AS document_version_id,
+                           coalesce(editorial.content ->> 'title', dv.original_title) AS title,
+                           d.canonical_url, d.first_seen_at, dv.source_published_at,
+                           d.deleted_at, d.deleted_by, d.delete_reason,
+                           s.id AS source_id, s.slug AS source_slug, s.name AS source_name,
+                           e.outcome AS extraction_outcome,
+                           coalesce(ai.valid_count, 0) AS valid_count,
+                           coalesce(ai.failed_count, 0) AS failed_count,
+                           coalesce(ai.latest_at, d.first_seen_at) AS latest_ai_at,
+                           editorial.revision_no AS editorial_revision_no,
+                           editorial.created_at AS editorial_created_at
+                      FROM core.documents AS d
+                      JOIN ingest.sources AS s ON s.id = d.source_id
+                      JOIN LATERAL (
+                          SELECT item.* FROM core.document_versions AS item
+                           WHERE item.document_id = d.id
+                           ORDER BY item.version_no DESC, item.id DESC LIMIT 1
+                      ) AS dv ON true
+                      LEFT JOIN LATERAL (
+                          SELECT item.outcome FROM core.extractions AS item
+                           WHERE item.document_version_id = dv.id
+                           ORDER BY item.created_at DESC, item.id DESC LIMIT 1
+                      ) AS e ON true
+                      LEFT JOIN LATERAL (
+                          SELECT item.revision_no, item.content, item.created_at
+                            FROM core.editorial_revisions AS item
+                           WHERE item.document_version_id = dv.id
+                           ORDER BY item.revision_no DESC, item.id DESC LIMIT 1
+                      ) AS editorial ON true
+                      LEFT JOIN LATERAL (
+                          SELECT count(*) FILTER (
+                                     WHERE item.validation_status = 'valid'::core.validation_status
+                                 ) AS valid_count,
+                                 count(*) FILTER (
+                                     WHERE item.validation_status =
+                                           'invalid'::core.validation_status
+                                 ) AS failed_count,
+                                 max(item.created_at) AS latest_at
+                            FROM core.analysis_results AS item
+                           WHERE item.document_version_id = dv.id
+                      ) AS ai ON true
+                     WHERE d.deleted_at IS NULL
+                       AND (%s::text IS NULL
+                            OR dv.original_title ILIKE %s
+                            OR s.name ILIKE %s
+                            OR coalesce(editorial.content ->> 'title', '') ILIKE %s)
+                       AND (%s::timestamptz IS NULL
+                            OR (d.first_seen_at, d.id) > (%s, %s::uuid))
+                     ORDER BY d.first_seen_at ASC, d.id ASC
+                     LIMIT %s
+                    """,
+                    (
+                        search,
+                        search,
+                        search,
+                        search,
+                        last_created,
+                        last_created,
+                        last_id,
+                        limit + 1,
+                    ),
+                )
+                rows = db_cursor.fetchall()
+        items: list[DocumentListSummary] = []
+        for row in rows[:limit]:
+            valid_count = int(cast(int, row["valid_count"]))
+            failed_count = int(cast(int, row["failed_count"]))
+            outcome = str(row["extraction_outcome"]) if row["extraction_outcome"] else None
+            if outcome != "succeeded":
+                internal_state = "extraction_failed"
+            elif failed_count:
+                internal_state = "analysis_failed"
+            elif valid_count >= 3:
+                internal_state = "analysis_ready"
+            elif valid_count:
+                internal_state = "analysis_partial"
+            else:
+                internal_state = "analysis_pending"
+            editorial_created = cast(datetime | None, row["editorial_created_at"])
+            latest_ai = cast(datetime | None, row["latest_ai_at"])
+            items.append(
+                DocumentListSummary(
+                    document_id=cast(UUID, row["document_id"]),
+                    document_version_id=cast(UUID, row["document_version_id"]),
+                    title=cast(str | None, row["title"]),
+                    source={
+                        "id": row["source_id"],
+                        "slug": row["source_slug"],
+                        "name": row["source_name"],
+                    },
+                    canonical_url=cast(str | None, row["canonical_url"]),
+                    source_published_at=cast(datetime | None, row["source_published_at"]),
+                    internal_state=internal_state,
+                    lifecycle={
+                        "trashed": False,
+                        "deleted_at": row["deleted_at"],
+                        "deleted_by": row["deleted_by"],
+                        "reason": row["delete_reason"],
+                    },
+                    indicators={
+                        "has_editorial": row["editorial_revision_no"] is not None,
+                        "newer_ai_result_available": (
+                            editorial_created is not None
+                            and latest_ai is not None
+                            and latest_ai > editorial_created
+                        ),
+                        "trashed": False,
+                        "reanalyze_allowed": True,
+                    },
+                )
+            )
+        next_cursor = None
+        if len(rows) > limit and items:
+            tail = rows[limit - 1]
+            next_cursor = self._cursor.encode(
+                resource="documents",
+                sort=CREATED_SORT,
+                last=[self._iso(tail["first_seen_at"]), str(tail["document_id"])],
+                filters_sha256=digest,
+            )
+        return DocumentListPage(items=items, next_cursor=next_cursor)
 
     def get_document_detail(self, principal_id: UUID, document_id: UUID) -> DocumentDetail | None:
         """Return a source/AI/editorial projection without collapsing provenance."""

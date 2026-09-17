@@ -142,6 +142,17 @@ class AdminApiApplication:
                     cursor=self._optional(query, "cursor"),
                 ),
             )
+        if path == "/admin/v1/documents":
+            self._require_query(query, {"q", "limit", "cursor"})
+            return self._success(
+                request_id,
+                self._service.list_documents(
+                    principal_id=principal_id,
+                    query=self._optional(query, "q"),
+                    limit=self._limit(query),
+                    cursor=self._optional(query, "cursor"),
+                ),
+            )
         if path.startswith("/admin/v1/documents/") and path.count("/") == 4:
             self._require_query(query, set())
             return self._resource(

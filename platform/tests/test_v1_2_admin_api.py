@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from uap_platform.admin_api.contracts import (
     AuditHistoryPage,
     DocumentDetail,
+    DocumentListPage,
     EditorialPatchRequest,
     TrashDocumentPage,
     WriteResult,
@@ -46,6 +47,10 @@ class FakeEditorialService:
     def list_trash_documents(self, **kwargs: Any) -> TrashDocumentPage:
         self.calls.append(("trash-list", kwargs))
         return TrashDocumentPage(items=[], next_cursor=None)
+
+    def list_documents(self, **kwargs: Any) -> DocumentListPage:
+        self.calls.append(("document-list", kwargs))
+        return DocumentListPage(items=[], next_cursor=None)
 
     def list_document_audit(self, **kwargs: Any) -> AuditHistoryPage:
         self.calls.append(("audit", kwargs))
@@ -198,6 +203,17 @@ def test_document_detail_and_trash_are_editorial_routes() -> None:
     assert detail.status == 404
     assert trash.status == 200
     assert audit.status == 200
+
+
+def test_document_list_is_oidc_read_projection_and_excludes_unknown_query() -> None:
+    service = FakeEditorialService()
+    app = _app(service)
+    listed = app.handle("GET", "/admin/v1/documents?q=reddit&limit=10", _headers())
+    assert listed.status == 200
+    assert service.calls[-1][0] == "document-list"
+    assert service.calls[-1][1]["query"] == "reddit"
+    invalid = app.handle("GET", "/admin/v1/documents?state=trash", _headers())
+    assert invalid.status == 422
 
 
 def test_unauthenticated_editorial_request_is_rejected() -> None:

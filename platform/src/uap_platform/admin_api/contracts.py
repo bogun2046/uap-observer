@@ -284,6 +284,23 @@ class DocumentDetail(StrictModel):
     indicators: dict[str, bool]
 
 
+class DocumentListSummary(StrictModel):
+    document_id: UUID
+    document_version_id: UUID
+    title: str | None
+    source: dict[str, Any]
+    canonical_url: str | None
+    source_published_at: datetime | None
+    internal_state: str
+    lifecycle: dict[str, Any]
+    indicators: dict[str, bool]
+
+
+class DocumentListPage(StrictModel):
+    items: list[DocumentListSummary]
+    next_cursor: str | None
+
+
 class TrashDocumentSummary(StrictModel):
     document_id: UUID
     document_version_id: UUID
