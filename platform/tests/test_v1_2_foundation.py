@@ -99,3 +99,31 @@ def test_downgrade_removes_contract_objects_without_rewriting_history() -> None:
     assert "DROP TABLE IF EXISTS core.editorial_revisions" in downgrade
     assert "DROP COLUMN IF EXISTS deleted_at" in downgrade
     assert "cannot safely remove an enum label" in downgrade
+
+
+def test_reanalysis_and_lifecycle_wrappers_are_narrow_and_versioned() -> None:
+    root = Path(__file__).parents[1]
+    reanalysis = root.joinpath(
+        "alembic/versions/0026_v12_editorial_reanalysis.py"
+    ).read_text(encoding="utf-8")
+    lifecycle = root.joinpath(
+        "alembic/versions/0027_v12_editorial_lifecycle_concurrency.py"
+    ).read_text(encoding="utf-8")
+    assert 'revision = "0026_v12_editorial_reanalysis"' in reanalysis
+    assert 'down_revision = "0025_v12_editorial_foundation"' in reanalysis
+    assert "audit.request_editorial_reanalysis" in reanalysis
+    assert "GRANT SELECT ON ops.model_runs, ops.prompt_versions TO uap_api" in reanalysis
+    assert "audit._existing_write_target" in reanalysis
+    assert "'payload_sha256'" in reanalysis
+    assert "monthly_model_budget_exhausted" in reanalysis
+    assert "article_model_call_budget_exhausted" in reanalysis
+    assert 'revision = "0027_v12_editorial_lifecycle_concurrency"' in lifecycle
+    assert 'down_revision = "0026_v12_editorial_reanalysis"' in lifecycle
+    assert "audit.trash_document(uuid, integer, text)" in lifecycle
+    assert "audit.restore_document(uuid, integer, text)" in lifecycle
+    assert (
+        lifecycle.count("audit.require_active_role('editorial_admin'::audit.application_role)")
+        == 2
+    )
+    assert "uap_worker" in lifecycle and "uap_scheduler" in lifecycle
+    assert lifecycle.count("review_idempotency_payload_conflict") >= 2

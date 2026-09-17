@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from psycopg import Connection
 from psycopg.errors import Error as PsycopgError
 from psycopg.rows import RowFactory, tuple_row
 
+from uap_platform.object_registry import ObjectClient, read_verified_object
 from uap_platform.review.cases import assign_review_case, close_review_case, open_review_case
 from uap_platform.review.claims import create_manual_claim
 from uap_platform.review.decisions import record_review_decision
@@ -27,24 +29,35 @@ from uap_platform.review.session import require_active_role
 from .contracts import (
     AdminEntityPage,
     AdminEntitySummary,
+    AdoptEditorialRequest,
     AnalysisResultPage,
     AnalysisResultSummary,
+    AuditHistoryEvent,
+    AuditHistoryPage,
+    DocumentDetail,
+    EditorialContent,
+    EditorialPatchRequest,
+    EditorialRevisionSummary,
     EntityCandidatePage,
     EntityCandidateSummary,
     EntityType,
     EvidenceSpanPage,
     EvidenceSpanSummary,
     GrantStatus,
+    LifecycleRequest,
     ProjectionState,
     PublicationEventPage,
     PublicationEventState,
     PublicationEventSummary,
     PublicationState,
+    ReanalysisRequest,
     ReviewCaseDetail,
     ReviewCasePage,
     ReviewCaseSummary,
     ReviewDecision,
     ReviewDecisionSummary,
+    TrashDocumentPage,
+    TrashDocumentSummary,
     WriteResult,
 )
 from .cursor import CursorCodec, CursorError, filters_digest
@@ -57,12 +70,19 @@ OCCURRED_SORT = "occurred_at_asc,id_asc"
 REVIEWER_ROLE = "reviewer"
 SENIOR_ROLE = "senior_reviewer"
 OPERATOR_ROLE = "data_operator"
+EDITORIAL_ROLE = "editorial_admin"
 
 
 class AdminQueryService:
-    def __init__(self, pool: AdminApiPool, cursor_codec: CursorCodec) -> None:
+    def __init__(
+        self,
+        pool: AdminApiPool,
+        cursor_codec: CursorCodec,
+        object_client: ObjectClient | None = None,
+    ) -> None:
         self._pool = pool
         self._cursor = cursor_codec
+        self._object_client = object_client
 
     def list_review_cases(
         self,
@@ -198,6 +218,624 @@ class AdminQueryService:
             return ReviewCaseDetail(
                 **summary.model_dump(), decisions=decisions, publication=publication
             )
+
+    def get_document_detail(self, principal_id: UUID, document_id: UUID) -> DocumentDetail | None:
+        """Return a source/AI/editorial projection without collapsing provenance."""
+
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT d.id AS document_id, dv.id AS document_version_id,
+                           d.canonical_url, d.deleted_at, d.deleted_by, d.delete_reason,
+                           s.id AS source_id, s.slug AS source_slug, s.name AS source_name,
+                           dv.original_title, dv.source_published_at, dv.language_code,
+                           dv.normalized_content_sha256, e.id AS extraction_id,
+                           e.outcome AS extraction_outcome, e.error_code AS extraction_error_code,
+                           e.title AS extracted_title, e.author AS extracted_author,
+                           e.source_date AS extracted_source_date, e.text_object_id,
+                           e.output_sha256 AS extraction_output_sha256,
+                           stored.bucket_name AS text_bucket_name,
+                           stored.object_key AS text_object_key,
+                           stored.content_sha256 AS text_content_sha256,
+                           stored.byte_length AS text_byte_length
+                      FROM core.documents AS d
+                      JOIN ingest.sources AS s ON s.id = d.source_id
+                      JOIN LATERAL (
+                          SELECT item.* FROM core.document_versions AS item
+                           WHERE item.document_id = d.id
+                           ORDER BY item.version_no DESC, item.id DESC LIMIT 1
+                      ) AS dv ON true
+                      LEFT JOIN LATERAL (
+                          SELECT item.* FROM core.extractions AS item
+                           WHERE item.document_version_id = dv.id
+                           ORDER BY item.created_at DESC, item.id DESC LIMIT 1
+                      ) AS e ON true
+                      LEFT JOIN core.stored_objects AS stored ON stored.id = e.text_object_id
+                     WHERE d.id = %s
+                    """,
+                    (document_id,),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                return None
+            version_id = UUID(str(row["document_version_id"]))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT result.id, result.result_type, result.result,
+                           result.schema_version, result.validation_status, result.created_at,
+                           run.id AS model_run_id, run.provider, run.model, run.input_sha256,
+                           run.status AS model_status, run.input_tokens, run.output_tokens,
+                           run.cost_minor_units, run.currency, run.error_code,
+                           run.started_at, run.finished_at,
+                           prompt.id AS prompt_version_id, prompt.version AS prompt_version,
+                           prompt.content_sha256 AS prompt_hash
+                      FROM core.analysis_results AS result
+                      LEFT JOIN ops.model_runs AS run
+                        ON run.id = result.model_run_id
+                       AND run.document_version_id = result.document_version_id
+                      LEFT JOIN ops.prompt_versions AS prompt
+                        ON prompt.id = run.prompt_version_id
+                     WHERE result.document_version_id = %s
+                     ORDER BY result.result_type, result.created_at DESC, result.id DESC
+                    """,
+                    (version_id,),
+                )
+                analysis_rows = cursor.fetchall()
+                cursor.execute(
+                    """
+                    SELECT revision.id, revision.revision_no, revision.operation,
+                           revision.base_revision_no, revision.content,
+                           revision.source_map, revision.adopted_from,
+                           revision.created_by, revision.created_at,
+                           (
+                               SELECT body.content
+                                 FROM core.editorial_revisions AS body
+                                WHERE body.document_version_id = revision.document_version_id
+                                  AND body.content IS NOT NULL
+                                ORDER BY body.revision_no DESC, body.id DESC
+                                LIMIT 1
+                           ) AS latest_content
+                      FROM core.editorial_revisions AS revision
+                     WHERE revision.document_version_id = %s
+                     ORDER BY revision.revision_no DESC, revision.id DESC
+                     LIMIT 1
+                    """,
+                    (version_id,),
+                )
+                revision = cursor.fetchone()
+
+        source_text = None
+        if self._object_client is not None and row["text_object_id"] is not None:
+            if (
+                row["text_bucket_name"] is not None
+                and row["text_object_key"] is not None
+                and row["text_content_sha256"] is not None
+                and row["text_byte_length"] is not None
+            ):
+                try:
+                    source_text = read_verified_object(
+                        self._object_client,
+                        str(row["text_bucket_name"]),
+                        str(row["text_object_key"]),
+                        str(row["text_content_sha256"]),
+                        int(cast(int, row["text_byte_length"])),
+                    ).decode("utf-8", errors="replace")
+                except Exception as error:
+                    raise AdminError("api_dependency_unavailable") from error
+
+        ai_results: dict[str, Any] = {}
+        latest_ai_at: datetime | None = None
+        for item in analysis_rows:
+            result_type = str(item["result_type"])
+            if result_type in ai_results:
+                continue
+            created_at = cast(datetime, item["created_at"])
+            latest_ai_at = max(latest_ai_at, created_at) if latest_ai_at else created_at
+            ai_results[result_type] = {
+                "analysis_result_id": item["id"],
+                "result": item["result"],
+                "schema_version": item["schema_version"],
+                "validation_status": item["validation_status"],
+                "created_at": created_at,
+                "model_run": {
+                    "id": item["model_run_id"],
+                    "provider": item["provider"],
+                    "model": item["model"],
+                    "input_sha256": item["input_sha256"],
+                    "status": item["model_status"],
+                    "input_tokens": item["input_tokens"],
+                    "output_tokens": item["output_tokens"],
+                    "cost_minor_units": item["cost_minor_units"],
+                    "currency": item["currency"],
+                    "error_code": item["error_code"],
+                    "started_at": item["started_at"],
+                    "finished_at": item["finished_at"],
+                    "prompt_version_id": item["prompt_version_id"],
+                    "prompt_version": item["prompt_version"],
+                    "prompt_hash": item["prompt_hash"],
+                },
+            }
+
+        extraction_outcome = str(row["extraction_outcome"]) if row["extraction_outcome"] else None
+        classification_payload = ai_results.get("classification", {}).get("result")
+        classification_relevance = (
+            classification_payload.get("relevance")
+            if isinstance(classification_payload, Mapping)
+            else None
+        )
+        if extraction_outcome != "succeeded":
+            internal_state = "extraction_failed"
+        elif any(
+            value.get("model_run", {}).get("status") in {"failed", "invalid"}
+            for value in ai_results.values()
+        ):
+            internal_state = "analysis_failed"
+        elif (
+            isinstance(classification_relevance, Mapping)
+            and classification_relevance.get("decision") == "irrelevant"
+        ):
+            internal_state = "not_relevant"
+        elif {"summary", "claim_extraction", "entity_extraction"}.issubset(ai_results):
+            internal_state = "analysis_ready"
+        elif ai_results:
+            internal_state = "analysis_partial"
+        else:
+            internal_state = "analysis_pending"
+
+        revision_row = cast(Mapping[str, Any], revision) if revision is not None else None
+        editorial = None
+        if revision_row is not None:
+            editorial = {
+                "revision": EditorialRevisionSummary(
+                    id=cast(UUID, revision_row["id"]),
+                    document_version_id=version_id,
+                    revision_no=cast(int, revision_row["revision_no"]),
+                    operation=cast(
+                        Literal["save", "adopt", "trash", "restore"],
+                        revision_row["operation"],
+                    ),
+                    base_revision_no=cast(int, revision_row["base_revision_no"]),
+                    created_by=cast(UUID, revision_row["created_by"]),
+                    created_at=cast(datetime, revision_row["created_at"]),
+                    source_map=cast(dict[str, Any], revision_row["source_map"]),
+                    adopted_from=cast(dict[str, Any], revision_row["adopted_from"]),
+                ),
+                "content": (
+                    None
+                    if revision_row["content"] is None
+                    and revision_row["latest_content"] is None
+                    else cast(
+                        dict[str, Any],
+                        revision_row["content"]
+                        if revision_row["content"] is not None
+                        else revision_row["latest_content"],
+                    )
+                ),
+            }
+        trashed = row["deleted_at"] is not None
+        return DocumentDetail(
+            document_id=cast(UUID, row["document_id"]),
+            document_version_id=version_id,
+            source={"id": row["source_id"], "slug": row["source_slug"], "name": row["source_name"]},
+            canonical_url=cast(str | None, row["canonical_url"]),
+            internal_state=internal_state,
+            lifecycle={
+                "trashed": trashed,
+                "deleted_at": row["deleted_at"],
+                "deleted_by": row["deleted_by"],
+                "reason": row["delete_reason"],
+            },
+            raw={
+                "original_title": row["original_title"],
+                "language_code": row["language_code"],
+                "source_published_at": row["source_published_at"],
+                "normalized_content_sha256": row["normalized_content_sha256"],
+                "source_text": source_text,
+                "text_object_id": row["text_object_id"],
+                "extraction": {
+                    "id": row["extraction_id"],
+                    "outcome": row["extraction_outcome"],
+                    "error_code": row["extraction_error_code"],
+                    "title": row["extracted_title"],
+                    "author": row["extracted_author"],
+                    "source_date": row["extracted_source_date"],
+                    "output_sha256": row["extraction_output_sha256"],
+                },
+            },
+            ai_results=ai_results,
+            editorial=editorial,
+            indicators={
+                "has_editorial": editorial is not None,
+                "newer_ai_result_available": (
+                    editorial is not None
+                    and latest_ai_at is not None
+                    and revision_row is not None
+                    and latest_ai_at > cast(datetime, revision_row["created_at"])
+                ),
+                "trashed": trashed,
+                "reanalyze_allowed": not trashed,
+            },
+        )
+
+    def list_trash_documents(
+        self, *, principal_id: UUID, limit: int, cursor: str | None
+    ) -> TrashDocumentPage:
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_role(connection, EDITORIAL_ROLE)
+            digest = filters_digest({"resource": "trash"})
+            last_deleted, last_id = self._created_cursor(cursor, "trash-documents", digest)
+            with connection.cursor() as db_cursor:
+                db_cursor.execute(
+                    """
+                    SELECT d.id AS document_id, dv.id AS document_version_id,
+                           coalesce(editorial.content ->> 'title', dv.original_title) AS title,
+                           d.deleted_at, d.deleted_by, d.delete_reason,
+                           s.id AS source_id, s.slug AS source_slug, s.name AS source_name,
+                           coalesce(editorial.revision_no, 0) AS revision_no
+                      FROM core.documents AS d
+                      JOIN ingest.sources AS s ON s.id = d.source_id
+                      JOIN LATERAL (
+                          SELECT item.* FROM core.document_versions AS item
+                           WHERE item.document_id = d.id
+                           ORDER BY item.version_no DESC, item.id DESC LIMIT 1
+                      ) AS dv ON true
+                      LEFT JOIN LATERAL (
+                          SELECT item.revision_no, item.content
+                            FROM core.editorial_revisions AS item
+                           WHERE item.document_version_id = dv.id
+                           ORDER BY item.revision_no DESC, item.id DESC LIMIT 1
+                      ) AS editorial ON true
+                     WHERE d.deleted_at IS NOT NULL
+                       AND (%s::timestamptz IS NULL OR (d.deleted_at, d.id) > (%s, %s::uuid))
+                     GROUP BY d.id, dv.id, dv.original_title, editorial.content,
+                              editorial.revision_no, d.deleted_at, d.deleted_by,
+                              d.delete_reason, s.id, s.slug, s.name
+                     ORDER BY d.deleted_at ASC, d.id ASC
+                     LIMIT %s
+                    """,
+                    (last_deleted, last_deleted, last_id, limit + 1),
+                )
+                rows = db_cursor.fetchall()
+        items = [
+            TrashDocumentSummary(
+                document_id=cast(UUID, row["document_id"]),
+                document_version_id=cast(UUID, row["document_version_id"]),
+                title=cast(str | None, row["title"]),
+                source={
+                    "id": row["source_id"],
+                    "slug": row["source_slug"],
+                    "name": row["source_name"],
+                },
+                trashed_at=cast(datetime, row["deleted_at"]),
+                trashed_by=cast(UUID, row["deleted_by"]),
+                reason=cast(str | None, row["delete_reason"]),
+                revision_no=cast(int, row["revision_no"]),
+            )
+            for row in rows[:limit]
+        ]
+        next_cursor = None
+        if len(rows) > limit and items:
+            tail = rows[limit - 1]
+            next_cursor = self._cursor.encode(
+                resource="trash-documents",
+                sort=CREATED_SORT,
+                last=[self._iso(tail["deleted_at"]), str(tail["document_id"])],
+                filters_sha256=digest,
+            )
+        return TrashDocumentPage(items=items, next_cursor=next_cursor)
+
+    def list_document_audit(
+        self, *, principal_id: UUID, document_id: UUID, limit: int, cursor: str | None
+    ) -> AuditHistoryPage:
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_role(connection, EDITORIAL_ROLE)
+            digest = filters_digest({"document_id": str(document_id)})
+            if cursor:
+                last = self._cursor.decode(
+                    cursor, resource="document-audit", sort=OCCURRED_SORT, filters_sha256=digest
+                )
+                if len(last) != 2:
+                    raise CursorError("cursor is invalid")
+                try:
+                    last_occurred = datetime.fromisoformat(str(last[0]))
+                    last_id = UUID(str(last[1]))
+                except (TypeError, ValueError) as error:
+                    raise CursorError("cursor is invalid") from error
+            else:
+                last_occurred, last_id = None, None
+            with connection.cursor() as db_cursor:
+                db_cursor.execute(
+                    """
+                    SELECT id, event_key, action, actor_id, occurred_at, request_id,
+                           target_id, metadata
+                      FROM audit.audit_events
+                     WHERE target_type = 'document' AND target_id = %s
+                       AND (%s::timestamptz IS NULL OR (occurred_at, id) > (%s, %s::uuid))
+                     ORDER BY occurred_at ASC, id ASC
+                     LIMIT %s
+                    """,
+                    (document_id, last_occurred, last_occurred, last_id, limit + 1),
+                )
+                rows = db_cursor.fetchall()
+        items = [
+            AuditHistoryEvent(**cast(dict[str, Any], dict(row))) for row in rows[:limit]
+        ]
+        next_cursor = None
+        if len(rows) > limit and items:
+            tail = rows[limit - 1]
+            next_cursor = self._cursor.encode(
+                resource="document-audit",
+                sort=OCCURRED_SORT,
+                last=[self._iso(tail["occurred_at"]), str(tail["id"])],
+                filters_sha256=digest,
+            )
+        return AuditHistoryPage(items=items, next_cursor=next_cursor)
+
+    def _load_editorial_context(
+        self, connection: Connection[dict[str, object]], document_id: UUID, version_id: UUID
+    ) -> tuple[UUID, int, dict[str, Any], bool]:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT document.id, document.deleted_at, version.original_title
+                  FROM core.documents AS document
+                  JOIN core.document_versions AS version ON version.document_id = document.id
+                 WHERE document.id = %s AND version.id = %s
+                """,
+                (document_id, version_id),
+            )
+            document = cursor.fetchone()
+            if document is None:
+                raise AdminError("editorial_document_version_mismatch")
+            cursor.execute(
+                """
+                SELECT coalesce(max(revision_no), 0) AS revision_no
+                  FROM core.editorial_revisions
+                 WHERE document_version_id = %s
+                """,
+                (version_id,),
+            )
+            revision = cursor.fetchone()
+            cursor.execute(
+                """
+                SELECT content
+                  FROM core.editorial_revisions
+                 WHERE document_version_id = %s AND content IS NOT NULL
+                 ORDER BY revision_no DESC, id DESC
+                 LIMIT 1
+                """,
+                (version_id,),
+            )
+            content_row = cursor.fetchone()
+        revision_row = cast(Mapping[str, Any], revision) if revision is not None else None
+        content_map = cast(Mapping[str, Any], content_row) if content_row is not None else None
+        content = (
+            cast(dict[str, Any], content_map["content"])
+            if content_map is not None and content_map["content"] is not None
+            else {
+                "title": document["original_title"] or "Untitled document",
+                "summary": None,
+                "bullets": [],
+                "category": "other",
+                "labels": [],
+                "claims": [],
+                "entities": [],
+            }
+        )
+        return (
+            UUID(str(document["id"])),
+            int(revision_row["revision_no"]) if revision_row is not None else 0,
+            dict(content),
+            document["deleted_at"] is not None,
+        )
+
+    @staticmethod
+    def _validate_editorial_content(content: Mapping[str, object]) -> EditorialContent:
+        try:
+            return EditorialContent.model_validate(content)
+        except Exception as error:
+            raise AdminError("api_request_invalid") from error
+
+    def save_editorial(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        request: EditorialPatchRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            _, current_revision, current, trashed = self._load_editorial_context(
+                connection, document_id, request.document_version_id
+            )
+            if trashed:
+                raise AdminError("editorial_document_trashed")
+            if current_revision != request.expected_revision:
+                raise AdminError("editorial_revision_conflict")
+            current.update(request.changes())
+            validated = self._validate_editorial_content(current)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.save_editorial_revision(%s, %s, %s::jsonb, %s::jsonb, %s::jsonb)",
+                    (
+                        request.document_version_id,
+                        request.expected_revision,
+                        json.dumps(validated.model_dump(mode="json"), sort_keys=True),
+                        json.dumps({field: {"source": "editorial"} for field in request.changes()}),
+                        json.dumps({}),
+                    ),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "save_editorial_revision")
+
+        return self._write_editorial(
+            principal_id,
+            request_id,
+            "editorial.save",
+            _call,
+        )
+
+    def adopt_editorial(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        request: AdoptEditorialRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            _, current_revision, current, trashed = self._load_editorial_context(
+                connection, document_id, request.document_version_id
+            )
+            if trashed:
+                raise AdminError("editorial_document_trashed")
+            if current_revision != request.expected_revision:
+                raise AdminError("editorial_revision_conflict")
+            if len(set(request.fields)) != len(request.fields):
+                raise AdminError("editorial_adopt_field_invalid")
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT document_version_id, result_type, validation_status, result
+                      FROM core.analysis_results
+                     WHERE id = %s
+                    """,
+                    (request.source_analysis_result_id,),
+                )
+                result = cursor.fetchone()
+            if result is None:
+                raise AdminError("editorial_ai_result_invalid")
+            if UUID(str(result["document_version_id"])) != request.document_version_id:
+                raise AdminError("editorial_ai_result_foreign")
+            if str(result["validation_status"]) != "valid":
+                raise AdminError("editorial_ai_result_invalid")
+            result_payload = result["result"]
+            if not isinstance(result_payload, Mapping):
+                raise AdminError("editorial_ai_result_invalid")
+            task_type = str(result["result_type"])
+            task_fields = {
+                "summary": {"summary", "bullets"},
+                "classification": {"category", "labels"},
+                "claim_extraction": {"claims"},
+                "entity_extraction": {"entities"},
+            }.get(task_type, set())
+            if not set(request.fields).issubset(task_fields):
+                raise AdminError("editorial_adopt_field_invalid")
+            changes: dict[str, object] = {}
+            for field in request.fields:
+                if field in request.values:
+                    changes[field] = request.values[field]
+                elif field == "category":
+                    changes[field] = result_payload.get("suggested_document_category")
+                elif field in result_payload:
+                    changes[field] = result_payload[field]
+                else:
+                    raise AdminError("editorial_adopt_field_invalid")
+            current.update(changes)
+            validated = self._validate_editorial_content(current)
+            source_map = {
+                field: {
+                    "source": "ai",
+                    "analysis_result_id": str(request.source_analysis_result_id),
+                }
+                for field in request.fields
+            }
+            adopted_from = {
+                "analysis_result_id": str(request.source_analysis_result_id),
+                "result_type": task_type,
+                "fields": list(request.fields),
+            }
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.adopt_editorial_suggestion("
+                    "%s, %s, %s::jsonb, %s::jsonb, %s::jsonb)",
+                    (
+                        request.document_version_id,
+                        request.expected_revision,
+                        json.dumps(validated.model_dump(mode="json"), sort_keys=True),
+                        json.dumps(source_map, sort_keys=True),
+                        json.dumps(adopted_from, sort_keys=True),
+                    ),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "adopt_editorial_suggestion")
+
+        return self._write_editorial(principal_id, request_id, "editorial.adopt", _call)
+
+    def request_editorial_reanalysis(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        request: ReanalysisRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.request_editorial_reanalysis(%s, %s, %s, %s)",
+                    (document_id, request.document_version_id, request.task_type, request.reason),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "request_editorial_reanalysis")
+
+        return self._write_editorial(principal_id, request_id, "reanalysis.request", _call)
+
+    def trash_document(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        request: LifecycleRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.trash_document(%s, %s, %s)",
+                    (document_id, request.expected_revision, request.reason),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "trash_document")
+
+        return self._write_editorial(principal_id, request_id, "document.trash", _call)
+
+    def restore_document(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        request: LifecycleRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.restore_document(%s, %s, %s)",
+                    (document_id, request.expected_revision, request.reason),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "restore_document")
+
+        return self._write_editorial(principal_id, request_id, "document.restore", _call)
 
     def list_analysis_results(
         self,
@@ -707,6 +1345,37 @@ class AdminQueryService:
         if row is None or row["active"] is not True or str(row["principal_type"]) != "person":
             raise AdminError("api_principal_not_provisioned")
         return UUID(str(row["id"]))
+
+    def _write_editorial(
+        self,
+        principal_id: UUID,
+        request_id: UUID,
+        operation: str,
+        call: Callable[[Connection[dict[str, object]]], UUID],
+    ) -> WriteResult:
+        with self._pool.write_transaction(principal_id, request_id) as connection:
+            try:
+                result_id = call(connection)
+            except ReviewSessionError as error:
+                raise AdminError(error.code) from error
+            except PsycopgError as error:
+                raise map_database_error(error) from error
+            return WriteResult(
+                operation=operation,
+                resource_id=result_id,
+                request_id=request_id,
+                publication=None,
+            )
+
+    @staticmethod
+    def _scalar_uuid(row: object, column: str) -> UUID:
+        if isinstance(row, Mapping):
+            value = row.get(column)
+        else:
+            value = cast(Sequence[Any], row)[0]
+        if value is None:
+            raise AdminError("api_internal_error")
+        return UUID(str(value))
 
     def _write(
         self,

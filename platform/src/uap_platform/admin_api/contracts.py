@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -179,6 +179,141 @@ class WriteResult(StrictModel):
     resource_id: UUID
     request_id: UUID
     publication: PublicationState | None
+
+
+class EditorialClaim(StrictModel):
+    claim_id: UUID | None = None
+    claim: str = Field(min_length=1, max_length=10_000)
+    source_statement: str = Field(min_length=1, max_length=20_000)
+    speaker: str | None = Field(default=None, max_length=500)
+    claim_type: ClaimType
+    assertion_status: AssertionStatus
+    evidence_span_ids: list[UUID] = Field(default_factory=list, max_length=20)
+    state: Literal["active", "removed"] = "active"
+
+
+class EditorialEntity(StrictModel):
+    entity_id: UUID | None = None
+    name: str = Field(min_length=1, max_length=500)
+    entity_type: EntityType
+    aliases: list[str] = Field(default_factory=list, max_length=20)
+    evidence_span_ids: list[UUID] = Field(default_factory=list, max_length=20)
+    state: Literal["active", "removed"] = "active"
+
+
+class EditorialContent(StrictModel):
+    title: str = Field(min_length=1, max_length=500)
+    summary: str | None = Field(default=None, max_length=20_000)
+    bullets: list[str] = Field(default_factory=list, max_length=20)
+    category: DocumentCategory
+    labels: list[str] = Field(default_factory=list, max_length=50)
+    claims: list[EditorialClaim] = Field(default_factory=list, max_length=200)
+    entities: list[EditorialEntity] = Field(default_factory=list, max_length=200)
+
+
+class EditorialPatchRequest(StrictModel):
+    document_version_id: UUID
+    expected_revision: int = Field(ge=0)
+    title: str | None = Field(default=None, max_length=500)
+    summary: str | None = Field(default=None, max_length=20_000)
+    bullets: list[str] | None = Field(default=None, max_length=20)
+    category: DocumentCategory | None = None
+    labels: list[str] | None = Field(default=None, max_length=50)
+    claims: list[EditorialClaim] | None = Field(default=None, max_length=200)
+    entities: list[EditorialEntity] | None = Field(default=None, max_length=200)
+
+    def changes(self) -> dict[str, object]:
+        return self.model_dump(
+            mode="json",
+            exclude_unset=True,
+            exclude={"document_version_id", "expected_revision"},
+        )
+
+
+class AdoptEditorialRequest(StrictModel):
+    document_version_id: UUID
+    expected_revision: int = Field(ge=0)
+    source_analysis_result_id: UUID
+    fields: list[
+        Literal[
+            "title",
+            "summary",
+            "bullets",
+            "category",
+            "labels",
+            "claims",
+            "entities",
+        ]
+    ] = Field(min_length=1, max_length=7)
+    values: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReanalysisRequest(StrictModel):
+    document_version_id: UUID
+    task_type: Literal["classification", "summary", "claim_extraction", "entity_extraction"]
+    reason: str = Field(min_length=1, max_length=2_000)
+
+
+class LifecycleRequest(StrictModel):
+    expected_revision: int = Field(ge=0)
+    reason: str | None = Field(default=None, max_length=5_000)
+
+
+class EditorialRevisionSummary(StrictModel):
+    id: UUID
+    document_version_id: UUID
+    revision_no: int = Field(ge=1)
+    operation: Literal["save", "adopt", "trash", "restore"]
+    base_revision_no: int = Field(ge=0)
+    created_by: UUID
+    created_at: datetime
+    source_map: dict[str, Any]
+    adopted_from: dict[str, Any]
+
+
+class DocumentDetail(StrictModel):
+    document_id: UUID
+    document_version_id: UUID
+    source: dict[str, Any]
+    canonical_url: str | None
+    internal_state: str
+    lifecycle: dict[str, Any]
+    raw: dict[str, Any]
+    ai_results: dict[str, Any]
+    editorial: dict[str, Any] | None
+    indicators: dict[str, bool]
+
+
+class TrashDocumentSummary(StrictModel):
+    document_id: UUID
+    document_version_id: UUID
+    title: str | None
+    source: dict[str, Any]
+    trashed_at: datetime
+    trashed_by: UUID
+    reason: str | None
+    revision_no: int = Field(ge=0)
+
+
+class TrashDocumentPage(StrictModel):
+    items: list[TrashDocumentSummary]
+    next_cursor: str | None
+
+
+class AuditHistoryEvent(StrictModel):
+    id: UUID
+    event_key: str
+    action: str
+    actor_id: UUID
+    occurred_at: datetime
+    request_id: UUID | None
+    target_id: UUID
+    metadata: dict[str, Any]
+
+
+class AuditHistoryPage(StrictModel):
+    items: list[AuditHistoryEvent]
+    next_cursor: str | None
 
 
 class ReviewCaseSummary(StrictModel):

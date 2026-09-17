@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import cast
+
+from minio import Minio
+
+from uap_platform.object_registry import ObjectClient
 
 from .config import load_admin_api_settings
 from .cursor import CursorCodec
@@ -14,6 +20,23 @@ from .service import AdminQueryService
 
 LOGGER = logging.getLogger(__name__)
 _MAX_BODY_LENGTH = 1_000_000
+
+
+def _object_client_from_environment() -> ObjectClient | None:
+    endpoint = os.environ.get("UAP_S3_ENDPOINT")
+    access_key = os.environ.get("UAP_S3_ACCESS_KEY")
+    secret_key = os.environ.get("UAP_S3_SECRET_KEY")
+    if not endpoint or not access_key or not secret_key:
+        return None
+    return cast(
+        ObjectClient,
+        Minio(
+            endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=os.environ.get("UAP_S3_SECURE", "false").lower() == "true",
+        ),
+    )
 
 
 def make_handler(application: AdminApiApplication) -> type[BaseHTTPRequestHandler]:
@@ -96,7 +119,11 @@ def main() -> None:
         max_size=settings.pool_max_size,
     )
     codec = CursorCodec(settings.cursor_key, settings.cursor_max_length)
-    application = AdminApiApplication(AdminQueryService(pool, codec), oidc, settings.oidc_issuer)
+    application = AdminApiApplication(
+        AdminQueryService(pool, codec, _object_client_from_environment()),
+        oidc,
+        settings.oidc_issuer,
+    )
     server = ThreadingHTTPServer((settings.host, settings.port), make_handler(application))
     LOGGER.info("admin API started settings=%s", settings.safe_summary())
     try:

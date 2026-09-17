@@ -15,15 +15,19 @@ import psycopg
 from pydantic import ValidationError
 
 from .contracts import (
+    AdoptEditorialRequest,
     AssignmentRequest,
     BindCandidateRequest,
     DecisionRequest,
+    EditorialPatchRequest,
     EntityType,
+    LifecycleRequest,
     ManualClaimRequest,
     MergeRequest,
     OpenCaseRequest,
     Problem,
     PublicationEventState,
+    ReanalysisRequest,
     ReasonRequest,
     ReviewCaseType,
     ReviewStatus,
@@ -95,11 +99,14 @@ class AdminApiApplication:
             if not path.startswith("/admin/v1/"):
                 request_id = self._header_request_id(request_headers)
                 raise AdminError("api_resource_not_found")
+            if method == "PATCH" and not path.startswith("/admin/v1/documents/"):
+                request_id = self._header_request_id(request_headers)
+                raise AdminError("api_resource_not_found")
             request_id = self._read_request_id(method, request_headers)
             principal_id = self._authenticate(request_headers)
             if method == "GET":
                 return self._dispatch_read(path, query, principal_id, request_id)
-            if method in {"POST", "PUT"}:
+            if method in {"POST", "PUT", "PATCH"}:
                 payload = self._parse_body(body)
                 return self._dispatch_write(method, path, query, payload, principal_id, request_id)
             raise AdminError("api_resource_not_found")
@@ -125,6 +132,36 @@ class AdminApiApplication:
         principal_id: UUID,
         request_id: UUID,
     ) -> HttpResponse:
+        if path == "/admin/v1/documents/trash":
+            self._require_query(query, {"limit", "cursor"})
+            return self._success(
+                request_id,
+                self._service.list_trash_documents(
+                    principal_id=principal_id,
+                    limit=self._limit(query),
+                    cursor=self._optional(query, "cursor"),
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.count("/") == 4:
+            self._require_query(query, set())
+            return self._resource(
+                request_id,
+                self._service.get_document_detail(principal_id, self._path_uuid(path)),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/audit"):
+            self._require_query(query, {"limit", "cursor"})
+            parts = path.split("/")
+            if len(parts) != 6:
+                raise AdminError("api_resource_not_found")
+            return self._success(
+                request_id,
+                self._service.list_document_audit(
+                    principal_id=principal_id,
+                    document_id=self._nested_uuid(path, -2),
+                    limit=self._limit(query),
+                    cursor=self._optional(query, "cursor"),
+                ),
+            )
         if path == "/admin/v1/review-cases":
             self._require_query(query, {"status", "case_type", "assigned_to", "limit", "cursor"})
             return self._success(
@@ -220,6 +257,71 @@ class AdminApiApplication:
         request_id: UUID,
     ) -> HttpResponse:
         self._require_query(query, set())
+        if path.startswith("/admin/v1/documents/") and path.endswith("/editorial"):
+            if method != "PATCH" or path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            body = self._model(EditorialPatchRequest, payload)
+            return self._success(
+                request_id,
+                self._service.save_editorial(
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    document_id=self._nested_uuid(path, -2),
+                    request=body,
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/editorial/adopt"):
+            if method != "POST" or path.count("/") != 6:
+                raise AdminError("api_resource_not_found")
+            body = self._model(AdoptEditorialRequest, payload)
+            return self._success(
+                request_id,
+                self._service.adopt_editorial(
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    document_id=self._nested_uuid(path, -3),
+                    request=body,
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/reanalyze"):
+            if method != "POST" or path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            body = self._model(ReanalysisRequest, payload)
+            return self._success(
+                request_id,
+                self._service.request_editorial_reanalysis(
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    document_id=self._nested_uuid(path, -2),
+                    request=body,
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/trash"):
+            if method != "POST" or path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            body = self._model(LifecycleRequest, payload)
+            return self._success(
+                request_id,
+                self._service.trash_document(
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    document_id=self._nested_uuid(path, -2),
+                    request=body,
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/restore"):
+            if method != "POST" or path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            body = self._model(LifecycleRequest, payload)
+            return self._success(
+                request_id,
+                self._service.restore_document(
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    document_id=self._nested_uuid(path, -2),
+                    request=body,
+                ),
+            )
         if method == "POST" and path == "/admin/v1/review-cases":
             if str(payload.get("case_type")) == "relation":
                 raise AdminError("api_capability_closed")
@@ -366,7 +468,7 @@ class AdminApiApplication:
         return self._service.resolve_principal(self._issuer, subject)
 
     def _read_request_id(self, method: str, headers: Mapping[str, str]) -> UUID:
-        if method in {"POST", "PUT"}:
+        if method in {"POST", "PUT", "PATCH"}:
             raw = next(
                 (value for name, value in headers.items() if name.lower() == "idempotency-key"),
                 None,
