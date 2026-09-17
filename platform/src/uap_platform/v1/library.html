@@ -104,6 +104,15 @@ textarea { min-height:84px; resize:vertical; width:100% }
   function aiPayload(type) { const row = aiResult(type); return row && row.result || {}; }
   function aiId(type) { const row = aiResult(type); return row && row.analysis_result_id; }
   function showApiError(error, target = $('detail')) {
+    if (error.status === 409 && target === $('detail') && state.editing) {
+      const notice = document.createElement('div');
+      notice.className = 'notice error';
+      target.prepend(notice);
+      add(notice, 'strong', '资料已被更新');
+      add(notice, 'p', '该资料已被其他操作更新，请重新载入最新版本后再编辑。未保存的输入仍保留在当前表单。');
+      button(notice, 'Reload latest', () => loadDetail(state.document && state.document.document_id), 'primary');
+      return;
+    }
     target.replaceChildren(); const notice = add(target, 'div', '', 'notice error');
     add(notice, 'strong', error.status === 409 ? '资料已被更新' : '操作未完成');
     add(notice, 'p', error.status === 409 ? '该资料已被其他操作更新，请重新载入最新版本后再编辑。' : `${error.message}${error.code ? `（${error.code}）` : ''}`);

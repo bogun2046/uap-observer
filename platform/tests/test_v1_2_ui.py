@@ -46,6 +46,7 @@ def test_ui_uses_in_memory_oidc_and_escapes_untrusted_content() -> None:
     assert "UAP_V1_LOCAL_ADMIN_TOKEN" not in html
     assert "innerHTML" not in html
     assert "textContent" in html
+    assert "未保存的输入仍保留" in html
 
 
 def test_ui_preserves_patch_and_lifecycle_contracts() -> None:
