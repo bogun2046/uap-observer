@@ -79,7 +79,8 @@ class InternalLibrary:
                            WHERE item.document_version_id = dv.id
                            ORDER BY item.created_at DESC, item.id DESC LIMIT 1
                       ) AS e ON true
-                     WHERE (%s::text IS NULL OR dv.original_title ILIKE %s OR s.name ILIKE %s)
+                     WHERE d.deleted_at IS NULL
+                       AND (%s::text IS NULL OR dv.original_title ILIKE %s OR s.name ILIKE %s)
                      ORDER BY coalesce(dv.source_published_at, d.first_seen_at) DESC, d.id DESC
                      LIMIT %s
                     """,

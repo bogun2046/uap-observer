@@ -2,68 +2,177 @@
 <html lang="zh-CN">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UAP 内部资料库 V1-1</title>
+<title>UAP Internal Library</title>
 <style>
-body { font: 15px system-ui; margin: 0; background: #f4f5f7; color: #17202a }
-header { padding: 18px 24px; background: #14213d; color: white }
-main { display: grid; grid-template-columns: minmax(320px,38%) 1fr; gap: 16px; padding: 16px }
-.panel { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px #0002 }
-input, select, button { padding: 8px; margin: 3px } button { cursor: pointer }
-.item { border-top: 1px solid #ddd; padding: 10px 0 } .item a { font-weight: 650; color: #164e83 }
-pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f8; padding: 12px }
-.bad { color: #a11 } @media(max-width:800px) { main { grid-template-columns: 1fr } }
+:root { color-scheme: light; --ink:#17202a; --muted:#5d6875; --line:#d9dee5; --panel:#fff; --bg:#f4f6f8; --brand:#14213d; --accent:#164e83; --danger:#a11; --ok:#146c43; }
+* { box-sizing:border-box }
+body { font:15px system-ui,-apple-system,sans-serif; margin:0; background:var(--bg); color:var(--ink) }
+header { padding:18px 24px; background:var(--brand); color:white }
+header h1 { margin:0 0 4px; font-size:21px }
+header p { margin:0; color:#dbe5f2; font-size:13px }
+nav { display:flex; gap:8px; padding:12px 24px; background:#fff; border-bottom:1px solid var(--line) }
+nav button { border:1px solid var(--line); background:#fff; color:var(--ink) }
+nav button.active { border-color:var(--accent); color:var(--accent); font-weight:650 }
+main { display:grid; grid-template-columns:minmax(300px,36%) 1fr; gap:16px; padding:16px; max-width:1600px; margin:auto }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; box-shadow:0 1px 4px #0001 }
+.toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px }
+input, select, textarea, button { font:inherit; padding:8px; border-radius:6px; border:1px solid #c7ced8 }
+input, select, textarea { background:#fff; color:var(--ink) }
+button { cursor:pointer; background:#f8fafc }
+button.primary { background:var(--accent); border-color:var(--accent); color:white }
+button.danger { color:var(--danger); border-color:#d6a3a3 }
+button:disabled { cursor:not-allowed; opacity:.55 }
+.item { border-top:1px solid var(--line); padding:11px 0; cursor:pointer }
+.item:hover { background:#f8fafc }
+.item h3 { margin:0 0 4px; font-size:15px; color:var(--accent) }
+.meta, .hint { color:var(--muted); font-size:13px }
+.state { display:inline-block; padding:2px 7px; border-radius:99px; background:#edf2f7; font-size:12px }
+.state.ok { color:var(--ok); background:#e8f5ee }
+.state.bad { color:var(--danger); background:#fbecec }
+.section { border-top:1px solid var(--line); padding:14px 0 }
+.section:first-child { border-top:0; padding-top:0 }
+.section h2 { margin:0 0 8px; font-size:17px }
+.section h3 { margin:12px 0 6px; font-size:14px }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px }
+.field { display:flex; flex-direction:column; gap:4px; margin:8px 0 }
+.field label { color:var(--muted); font-size:13px }
+textarea { min-height:84px; resize:vertical; width:100% }
+.readonly { white-space:pre-wrap; word-break:break-word; background:#f8fafc; border:1px solid var(--line); border-radius:6px; padding:10px; min-height:30px }
+.card { border:1px solid var(--line); border-radius:7px; padding:10px; margin:7px 0; background:#fff }
+.card.removed { opacity:.6; text-decoration:line-through }
+.actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px }
+.notice { border-radius:6px; padding:9px 10px; margin:8px 0; background:#eef4fb; color:#234b73 }
+.notice.error { background:#fbecec; color:var(--danger) }
+.notice.success { background:#e8f5ee; color:var(--ok) }
+.empty { color:var(--muted); padding:22px 0; text-align:center }
+@media(max-width:850px) { main { grid-template-columns:1fr } nav { padding-left:16px; padding-right:16px } }
 </style>
-<header><h1>UAP 内部资料库 V1-1</h1><small>RAW / AI_RESULT; 未获公开授权</small></header>
+<header>
+  <h1>UAP 内部资料库</h1>
+  <p>RAW、AI_RESULT 与 EDITORIAL 分层展示；内部资料不会自动获得公开授权。</p>
+</header>
+<nav aria-label="资料库视图">
+  <button id="libraryTab" class="active" type="button">Internal Library</button>
+  <button id="trashTab" type="button">Recycle Bin</button>
+</nav>
 <main>
-  <section class="panel">
-    <input id="token" type="password" placeholder="本机管理令牌">
-    <button onclick="loadList()">加载</button><div id="usage"></div><div id="list"></div>
+  <section class="panel" aria-label="文档列表">
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="搜索标题或来源" aria-label="搜索">
+      <button id="loadButton" class="primary" type="button">加载</button>
+    </div>
+    <div id="authNotice" class="notice">使用当前 OIDC 会话；如部署没有自动注入 Bearer 会话，可临时粘贴 OIDC access token（仅保存在内存）。</div>
+    <div class="field">
+      <label for="oidcToken">OIDC access token（仅本次页面会话）</label>
+      <input id="oidcToken" type="password" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="listStatus" class="hint"></div>
+    <div id="list"></div>
   </section>
-  <section class="panel" id="detail">选择一条资料。</section>
+  <section class="panel" id="detail" aria-live="polite">
+    <div class="empty">选择一条资料查看详情。</div>
+  </section>
 </main>
 <script>
-const hdr = () => ({Authorization: 'Bearer ' + document.querySelector('#token').value});
-const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-async function api(path, opt={}) {
-  opt.headers = {...hdr(), ...(opt.headers || {})};
-  const response = await fetch(path, opt);
-  if (!response.ok) throw Error(await response.text());
-  return response.json();
-}
-async function loadList() {
-  try {
-    const [data, budget] = await Promise.all([
-      api('/internal/v1/documents'), api('/internal/v1/usage')
-    ]);
-    const cost = (budget.monthly_cost_microunits / 1000000).toFixed(6);
-    usage.innerHTML = `<p class="${budget.warning ? 'bad' : ''}">本月 DeepSeek：¥${cost} / ¥20.00${budget.blocked ? '（已停止）' : budget.warning ? '（预警）' : ''}</p>`;
-    list.innerHTML = data.items.map(item => `<div class="item"><a href="#" onclick="detailDoc('${item.document_id}')">${esc(item.original_title)}</a><br><small>${esc(item.source_name)} · ${esc(item.internal_state)}</small></div>`).join('');
-  } catch (error) { list.innerHTML = '<p class="bad">' + esc(error) + '</p>'; }
-}
-async function detailDoc(id) {
-  try {
-    const item = await api('/internal/v1/documents/' + id);
-    detail.innerHTML = `<h2>${esc(item.original_title)}</h2>
-      <p><a href="${esc(item.canonical_url)}" target="_blank">原始地址</a> ·
-      <b>${esc(item.internal_state)}</b> · 公开授权: 否</p>
-      <h3>中文摘要</h3><p>${esc(item.summary_text)}</p>
-      <h3>关键主张/来源陈述</h3><pre>${esc(JSON.stringify(item.claims,null,2))}</pre>
-      <h3>实体候选</h3><pre>${esc(JSON.stringify(item.entities,null,2))}</pre>
-      <h3>原文</h3><pre>${esc(item.source_text)}</pre>
-      <select id="task"><option>classification</option><option>summary</option>
-      <option>claim_extraction</option><option>entity_extraction</option></select>
-      <input id="reason" placeholder="重试原因"><button onclick="retry('${id}')">受控重试</button>
-      <p id="retryResult"></p>`;
-  } catch (error) { detail.innerHTML = '<p class="bad">' + esc(error) + '</p>'; }
-}
-async function retry(id) {
-  try {
-    const data = await api('/internal/v1/documents/' + id + '/reanalyze', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({task_type:task.value, reason:reason.value})
-    });
-    retryResult.textContent = 'Queued ' + data.job_id;
-  } catch (error) { retryResult.textContent = error; }
-}
+(() => {
+  'use strict';
+  const state = { token: '', document: null, audit: [], editing: false, view: 'library', changed: new Set() };
+  const $ = (id) => document.getElementById(id);
+  const taskNames = { classification: 'Classification', summary: 'Summary', claim_extraction: 'Claims', entity_extraction: 'Entities' };
+  class ApiError extends Error {
+    constructor(status, payload) { super(payload && payload.detail ? payload.detail : `请求失败（HTTP ${status}）`); this.status = status; this.code = payload && payload.code; }
+  }
+  function uuid() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; const v = c === 'x' ? r : (r & 3 | 8); return v.toString(16); });
+  }
+  async function api(path, options = {}) {
+    const headers = { Accept: 'application/json', ...(options.headers || {}) };
+    if (state.token) headers.Authorization = `Bearer ${state.token}`;
+    const response = await fetch(path, { ...options, headers, credentials: 'include' });
+    let payload = null; try { payload = await response.json(); } catch (_) { payload = null; }
+    if (!response.ok) throw new ApiError(response.status, payload); return payload;
+  }
+  function setNotice(message, kind = '') { const notice = $('authNotice'); notice.textContent = message; notice.className = `notice ${kind}`.trim(); }
+  function add(parent, tag, text = '', className = '') { const node = document.createElement(tag); if (className) node.className = className; if (text !== '') node.textContent = String(text); parent.appendChild(node); return node; }
+  function button(parent, label, handler, className = '') { const node = add(parent, 'button', label, className); node.type = 'button'; node.addEventListener('click', handler); return node; }
+  function jsonText(value) { return value == null ? '' : JSON.stringify(value, null, 2); }
+  function currentEditorial() { return state.document && state.document.editorial && state.document.editorial.content || {}; }
+  function revision() { return state.document && state.document.editorial && state.document.editorial.revision && state.document.editorial.revision.revision_no || 0; }
+  function isTrashed() { return Boolean(state.document && state.document.lifecycle && state.document.lifecycle.trashed); }
+  function aiResult(type) { return state.document && state.document.ai_results && state.document.ai_results[type]; }
+  function aiPayload(type) { const row = aiResult(type); return row && row.result || {}; }
+  function aiId(type) { const row = aiResult(type); return row && row.analysis_result_id; }
+  function showApiError(error, target = $('detail')) {
+    target.replaceChildren(); const notice = add(target, 'div', '', 'notice error');
+    add(notice, 'strong', error.status === 409 ? '资料已被更新' : '操作未完成');
+    add(notice, 'p', error.status === 409 ? '该资料已被其他操作更新，请重新载入最新版本后再编辑。' : `${error.message}${error.code ? `（${error.code}）` : ''}`);
+    if (error.status === 409) button(notice, 'Reload latest', () => loadDetail(state.document && state.document.document_id), 'primary');
+  }
+  async function loadList() {
+    const query = $('search').value.trim(); $('listStatus').textContent = '加载中…';
+    try {
+      const suffix = query ? `?q=${encodeURIComponent(query)}&limit=50` : '?limit=50';
+      const data = await api(`/admin/v1/documents${suffix}`);
+      renderList(data.items || []); $('listStatus').textContent = `${(data.items || []).length} 条资料`;
+    } catch (error) { $('list').replaceChildren(); $('listStatus').textContent = ''; showApiError(error instanceof ApiError ? error : new Error('无法加载资料列表'), $('list')); }
+  }
+  function renderList(items) {
+    const list = $('list'); list.replaceChildren();
+    if (!items.length) { add(list, 'div', '暂无内部资料。', 'empty'); return; }
+    for (const item of items) {
+      if (item.lifecycle && item.lifecycle.trashed) continue;
+      const row = add(list, 'article', '', 'item'); row.tabIndex = 0;
+      add(row, 'h3', item.title || item.original_title || item.source && item.source.name || '未命名资料');
+      const meta = add(row, 'div', '', 'meta'); add(meta, 'span', item.source && (item.source.name || item.source.slug) || '未知来源'); add(meta, 'span', ` · ${item.internal_state || 'internal'}`);
+      if (item.indicators && item.indicators.newer_ai_result_available) add(row, 'span', 'New AI result available', 'state');
+      row.addEventListener('click', () => loadDetail(item.document_id)); row.addEventListener('keydown', (event) => { if (event.key === 'Enter') loadDetail(item.document_id); });
+    }
+  }
+  async function loadDetail(id) {
+    if (!id) return; $('detail').replaceChildren(); add($('detail'), 'div', '加载详情中…', 'hint');
+    try { const [document, audit] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`)]); state.document = document; state.audit = audit.items || []; state.editing = false; state.changed.clear(); renderDetail(); }
+    catch (error) { showApiError(error instanceof ApiError ? error : new Error('无法加载详情')); }
+  }
+  function renderDetail() {
+    const panel = $('detail'); panel.replaceChildren(); if (!state.document) return;
+    const item = state.document; const raw = item.raw || {}; const editorial = currentEditorial();
+    const heading = add(panel, 'div', '', 'section'); add(heading, 'h2', raw.original_title || item.canonical_url || 'Document detail');
+    const meta = add(heading, 'div', '', 'meta'); add(meta, 'span', item.source && (item.source.name || item.source.slug) || '未知来源'); add(meta, 'span', ` · ${item.internal_state}`); add(meta, 'span', ` · ${item.lifecycle && item.lifecycle.trashed ? 'trash' : 'internal'} · public_authorized=false`);
+    const actions = add(heading, 'div', '', 'actions');
+    if (!isTrashed()) { button(actions, state.editing ? 'Cancel' : 'Edit', () => { state.editing = !state.editing; state.changed.clear(); renderDetail(); }, state.editing ? '' : 'primary'); if (state.editing) button(actions, 'Save', saveEditorial, 'primary'); button(actions, 'Move to Trash', trashDocument, 'danger'); }
+    else button(actions, 'Restore', restoreDocument, 'primary');
+    renderSource(panel, raw, item); renderEditorial(panel, editorial, item); renderAi(panel); renderAudit(panel);
+  }
+  function renderSource(panel, raw, item) {
+    const section = add(panel, 'section', ''); add(section, 'h2', 'SOURCE / RAW'); const grid = add(section, 'div', '', 'grid');
+    for (const [label, value] of [['来源', item.source && (item.source.name || item.source.slug)], ['Canonical URL', item.canonical_url], ['标题', raw.original_title], ['作者', raw.extraction && raw.extraction.author], ['发布时间', raw.source_published_at || raw.extraction && raw.extraction.source_date], ['Extraction', raw.extraction && `${raw.extraction.outcome || ''} ${raw.extraction.id || ''}`]]) { const field = add(grid, 'div', '', 'field'); add(field, 'label', label); add(field, 'div', value || '—', 'readonly'); }
+    const body = add(section, 'div', '', 'field'); add(body, 'label', raw.source_text == null ? '原文（Object Store 当前不可读取；已保留对象身份）' : '原文'); add(body, 'div', raw.source_text == null ? `text_object_id: ${raw.text_object_id || '—'}` : raw.source_text, 'readonly');
+  }
+  function fieldInput(parent, key, label, value, type = 'text') { const wrap = add(parent, 'div', '', 'field'); const input = document.createElement(type === 'textarea' ? 'textarea' : 'input'); input.id = `edit-${key}`; input.value = value == null ? '' : value; if (type !== 'textarea') input.type = type; const labelNode = document.createElement('label'); labelNode.textContent = label; labelNode.htmlFor = input.id; wrap.append(labelNode, input); input.addEventListener('input', () => state.changed.add(key)); return input; }
+  function renderEditorial(panel, editorial, item) {
+    const section = add(panel, 'section', ''); add(section, 'h2', `CURRENT EDITORIAL${editorial ? ` · revision ${revision()}` : ''}`);
+    if (!editorial) add(section, 'div', '尚无人工修订；可在详情中编辑后保存。', 'hint');
+    if (!state.editing || isTrashed()) { const content = editorial || {}; for (const [label, value] of [['标题', content.title], ['摘要', content.summary], ['Bullets', content.bullets], ['分类', content.category], ['Labels', content.labels]]) { const wrap = add(section, 'div', '', 'field'); add(wrap, 'label', label); add(wrap, 'div', Array.isArray(value) ? value.join('\n') : value || '—', 'readonly'); } renderEditorialCards(section, 'Claims', content.claims || []); renderEditorialCards(section, 'Entities', content.entities || []); return; }
+    const grid = add(section, 'div', '', 'grid'); fieldInput(grid, 'title', '标题', editorial.title || item.raw && item.raw.original_title || ''); fieldInput(grid, 'summary', '中文摘要', editorial.summary || '', 'textarea'); fieldInput(grid, 'bullets', 'Bullets（每行一条）', (editorial.bullets || []).join('\n'), 'textarea'); fieldInput(grid, 'category', '分类', editorial.category || 'other'); fieldInput(grid, 'labels', 'Labels（每行一个）', (editorial.labels || []).join('\n'), 'textarea'); fieldInput(section, 'claims', 'Claims JSON（editorial overlay）', jsonText(editorial.claims || []), 'textarea'); fieldInput(section, 'entities', 'Entities JSON（editorial overlay）', jsonText(editorial.entities || []), 'textarea'); add(section, 'div', '未修改字段不会提交；明确清空会提交空字符串、空数组或 null。', 'hint');
+  }
+  function renderEditorialCards(parent, label, values) { add(parent, 'h3', label); if (!values.length) { add(parent, 'div', '—', 'hint'); return; } for (const value of values) { const card = add(parent, 'div', '', `card${value.state === 'removed' ? ' removed' : ''}`); add(card, 'strong', value.claim || value.name || '—'); add(card, 'div', value.source_statement || value.entity_type || '', 'meta'); add(card, 'div', jsonText(value.evidence_span_ids || value.evidence || []), 'hint'); } }
+  function renderAi(panel) {
+    const section = add(panel, 'section', ''); add(section, 'h2', 'AI RESULTS');
+    for (const task of ['classification', 'summary', 'claim_extraction', 'entity_extraction']) { const row = aiResult(task); if (!row) { add(section, 'div', `${taskNames[task]}：尚无结果`, 'hint'); continue; } const card = add(section, 'div', '', 'card'); const run = row.model_run || {}; add(card, 'h3', `${taskNames[task]} · ${row.validation_status || run.status || 'unknown'}`); add(card, 'div', `model=${run.model || '—'} · prompt=${run.prompt_version || '—'} · tokens=${run.input_tokens || 0}/${run.output_tokens || 0} · cost=${run.cost_minor_units || 0} ${run.currency || 'CNY'}`, 'meta'); add(card, 'pre', jsonText(row.result), 'readonly'); if (!isTrashed() && row.validation_status === 'valid') { const actions = add(card, 'div', '', 'actions'); if (task === 'summary') button(actions, 'Adopt AI Summary', () => adopt(task, ['summary', 'bullets'])); else if (task === 'classification') button(actions, 'Adopt AI Category / Labels', () => adopt(task, ['category', 'labels'])); else if (task === 'claim_extraction') button(actions, 'Adopt AI Claims', () => adopt(task, ['claims'])); else button(actions, 'Adopt AI Entities', () => adopt(task, ['entities'])); } if (!isTrashed()) button(card, `Reanalyze ${taskNames[task]}`, () => reanalyze(task)); }
+  }
+  function renderAudit(panel) { const section = add(panel, 'section', ''); add(section, 'h2', 'AUDIT'); if (!state.audit.length) { add(section, 'div', '暂无审计事件。', 'hint'); return; } for (const event of state.audit) { const card = add(section, 'div', '', 'card'); add(card, 'strong', event.action || '—'); add(card, 'div', `${event.occurred_at || ''} · actor=${event.actor_id || '—'} · request=${event.request_id || '—'}`, 'meta'); add(card, 'div', jsonText(event.metadata || {}), 'hint'); } }
+  function parseLines(value) { return value.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean); }
+  function parseJsonField(id, label) { try { const value = JSON.parse($(id).value); if (!Array.isArray(value)) throw new Error(); return value; } catch (_) { throw new Error(`${label} 必须是 JSON 数组`); } }
+  function changesFromForm() { const changes = {}; if (state.changed.has('title')) changes.title = $('edit-title').value; if (state.changed.has('summary')) changes.summary = $('edit-summary').value || null; if (state.changed.has('bullets')) changes.bullets = parseLines($('edit-bullets').value); if (state.changed.has('category')) changes.category = $('edit-category').value; if (state.changed.has('labels')) changes.labels = parseLines($('edit-labels').value); if (state.changed.has('claims')) changes.claims = parseJsonField('edit-claims', 'Claims'); if (state.changed.has('entities')) changes.entities = parseJsonField('edit-entities', 'Entities'); return changes; }
+  async function saveEditorial() { try { const changes = changesFromForm(); if (!Object.keys(changes).length) { state.editing = false; renderDetail(); return; } const response = await api(`/admin/v1/documents/${state.document.document_id}/editorial`, { method:'PATCH', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ document_version_id:state.document.document_version_id, expected_revision:revision(), ...changes }) }); setNotice(`已保存 editorial revision（${response.resource_id || 'ok'}）`, 'notice success'); await loadDetail(state.document.document_id); } catch (error) { if (error instanceof ApiError && error.status === 409) showApiError(error); else setNotice(error.message || '保存失败', 'notice error'); } }
+  async function adopt(task, fields) { try { const payload = aiPayload(task); const values = {}; for (const field of fields) values[field] = field === 'category' ? payload.suggested_document_category : payload[field]; await api(`/admin/v1/documents/${state.document.document_id}/editorial/adopt`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ document_version_id:state.document.document_version_id, expected_revision:revision(), source_analysis_result_id:aiId(task), fields, values }) }); setNotice('已显式采用 AI 建议，EDITORIAL 已生成新 revision。', 'notice success'); await loadDetail(state.document.document_id); } catch (error) { showApiError(error instanceof ApiError ? error : new Error('采用 AI 失败')); } }
+  async function reanalyze(task) { const reason = window.prompt(`请输入 ${taskNames[task]} 的重新分析原因（至少 1 个字符）：`, 'manual editorial review'); if (reason === null) return; try { const result = await api(`/admin/v1/documents/${state.document.document_id}/reanalyze`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ document_version_id:state.document.document_version_id, task_type:task, reason }) }); setNotice(`${taskNames[task]}：Queued / Requested（${result.resource_id || result.operation || 'ok'}）`, 'notice success'); } catch (error) { showApiError(error instanceof ApiError ? error : new Error('重新分析请求失败')); } }
+  async function trashDocument() { if (!window.confirm('确认将资料移入回收站？RAW、AI_RESULT 和审计仍会保留。')) return; try { await api(`/admin/v1/documents/${state.document.document_id}/trash`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ expected_revision:revision(), reason:'moved from Internal Library' }) }); setNotice('资料已移入回收站。', 'notice success'); await loadList(); await loadDetail(state.document.document_id); } catch (error) { showApiError(error instanceof ApiError ? error : new Error('移入回收站失败')); } }
+  async function restoreDocument() { try { await api(`/admin/v1/documents/${state.document.document_id}/restore`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ expected_revision:revision(), reason:'restored by editorial admin' }) }); setNotice('资料已恢复到内部状态，未自动公开。', 'notice success'); await loadList(); await loadDetail(state.document.document_id); } catch (error) { showApiError(error instanceof ApiError ? error : new Error('恢复失败')); } }
+  async function loadTrash() { state.view = 'trash'; $('libraryTab').classList.remove('active'); $('trashTab').classList.add('active'); $('list').replaceChildren(); $('listStatus').textContent = '加载回收站中…'; try { const data = await api('/admin/v1/documents/trash?limit=50'); renderTrash(data.items || []); $('listStatus').textContent = `${(data.items || []).length} 条回收站资料`; } catch (error) { showApiError(error instanceof ApiError ? error : new Error('无法加载回收站'), $('list')); } }
+  function renderTrash(items) { const list = $('list'); list.replaceChildren(); if (!items.length) { add(list, 'div', '回收站为空。', 'empty'); return; } for (const item of items) { const row = add(list, 'article', '', 'item'); add(row, 'h3', item.title || '未命名资料'); add(row, 'div', `${item.source && (item.source.name || item.source.slug) || '未知来源'} · trashed_at=${item.trashed_at || '—'} · revision=${item.revision_no || 0}`, 'meta'); row.addEventListener('click', () => loadDetail(item.document_id)); } }
+  $('loadButton').addEventListener('click', () => { state.view = 'library'; $('libraryTab').classList.add('active'); $('trashTab').classList.remove('active'); loadList(); }); $('search').addEventListener('keydown', (event) => { if (event.key === 'Enter') $('loadButton').click(); }); $('trashTab').addEventListener('click', loadTrash); $('libraryTab').addEventListener('click', () => $('loadButton').click()); $('oidcToken').addEventListener('input', (event) => { state.token = event.target.value.trim(); }); loadList();
+})();
 </script>
 </html>

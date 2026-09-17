@@ -7,11 +7,14 @@ import json
 import logging
 import os
 import uuid
+from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from typing import Any, cast
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
+from urllib.request import Request, urlopen
 
 from uap_platform.model_governance import ModelTaskType
 from uap_platform.object_registry import ObjectClient
@@ -25,20 +28,30 @@ _HTML = files("uap_platform.v1").joinpath("library.html").read_text("utf-8")
 
 
 class Application:
-    def __init__(self, library: InternalLibrary, token: str) -> None:
+    def __init__(
+        self, library: InternalLibrary, token: str, admin_api_base_url: str | None = None
+    ) -> None:
         if len(token) < 32:
             raise ValueError("UAP_V1_LOCAL_ADMIN_TOKEN must contain at least 32 characters")
         self.library = library
         self.token = token
+        self.admin_api_base_url = admin_api_base_url.rstrip("/") if admin_api_base_url else None
 
     def handle(
-        self, method: str, target: str, authorization: str | None, body: bytes = b""
+        self,
+        method: str,
+        target: str,
+        authorization: str | None,
+        body: bytes = b"",
+        request_headers: Mapping[str, str] | None = None,
     ) -> tuple[int, str, bytes]:
         parsed = urlsplit(target)
         if method == "GET" and parsed.path == "/":
             return HTTPStatus.OK, "text/html; charset=utf-8", _HTML.encode()
         if method == "GET" and parsed.path == "/healthz":
             return HTTPStatus.OK, "application/json", b'{"status":"ok"}'
+        if parsed.path.startswith("/admin/v1/"):
+            return self._proxy_admin(method, target, authorization, body, request_headers or {})
         if not self._authorized(authorization):
             return self._problem(HTTPStatus.UNAUTHORIZED, "authorization_required")
         try:
@@ -79,6 +92,44 @@ class Application:
             LOGGER.exception("V1 internal request failed")
             return self._problem(HTTPStatus.INTERNAL_SERVER_ERROR, "internal_error")
 
+    def _proxy_admin(
+        self,
+        method: str,
+        target: str,
+        authorization: str | None,
+        body: bytes,
+        request_headers: Mapping[str, str],
+    ) -> tuple[int, str, bytes]:
+        """Forward OIDC requests to the dedicated Admin API as a presentation bridge."""
+
+        if self.admin_api_base_url is None:
+            return self._problem(HTTPStatus.SERVICE_UNAVAILABLE, "admin_api_unconfigured")
+        request = Request(  # noqa: S310
+            f"{self.admin_api_base_url}{target}",
+            data=body if method in {"POST", "PUT", "PATCH"} else None,
+            method=method,
+        )
+        for header in (
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Idempotency-Key",
+            "X-Request-ID",
+        ):
+            value = authorization if header == "Authorization" else request_headers.get(header)
+            if value:
+                request.add_header(header, value)
+        try:
+            with urlopen(request, timeout=15) as response:  # noqa: S310
+                payload = response.read()
+                content_type = response.headers.get("Content-Type", "application/json")
+                return response.status, content_type, payload
+        except HTTPError as error:
+            payload = error.read()
+            return error.code, error.headers.get("Content-Type", "application/json"), payload
+        except (URLError, TimeoutError, OSError):
+            return self._problem(HTTPStatus.SERVICE_UNAVAILABLE, "admin_api_unavailable")
+
     def _authorized(self, value: str | None) -> bool:
         if value is None or not value.startswith("Bearer "):
             return False
@@ -99,7 +150,11 @@ def make_handler(application: Application) -> type[BaseHTTPRequestHandler]:
             length = min(int(self.headers.get("Content-Length", "0")), 1_000_000)
             body = self.rfile.read(length) if length else b""
             status, content_type, payload = application.handle(
-                method, self.path, self.headers.get("Authorization"), body
+                method,
+                self.path,
+                self.headers.get("Authorization"),
+                body,
+                dict(self.headers.items()),
             )
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -139,7 +194,9 @@ def main() -> None:
     port = int(os.environ.get("UAP_V1_LIBRARY_PORT", "8091"))
     client = cast_object_client(build_client_from_environment(worker_url))
     application = Application(
-        InternalLibrary(read_url, worker_url, model_url, client), token
+        InternalLibrary(read_url, worker_url, model_url, client),
+        token,
+        os.environ.get("UAP_ADMIN_API_BASE_URL"),
     )
     server = ThreadingHTTPServer((host, port), make_handler(application))
     LOGGER.info("V1 internal library started host=%s port=%s", host, port)

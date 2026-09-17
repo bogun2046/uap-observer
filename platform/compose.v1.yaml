@@ -69,6 +69,7 @@ services:
       UAP_V1_WORKER_DATABASE_URL: postgresql+psycopg://uap_worker:${UAP_WORKER_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
       UAP_V1_MODEL_DATABASE_URL: postgresql+psycopg://uap_model_governance:${UAP_MODEL_GOVERNANCE_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
       UAP_V1_LOCAL_ADMIN_TOKEN: ${UAP_V1_LOCAL_ADMIN_TOKEN}
+      UAP_ADMIN_API_BASE_URL: ${UAP_ADMIN_API_BASE_URL:-}
       UAP_V1_LIBRARY_HOST: 0.0.0.0
       UAP_V1_LIBRARY_PORT: "8091"
       UAP_S3_ENDPOINT: object-store:8333
