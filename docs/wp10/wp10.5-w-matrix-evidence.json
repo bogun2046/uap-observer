@@ -1,0 +1,2937 @@
+{
+  "schema": "wp10.5-w-matrix-evidence.v1",
+  "status": "passed",
+  "instances": [
+    {
+      "id": "G10-W01-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "dfa7756a-a29d-4286-ba40-7f870d3200e8",
+      "before": {
+        "review_cases": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W01-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "resource_id": null,
+      "before": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W01-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "resource_id": null,
+      "before": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W01-R",
+      "status": 200,
+      "code": null,
+      "resource_id": "dfa7756a-a29d-4286-ba40-7f870d3200e8",
+      "before": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W01-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "resource_id": null,
+      "before": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W01-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "audit.review_cases",
+        "audit.audit_events"
+      ],
+      "before": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "retry_before": {
+        "review_cases": {
+          "count": 1,
+          "digest": "542e0631547689357f735139ac74ac025d67ef1c2128a31ba8b395a1152ff2c0"
+        },
+        "audit_events": {
+          "count": 1,
+          "digest": "2a52369c505bd452f99ab769a5f274a04eb8dff45e8264fa06ca8213e79f5cab"
+        }
+      },
+      "retry_after": {
+        "review_cases": {
+          "count": 2,
+          "digest": "ad2d5b6ad4aed7d94e744517affe48757087e2b8defdef0dedfdb51a32845559"
+        },
+        "audit_events": {
+          "count": 2,
+          "digest": "07d0378a615550ed973ee93d78ffd00860b7ce6ed76c77d31bac4d991e1b460a"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W02-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "dfa7756a-a29d-4286-ba40-7f870d3200e8",
+      "before": {
+        "review_cases": {
+          "count": 2,
+          "digest": "ad2d5b6ad4aed7d94e744517affe48757087e2b8defdef0dedfdb51a32845559"
+        },
+        "audit_events": {
+          "count": 2,
+          "digest": "07d0378a615550ed973ee93d78ffd00860b7ce6ed76c77d31bac4d991e1b460a"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W02-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "resource_id": null,
+      "before": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W02-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "resource_id": null,
+      "before": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W02-R",
+      "status": 200,
+      "code": null,
+      "resource_id": "dfa7756a-a29d-4286-ba40-7f870d3200e8",
+      "before": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W02-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "resource_id": null,
+      "before": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 2,
+          "digest": "2b3c273eda7a4cd4d746b1c833d50971924facebd8a3c91d0602578aa607a573"
+        },
+        "audit_events": {
+          "count": 3,
+          "digest": "0d062e255da0d363bdf69b23083c372030e59089bc3540161a8fa2d06076caf4"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W02-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "audit.review_cases",
+        "audit.audit_events"
+      ],
+      "before": {
+        "review_cases": {
+          "count": 3,
+          "digest": "13c432fe128a1ce237b231f0a25f3007f9970c20f8ba3600a6ae535783e67f78"
+        },
+        "audit_events": {
+          "count": 4,
+          "digest": "ffcad9cb3823d5d57fa90ca960fd6a4f1fb32b87a3b92bea8ff4ba2dd74bd917"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 3,
+          "digest": "13c432fe128a1ce237b231f0a25f3007f9970c20f8ba3600a6ae535783e67f78"
+        },
+        "audit_events": {
+          "count": 4,
+          "digest": "ffcad9cb3823d5d57fa90ca960fd6a4f1fb32b87a3b92bea8ff4ba2dd74bd917"
+        }
+      },
+      "retry_before": {
+        "review_cases": {
+          "count": 3,
+          "digest": "13c432fe128a1ce237b231f0a25f3007f9970c20f8ba3600a6ae535783e67f78"
+        },
+        "audit_events": {
+          "count": 4,
+          "digest": "ffcad9cb3823d5d57fa90ca960fd6a4f1fb32b87a3b92bea8ff4ba2dd74bd917"
+        }
+      },
+      "retry_after": {
+        "review_cases": {
+          "count": 3,
+          "digest": "624422cf31d16377dc1028e585fd8b9b554b88d42f256a111766c05cd22728f6"
+        },
+        "audit_events": {
+          "count": 5,
+          "digest": "e6346269ec8fca4ce59bace3ad0a9a0abbf052b03b0dec29a2bd40c199c0b0f6"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W03-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "762da401-784f-4ec3-b7dd-275da81943f6",
+      "before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "274bbce68f8370d709790c07f2e098dcb59bb8490489999a25b3e9f7ec96d822"
+        },
+        "audit_events": {
+          "count": 9,
+          "digest": "83cf2cef4b0766a020af5f07ad8c08dfb5819d865674203d2ef383b1946dc15c"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W03-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W03-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W03-R",
+      "status": 200,
+      "resource_id": "762da401-784f-4ec3-b7dd-275da81943f6",
+      "before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W03-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W03-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "audit.review_cases",
+        "audit.audit_events"
+      ],
+      "before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "retry_before": {
+        "review_cases": {
+          "count": 5,
+          "digest": "20510004196d5ef642abf31928712c7702122eb3962bbc59125e86e9f493916b"
+        },
+        "audit_events": {
+          "count": 10,
+          "digest": "6c3bb30ee0e9218f296c29e91a5cd763b8b7e27a2dcb967c455378d2147af4f1"
+        }
+      },
+      "retry_after": {
+        "review_cases": {
+          "count": 5,
+          "digest": "6ece9c3fe5dc6d3b0bb1cf9b63ba11c05d6bf7daecc48ad229212235bdbe2dc0"
+        },
+        "audit_events": {
+          "count": 11,
+          "digest": "1b7662875ece8fe0b2762174b678d8b8a93a45a5d5c6d6bc3c79402dba70e12d"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W04-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "d43c88e3-b0f0-4ef6-8cb5-707bf10a89be",
+      "before": {
+        "decisions": {
+          "count": 2,
+          "digest": "971778079f859ca31afad91e316c7f4962ac709a011df492b05b73f287d762cb"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f9592852cf7cdebb052e6f07a8c14e88db48f26f7711c1ff44c38fa0ca19e30b"
+        },
+        "document_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 0,
+          "digest": "74313561d1897af3dc03f4fae174960d28968f92b49230523faca462b848db60"
+        },
+        "document_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 0,
+          "digest": "74313561d1897af3dc03f4fae174960d28968f92b49230523faca462b848db60"
+        },
+        "outbox": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 13,
+          "digest": "3500b5ddeaa9ac73b12ae9ec68243f72e9086cce3c099bf24e7f17fee0f513c7"
+        }
+      },
+      "after": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W04-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "after": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W04-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "after": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W04-R",
+      "status": 200,
+      "resource_id": "d43c88e3-b0f0-4ef6-8cb5-707bf10a89be",
+      "before": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "after": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W04-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "after": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W04-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "audit.review_decisions",
+        "audit.review_cases",
+        "audit.document_publication_grants",
+        "audit.claim_publication_grants",
+        "audit.entity_publication_grants",
+        "audit.document_publication_manifests",
+        "audit.claim_publication_manifests",
+        "audit.entity_publication_manifests",
+        "ops.outbox_events",
+        "audit.audit_events"
+      ],
+      "before": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "after": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "retry_before": {
+        "decisions": {
+          "count": 3,
+          "digest": "1101d0095c5d6f5e86b6310618dcf5ee9f6032da0de03af6fddcdaa71b1a11f4"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "f74d86a9a9866ee69965ea21c29b842ec6dda2e45342d8d80a8fcd2c24ef2e33"
+        },
+        "document_grants": {
+          "count": 1,
+          "digest": "9776370509692d1cfeb8a16af8544294a42313bb344706d02763a677d202c573"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 1,
+          "digest": "326577c2e608576e05ea3ac282ce22e8bc88990f543d120b5c112df6a3af1ab1"
+        },
+        "document_manifests": {
+          "count": 1,
+          "digest": "86fb027f78a0f341cf1f54514b07ae786809d59100407c65c5a5580d29323351"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 1,
+          "digest": "4105963cd9a34b0b561e96a00048050ea5e7aa76fe763f6a83083725a852ceab"
+        },
+        "outbox": {
+          "count": 1,
+          "digest": "b145a7d18212044c093b6cb7017c033a29aa9e38a18c3db2b19bacd065c6a2eb"
+        },
+        "audit_events": {
+          "count": 14,
+          "digest": "d2eb7a2f5646d8fe0d43d74003b92c328efb61ce265d00201f640cedce78e730"
+        }
+      },
+      "retry_after": {
+        "decisions": {
+          "count": 4,
+          "digest": "1fa7df4d03cc6e15741af8371720f1fa1581655fc03ccb7c975c29ead79fe760"
+        },
+        "review_cases": {
+          "count": 6,
+          "digest": "56e691321b6a8b1e11926e8ac6aaad4c430bc91565d5c852e87f85ca0a7eb883"
+        },
+        "document_grants": {
+          "count": 2,
+          "digest": "8de64421380d6c4ff13c04da2efc335f1456929a247a992eaf9604e9b1081afc"
+        },
+        "claim_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_grants": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "grants": {
+          "count": 2,
+          "digest": "a17d992c3a1f0c901145ae02bf9af38fc4f67d7aa94e27dd25b6c1fd41de306f"
+        },
+        "document_manifests": {
+          "count": 2,
+          "digest": "2ef3b64afd753cf5af0f8ce475b6b5da21d2731e391f44aad2f51006565706fd"
+        },
+        "claim_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "entity_manifests": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "manifests": {
+          "count": 2,
+          "digest": "99f01126d35b4540edea6dda5341893619ed0f1c48ce632ac80cfe4fd9dc7eba"
+        },
+        "outbox": {
+          "count": 2,
+          "digest": "d2b96344297a277e39865c89cf86fc9f7aeda24313760ebe52ab46efa9f28bd9"
+        },
+        "audit_events": {
+          "count": 15,
+          "digest": "6485330112406d990592f5a3092da71d7731a350c5d84057349811b87b60e748"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W05-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "326974be-0437-44e9-849d-64af673e35a8",
+      "before": {
+        "selections": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 15,
+          "digest": "6485330112406d990592f5a3092da71d7731a350c5d84057349811b87b60e748"
+        }
+      },
+      "after": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W05-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "after": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W05-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "after": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W05-R",
+      "status": 200,
+      "resource_id": "326974be-0437-44e9-849d-64af673e35a8",
+      "before": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "after": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W05-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "after": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W05-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "core.analysis_selections",
+        "audit.audit_events"
+      ],
+      "before": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "after": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "retry_before": {
+        "selections": {
+          "count": 1,
+          "digest": "a6f8e7cfc7ec5b02847480677edee788cc051cc60fb38f02a92229787f815320"
+        },
+        "audit_events": {
+          "count": 16,
+          "digest": "a7119a53cfd99220033c5061d6047df51b79b93646e01000ab0a0106a28ab74f"
+        }
+      },
+      "retry_after": {
+        "selections": {
+          "count": 2,
+          "digest": "5e94e5176e5c484448be77bc27e8d5f6f942d18eb9395d3cf535dfdacc6e198d"
+        },
+        "audit_events": {
+          "count": 17,
+          "digest": "fcfe92fd9efad73d90dc5d0b3d55208281ff9f817ca15722c0b736ad439a5f06"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W06-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "d92d70fa-b94f-4496-8f76-2e26057a658f",
+      "before": {
+        "entities": {
+          "count": 3,
+          "digest": "591c7aa7c3f7ee839cf885ffbf6aac1b45a66c607f595dc0e19a06238dfc35d7"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "cc4e798a18eb44cc42de69a2475c949711d637a0146fc68b5c7bac025fb4b017"
+        },
+        "audit_events": {
+          "count": 17,
+          "digest": "fcfe92fd9efad73d90dc5d0b3d55208281ff9f817ca15722c0b736ad439a5f06"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W06-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W06-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W06-R",
+      "status": 200,
+      "resource_id": "d92d70fa-b94f-4496-8f76-2e26057a658f",
+      "before": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W06-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W06-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "core.entities",
+        "core.entity_candidates",
+        "audit.audit_events"
+      ],
+      "before": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "retry_before": {
+        "entities": {
+          "count": 4,
+          "digest": "86bc6d0d064ada11dfe325ff1dfab2e15a57f0e2097d23d606b6e6d864d4f8b4"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "5d38e7fd69c569629a094810f012dac7d0d8aa54d2beba6598e816b8e2d9abe0"
+        },
+        "audit_events": {
+          "count": 18,
+          "digest": "0a327bbff4e68ad765f375c479409156c2af5a2903bd532470c38edd33e83f5a"
+        }
+      },
+      "retry_after": {
+        "entities": {
+          "count": 5,
+          "digest": "3a1708ed3415fb7dac126f67e079e9da74d6ffb26cf2652a0e805a5d92902d87"
+        },
+        "candidates": {
+          "count": 2,
+          "digest": "0361834766d313cd7161a3b2b55e23be65270a5df478e6a35dd6d8fea0861861"
+        },
+        "audit_events": {
+          "count": 19,
+          "digest": "fdb7cbedd82b8ea38f066ad5f25bf534e663df84ea4b0b536e61a450452b7711"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W07-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "f68c1e90-575e-4736-b9c6-19ef85dc9d73",
+      "before": {
+        "candidates": {
+          "count": 4,
+          "digest": "0dd628a23f027516a19c374906f92355da9149d9f1a54d0dc22387ef548743f9"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 19,
+          "digest": "fdb7cbedd82b8ea38f066ad5f25bf534e663df84ea4b0b536e61a450452b7711"
+        }
+      },
+      "after": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W07-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "after": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W07-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "after": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W07-R",
+      "status": 200,
+      "resource_id": "f68c1e90-575e-4736-b9c6-19ef85dc9d73",
+      "before": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "after": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W07-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "after": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W07-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "core.entity_candidates",
+        "core.entity_candidate_evidence",
+        "audit.audit_events"
+      ],
+      "before": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "after": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "retry_before": {
+        "candidates": {
+          "count": 4,
+          "digest": "fc45a82f1e46ccc2810ea7c380c936852d5efb8ad00c1fce5178c8b2c8dfa3c5"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 20,
+          "digest": "ed46bd779cb43175e4c8871a04e8525e08c81d34344e4b5be7bae8f19503deb2"
+        }
+      },
+      "retry_after": {
+        "candidates": {
+          "count": 4,
+          "digest": "ba3b3c115f8282935ddb25e2689c65a284aec896e140a4a092acb1217ea50eff"
+        },
+        "candidate_links": {
+          "count": 4,
+          "digest": "c81e9b971fb9e681fc66978366dc6f72dcffe83b8b366078aecc12876c68a020"
+        },
+        "audit_events": {
+          "count": 21,
+          "digest": "41ca6eb17799ac099b717f4bd695f6d4ff34186204f468200c3733eecb9d5397"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W08-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "38ef0704-6fe2-4504-b974-1ec8c56fb31e",
+      "before": {
+        "entities": {
+          "count": 11,
+          "digest": "33c88d404f5971935ff0d587497e1b7f8e929923138cf54d3c4717751d68a22b"
+        },
+        "merge_events": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 21,
+          "digest": "41ca6eb17799ac099b717f4bd695f6d4ff34186204f468200c3733eecb9d5397"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W08-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W08-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W08-R",
+      "status": 200,
+      "resource_id": "38ef0704-6fe2-4504-b974-1ec8c56fb31e",
+      "before": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W08-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W08-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "core.entities",
+        "core.entity_merge_events",
+        "audit.audit_events"
+      ],
+      "before": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "retry_before": {
+        "entities": {
+          "count": 11,
+          "digest": "db41a8db98765733483bc5cb27d21c512ae7402b8b8752d766d88204a8d759c7"
+        },
+        "merge_events": {
+          "count": 1,
+          "digest": "ec2240d67dd9971a7af571a9ad721f2cc44b1944f896680236ef292acd1bda1a"
+        },
+        "audit_events": {
+          "count": 23,
+          "digest": "ad3ff7c4911649cccda9583a5ff3c82905f16de2fe03c4bc85fef0c12d456956"
+        }
+      },
+      "retry_after": {
+        "entities": {
+          "count": 11,
+          "digest": "e91a4ad40f43c3e2f3fa9c587782e98debdbfc38c38a98ebd1d3b39a799f3357"
+        },
+        "merge_events": {
+          "count": 2,
+          "digest": "0262d6736fb6d7f7b994ce91ebf5e6dc2c8f306af2c60bef746b62f621c05c65"
+        },
+        "audit_events": {
+          "count": 25,
+          "digest": "ef9d4dfecdcc01868260ffca98f40e05171b477429daa49176e0e4b579deece8"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W09-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "fe57f5b6-705c-4b31-82a9-f991f71cba34",
+      "before": {
+        "entities": {
+          "count": 13,
+          "digest": "e12315082d2136856e9735c6671ce6537c628a61922a02547f88b2b5ed49e97b"
+        },
+        "merge_events": {
+          "count": 3,
+          "digest": "65552fb611101667c45d0573b90d5558c8570ac1e5369d88b3b149beaba660ff"
+        },
+        "audit_events": {
+          "count": 27,
+          "digest": "6d715aa6856bcbfc801f454a87c5843bdb23ecf61359a0c41dc2ae2bb2666084"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W09-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W09-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W09-R",
+      "status": 200,
+      "resource_id": "fe57f5b6-705c-4b31-82a9-f991f71cba34",
+      "before": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W09-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W09-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "core.entities",
+        "core.entity_merge_events",
+        "audit.audit_events"
+      ],
+      "before": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "after": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "retry_before": {
+        "entities": {
+          "count": 13,
+          "digest": "ba38c7f9c7f5e0ee6b9e6814d480f04b1b1a9f2db2fc7c9f3b941e1b4f3261c2"
+        },
+        "merge_events": {
+          "count": 4,
+          "digest": "588bf095bc3aaa04877b64d4deef3ddda523aad97ed16d47be2876f1c3f4bfae"
+        },
+        "audit_events": {
+          "count": 29,
+          "digest": "8b5ac5b87d82686b3f65b64903efc671dad2cd92a3a747b9c6e0d7a3e5d7c1d2"
+        }
+      },
+      "retry_after": {
+        "entities": {
+          "count": 13,
+          "digest": "6132acdb0fc270732501dbf00ba30ede8905e5bc638b3711512bfccb84d3e592"
+        },
+        "merge_events": {
+          "count": 5,
+          "digest": "d5a54e851045cb9cc49bae11534e5a25c98b0fdd2153ca29a2840e467377a87a"
+        },
+        "audit_events": {
+          "count": 31,
+          "digest": "339d3024920a2abc7a43ec89f939f2a31fd1b5e9f837e8976842bf9d8ab50bee"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W10-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "d59ecda5-7254-4883-8b96-3abd103e7125",
+      "before": {
+        "claims": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "evidence": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 31,
+          "digest": "339d3024920a2abc7a43ec89f939f2a31fd1b5e9f837e8976842bf9d8ab50bee"
+        }
+      },
+      "after": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W10-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "after": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W10-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "after": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W10-R",
+      "status": 200,
+      "resource_id": "d59ecda5-7254-4883-8b96-3abd103e7125",
+      "before": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "after": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W10-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "after": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W10-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "core.claims",
+        "core.claim_evidence",
+        "audit.audit_events"
+      ],
+      "before": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "after": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "retry_before": {
+        "claims": {
+          "count": 1,
+          "digest": "08cf798721ebbf7e49814b5670f31f297367b3ab464233e8d97a29fc1e535284"
+        },
+        "evidence": {
+          "count": 1,
+          "digest": "c9622596449c68edd1a4e27cbf33d3338cd7f3e5021e95274e8c1e6cd1a746d6"
+        },
+        "audit_events": {
+          "count": 32,
+          "digest": "73bbeb68bb92e860afe9ffcef5c914f2ec40a1ec66f848af59bcc5c75eecc2d1"
+        }
+      },
+      "retry_after": {
+        "claims": {
+          "count": 2,
+          "digest": "8ae78f4ac156326fd5e92d5b7d45eafc7dcd6f86144555cd740f14c463b7b90f"
+        },
+        "evidence": {
+          "count": 2,
+          "digest": "746ec859a8bbd353f938b873f690b72a033fef934a4bc70db9682e307ded2b89"
+        },
+        "audit_events": {
+          "count": 33,
+          "digest": "5649f6c894bfc1d0385c5ce6f960a538d63c2322b91cfae8ebc07ada54a9d110"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W11-S",
+      "status": 200,
+      "code": null,
+      "resource_id": "7aa802c7-403b-46e4-8b1b-564ccd6ed5f0",
+      "before": {
+        "outbox": {
+          "count": 3,
+          "digest": "29a904d8b8d5ebe6b7640e17a8a2c5bfcb415b326d1832cdd93e2a96ecd686ec"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 36,
+          "digest": "482e5e8091b57ec05d7a266d2bcf689d20fd16dceb69326a45261342c2fdaa42"
+        }
+      },
+      "after": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W11-P",
+      "status": 403,
+      "code": "review_role_denied",
+      "before": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "after": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W11-M",
+      "status": 400,
+      "code": "review_request_id_missing",
+      "before": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "after": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W11-R",
+      "status": 200,
+      "resource_id": "7aa802c7-403b-46e4-8b1b-564ccd6ed5f0",
+      "before": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "after": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W11-C",
+      "status": 409,
+      "code": "review_idempotency_payload_conflict",
+      "before": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "after": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "G10-W11-T",
+      "status": 500,
+      "retry_status": 200,
+      "retry_code": null,
+      "unchanged": true,
+      "inject_tables": [
+        "ops.outbox_events",
+        "audit.publication_quarantine",
+        "audit.audit_events"
+      ],
+      "before": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "after": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "retry_before": {
+        "outbox": {
+          "count": 3,
+          "digest": "e0a06288afd1bef45f8ca9aa18333dc750dda87d569c02c410bc23c8e967b323"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 37,
+          "digest": "a8e29649085d1d0029ac31b63348dae713756e8446951f7da4546b7a967905bc"
+        }
+      },
+      "retry_after": {
+        "outbox": {
+          "count": 3,
+          "digest": "f5ce087350129ac5592b7ccff79028dc00426af3827725e7469c650d2eb4eeef"
+        },
+        "quarantine": {
+          "count": 0,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "audit_events": {
+          "count": 38,
+          "digest": "5157d5c1a2ece2612564d22e787327a1ecdc2c7f64626c46a1d9ed117b556067"
+        }
+      },
+      "passed": true
+    }
+  ]
+}

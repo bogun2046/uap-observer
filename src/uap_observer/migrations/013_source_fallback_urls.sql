@@ -1,0 +1,1 @@
+ALTER TABLE sources ADD COLUMN fallback_urls TEXT NOT NULL DEFAULT '[]';

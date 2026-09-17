@@ -1,0 +1,61 @@
+# Disposable G10-25 object-store sidecar.
+# Do not point G10-25 write probes at uap-wp3-test-object-store-1 or the shared
+# platform object-store. Start with scripts/g10-25-disposable-object-store.sh.
+# Tear down with `stop` (volumes deleted). Sentinel failure also deletes volumes.
+#
+# Network contract:
+#   host Python (uv / install-sentinel): 127.0.0.1:${UAP_G10_25_S3_API_PORT:-18333}
+#   Python 3.12 sidecar on this compose network: g10-25-object-store:8333
+# Minio client wants host:port with no scheme.
+
+name: ${UAP_G10_25_COMPOSE_PROJECT:-uap-g10-25-object-store}
+
+networks:
+  g10-25:
+    name: ${UAP_G10_25_NETWORK:?run g10-25-disposable-object-store.sh}
+    labels:
+      uap.g10-25.disposable: "true"
+
+services:
+  g10-25-object-store:
+    image: ${UAP_OBJECT_STORE_IMAGE:?load platform/.env.versions}
+    build:
+      context: .
+      dockerfile: object-store/Dockerfile
+      args:
+        UAP_GO_IMAGE: ${UAP_GO_IMAGE:?load platform/.env.versions}
+        UAP_SEAWEEDFS_COMMIT: ${UAP_SEAWEEDFS_COMMIT:?load platform/.env.versions}
+        UAP_SEAWEEDFS_BASE_IMAGE: ${UAP_SEAWEEDFS_BASE_IMAGE:?load platform/.env.versions}
+    labels:
+      uap.g10-25.disposable: "true"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        umask 077;
+        printf '{"identities":[{"name":"uap-platform","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin"]}]}'
+        "$$AWS_ACCESS_KEY_ID" "$$AWS_SECRET_ACCESS_KEY" > /tmp/uap-s3.json;
+        chown seaweed:seaweed /tmp/uap-s3.json;
+        chmod 600 /tmp/uap-s3.json;
+        unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY;
+        exec /entrypoint.sh mini -dir=/data -s3.config=/tmp/uap-s3.json -bucket=raw,derived,model-io,public-assets,backups
+    environment:
+      AWS_ACCESS_KEY_ID: ${UAP_S3_ACCESS_KEY:?run g10-25-disposable-object-store.sh}
+      AWS_SECRET_ACCESS_KEY: ${UAP_S3_SECRET_KEY:?run g10-25-disposable-object-store.sh}
+      UAP_S3_DISPOSABLE: "1"
+    networks:
+      g10-25:
+        aliases:
+          - g10-25-object-store
+    ports:
+      - "127.0.0.1:${UAP_G10_25_S3_API_PORT:-18333}:8333"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9333/cluster/status"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - g10-25-object-store-data:/data
+
+volumes:
+  g10-25-object-store-data:

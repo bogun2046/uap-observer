@@ -1,0 +1,962 @@
+{
+  "schema": "wp10.5-runtime-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "kind": "assertion",
+      "name": "G10-21 missing token",
+      "actual": [
+        401,
+        "api_auth_required"
+      ],
+      "expected": [
+        401,
+        "api_auth_required"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 cookie not bypass",
+      "actual": [
+        401,
+        "api_auth_required"
+      ],
+      "expected": [
+        401,
+        "api_auth_required"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 malformed token",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 alg confusion",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 wrong issuer",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 wrong audience",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 expired",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 nbf",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 bad signature",
+      "actual": [
+        401,
+        "api_token_invalid"
+      ],
+      "expected": [
+        401,
+        "api_token_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 unknown principal",
+      "actual": [
+        403,
+        "api_principal_not_provisioned"
+      ],
+      "expected": [
+        403,
+        "api_principal_not_provisioned"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 inactive principal",
+      "actual": [
+        403,
+        "api_principal_not_provisioned"
+      ],
+      "expected": [
+        403,
+        "api_principal_not_provisioned"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-21 service principal",
+      "actual": [
+        403,
+        "api_principal_not_provisioned"
+      ],
+      "expected": [
+        403,
+        "api_principal_not_provisioned"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 reviewer cases",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 no raw model",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 analysis",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 no model I/O field",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 evidence spans",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 no evidence_text",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 reviewer publication denied",
+      "actual": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 senior publication read",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 operator publication read",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 operator cases denied",
+      "actual": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 no standalone grant route",
+      "actual": "api_capability_closed",
+      "expected": "api_capability_closed",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 missing key",
+      "actual": [
+        400,
+        "review_request_id_missing"
+      ],
+      "expected": [
+        400,
+        "review_request_id_missing"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 request id header present",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 cookie still missing key",
+      "actual": "review_request_id_missing",
+      "expected": "review_request_id_missing",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 legacy enum",
+      "actual": [
+        422,
+        "api_request_invalid"
+      ],
+      "expected": [
+        422,
+        "api_request_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 invalid key",
+      "actual": [
+        400,
+        "review_request_id_invalid"
+      ],
+      "expected": [
+        400,
+        "review_request_id_invalid"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 relation closed",
+      "actual": [
+        404,
+        "api_capability_closed"
+      ],
+      "expected": [
+        404,
+        "api_capability_closed"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-23 missing case",
+      "actual": [
+        404,
+        "api_resource_not_found"
+      ],
+      "expected": [
+        404,
+        "api_resource_not_found"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W11 replay does not add grants",
+      "actual": 3,
+      "expected": 3,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 W04 case readable",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 grant committed",
+      "actual": "active",
+      "expected": "active",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 projection pending",
+      "actual": "pending",
+      "expected": "pending",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-22 revision >= 1",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent threads finished",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent first is response",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent second is response",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent first status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent second status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent both requests started",
+      "actual": 2,
+      "expected": 2,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent both requests ended",
+      "actual": 2,
+      "expected": 2,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent in-flight overlap",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent revisions differ",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 revision strictly increasing",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 exactly one active document grant",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 concurrent grant/manifest/outbox changed",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "w04_concurrent",
+      "name": "W04 concurrent different-request revise",
+      "passed": true,
+      "first_status": 200,
+      "second_status": 200,
+      "first_revision": 3,
+      "second_revision": 2,
+      "active_grants": 1,
+      "in_flight": true,
+      "start_delta_ms": 0.064,
+      "overlap_ms": 8.128,
+      "before": {
+        "grants": {
+          "count": 3,
+          "digest": "e028a19770b8eba5bd8603246a27f9281ba57cc55033ba1b08e8d0b511b110aa"
+        },
+        "manifests": {
+          "count": 3,
+          "digest": "68c47207dce92e9fafee1be01dff20c8284fafbb38d29f892b8919b37dc4c062"
+        },
+        "outbox": {
+          "count": 3,
+          "digest": "f5ce087350129ac5592b7ccff79028dc00426af3827725e7469c650d2eb4eeef"
+        }
+      },
+      "after": {
+        "grants": {
+          "count": 5,
+          "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+        },
+        "manifests": {
+          "count": 5,
+          "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+        },
+        "outbox": {
+          "count": 7,
+          "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+        }
+      }
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 0 same-request replay status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 0 same-request replay same resource_id",
+      "actual": "22aa2332-ac56-45c6-ba6c-d322712b6f28",
+      "expected": "22aa2332-ac56-45c6-ba6c-d322712b6f28",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 0 replay grant delta zero",
+      "actual": {
+        "count": 5,
+        "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+      },
+      "expected": {
+        "count": 5,
+        "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 0 replay manifest delta zero",
+      "actual": {
+        "count": 5,
+        "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+      },
+      "expected": {
+        "count": 5,
+        "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 0 replay outbox delta zero",
+      "actual": {
+        "count": 7,
+        "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+      },
+      "expected": {
+        "count": 7,
+        "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 0 replay publication is current active grant",
+      "actual": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+      "expected": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 1 same-request replay status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 1 same-request replay same resource_id",
+      "actual": "154c95ac-a85d-4538-bbf8-1bdbfa45bd04",
+      "expected": "154c95ac-a85d-4538-bbf8-1bdbfa45bd04",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 1 replay grant delta zero",
+      "actual": {
+        "count": 5,
+        "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+      },
+      "expected": {
+        "count": 5,
+        "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 1 replay manifest delta zero",
+      "actual": {
+        "count": 5,
+        "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+      },
+      "expected": {
+        "count": 5,
+        "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 1 replay outbox delta zero",
+      "actual": {
+        "count": 7,
+        "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+      },
+      "expected": {
+        "count": 7,
+        "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 thread 1 replay publication is current active grant",
+      "actual": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+      "expected": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 after both replays exactly one active document grant",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "kind": "w04_concurrent_replay",
+      "name": "W04 concurrent different-request revise same-request replays",
+      "passed": true,
+      "first_revision": 3,
+      "second_revision": 2,
+      "winner_thread": 0,
+      "winner_revision": 3,
+      "lock_order": "3-then-2",
+      "order_2_then_3": false,
+      "order_3_then_2": true,
+      "current_active_grant_id": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+      "in_flight": true,
+      "start_delta_ms": 0.064,
+      "overlap_ms": 8.128,
+      "replays": [
+        {
+          "thread": 0,
+          "status": 200,
+          "resource_id": "22aa2332-ac56-45c6-ba6c-d322712b6f28",
+          "original_resource_id": "22aa2332-ac56-45c6-ba6c-d322712b6f28",
+          "publication_grant_id": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+          "publication_revision": 3,
+          "original_publication_revision": 3,
+          "before": {
+            "grants": {
+              "count": 5,
+              "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+            },
+            "manifests": {
+              "count": 5,
+              "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+            },
+            "outbox": {
+              "count": 7,
+              "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+            }
+          },
+          "after": {
+            "grants": {
+              "count": 5,
+              "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+            },
+            "manifests": {
+              "count": 5,
+              "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+            },
+            "outbox": {
+              "count": 7,
+              "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+            }
+          }
+        },
+        {
+          "thread": 1,
+          "status": 200,
+          "resource_id": "154c95ac-a85d-4538-bbf8-1bdbfa45bd04",
+          "original_resource_id": "154c95ac-a85d-4538-bbf8-1bdbfa45bd04",
+          "publication_grant_id": "5911dc12-3577-414d-830d-54ecf0d8a56b",
+          "publication_revision": 3,
+          "original_publication_revision": 2,
+          "before": {
+            "grants": {
+              "count": 5,
+              "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+            },
+            "manifests": {
+              "count": 5,
+              "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+            },
+            "outbox": {
+              "count": 7,
+              "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+            }
+          },
+          "after": {
+            "grants": {
+              "count": 5,
+              "digest": "94e659f35447c3dfb0ef3fe1db44b9eb729b09985e6b687c90e3cc16cb80350d"
+            },
+            "manifests": {
+              "count": 5,
+              "digest": "3571b5e193387e901cfa13431efec903c04485777cee0f203e0e2634e82d455c"
+            },
+            "outbox": {
+              "count": 7,
+              "digest": "f26b0d3e2772bcbcff758a6a0dbdd613168420fc255da1bd36eb9684ef15e266"
+            }
+          }
+        }
+      ],
+      "active_grants_after_replays": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 claim approve",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 claim revise",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 claim revision increasing",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 claim withdraw",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 claim withdrawn",
+      "actual": "withdrawn",
+      "expected": "withdrawn",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 claim projection withdrawn",
+      "actual": "withdrawn",
+      "expected": "withdrawn",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 entity approve",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 entity revise",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 entity revision increasing",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 entity withdraw",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 entity withdrawn",
+      "actual": "withdrawn",
+      "expected": "withdrawn",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 document withdraw",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 document withdrawn",
+      "actual": "withdrawn",
+      "expected": "withdrawn",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W04 document projection withdrawn",
+      "actual": "withdrawn",
+      "expected": "withdrawn",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 core.merge_entities",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 core.reverse_entity_merge",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 ops.enqueue_publication_outbox",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 audit._apply_publication_grant",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 audit._document_publication_payload",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 ops._apply_publication_event_wp10_2",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 public INSERT",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 public UPDATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 public DELETE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 W08 wrapper",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 merge actor is GUC principal",
+      "actual": "1ca0f52a-b8f7-4add-b571-c83a870c19d4",
+      "expected": "1ca0f52a-b8f7-4add-b571-c83a870c19d4",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-24 W09 wrapper",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W matrix size",
+      "actual": 66,
+      "expected": 66,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "W matrix identities",
+      "actual": "{'G10-W07-T', 'G10-W01-S', 'G10-W10-P', 'G10-W06-T', 'G10-W01-M', 'G10-W01-R', 'G10-W05-C', 'G10-W07-P', 'G10-W10-R', 'G10-W05-T', 'G10-W08-R', 'G10-W06-S', 'G10-W06-M', 'G10-W08-P', 'G10-W05-S', 'G10-W08-S', 'G10-W05-M', 'G10-W03-T', 'G10-W03-R', 'G10-W07-S', 'G10-W09-S', 'G10-W09-M', 'G10-W01-C', 'G10-W11-M', 'G10-W10-S', 'G10-W07-C', 'G10-W09-R', 'G10-W02-C', 'G10-W04-T', 'G10-W06-P', 'G10-W11-P', 'G10-W02-R', 'G10-W04-P', 'G10-W02-S', 'G10-W07-M', 'G10-W05-P', 'G10-W08-M', 'G10-W03-P', 'G10-W10-M', 'G10-W02-P', 'G10-W02-M', 'G10-W10-T', 'G10-W11-S', 'G10-W02-T', 'G10-W04-C', 'G10-W07-R', 'G10-W01-T', 'G10-W09-P', 'G10-W04-R', 'G10-W08-T', 'G10-W03-C', 'G10-W11-C', 'G10-W03-S', 'G10-W06-R', 'G10-W04-M', 'G10-W09-C', 'G10-W03-M', 'G10-W05-R', 'G10-W11-R', 'G10-W11-T', 'G10-W06-C', 'G10-W09-T', 'G10-W08-C', 'G10-W01-P', 'G10-W04-S', 'G10-W10-C'}",
+      "expected": "{'G10-W07-T', 'G10-W01-S', 'G10-W10-P', 'G10-W06-T', 'G10-W01-M', 'G10-W01-R', 'G10-W05-C', 'G10-W07-P', 'G10-W10-R', 'G10-W05-T', 'G10-W08-R', 'G10-W06-S', 'G10-W06-M', 'G10-W08-P', 'G10-W05-S', 'G10-W08-S', 'G10-W05-M', 'G10-W03-T', 'G10-W03-R', 'G10-W07-S', 'G10-W09-S', 'G10-W09-M', 'G10-W01-C', 'G10-W11-M', 'G10-W10-S', 'G10-W07-C', 'G10-W09-R', 'G10-W02-C', 'G10-W04-T', 'G10-W06-P', 'G10-W11-P', 'G10-W02-R', 'G10-W04-P', 'G10-W02-S', 'G10-W07-M', 'G10-W05-P', 'G10-W08-M', 'G10-W03-P', 'G10-W10-M', 'G10-W02-P', 'G10-W02-M', 'G10-W10-T', 'G10-W11-S', 'G10-W02-T', 'G10-W04-C', 'G10-W07-R', 'G10-W01-T', 'G10-W09-P', 'G10-W04-R', 'G10-W08-T', 'G10-W03-C', 'G10-W11-C', 'G10-W03-S', 'G10-W06-R', 'G10-W04-M', 'G10-W09-C', 'G10-W03-M', 'G10-W05-R', 'G10-W11-R', 'G10-W11-T', 'G10-W06-C', 'G10-W09-T', 'G10-W08-C', 'G10-W01-P', 'G10-W04-S', 'G10-W10-C'}",
+      "passed": true
+    }
+  ],
+  "matrix_ids": [
+    "G10-W01-S",
+    "G10-W01-P",
+    "G10-W01-M",
+    "G10-W01-R",
+    "G10-W01-C",
+    "G10-W01-T",
+    "G10-W02-S",
+    "G10-W02-P",
+    "G10-W02-M",
+    "G10-W02-R",
+    "G10-W02-C",
+    "G10-W02-T",
+    "G10-W03-S",
+    "G10-W03-P",
+    "G10-W03-M",
+    "G10-W03-R",
+    "G10-W03-C",
+    "G10-W03-T",
+    "G10-W04-S",
+    "G10-W04-P",
+    "G10-W04-M",
+    "G10-W04-R",
+    "G10-W04-C",
+    "G10-W04-T",
+    "G10-W05-S",
+    "G10-W05-P",
+    "G10-W05-M",
+    "G10-W05-R",
+    "G10-W05-C",
+    "G10-W05-T",
+    "G10-W06-S",
+    "G10-W06-P",
+    "G10-W06-M",
+    "G10-W06-R",
+    "G10-W06-C",
+    "G10-W06-T",
+    "G10-W07-S",
+    "G10-W07-P",
+    "G10-W07-M",
+    "G10-W07-R",
+    "G10-W07-C",
+    "G10-W07-T",
+    "G10-W08-S",
+    "G10-W08-P",
+    "G10-W08-M",
+    "G10-W08-R",
+    "G10-W08-C",
+    "G10-W08-T",
+    "G10-W09-S",
+    "G10-W09-P",
+    "G10-W09-M",
+    "G10-W09-R",
+    "G10-W09-C",
+    "G10-W09-T",
+    "G10-W10-S",
+    "G10-W10-P",
+    "G10-W10-M",
+    "G10-W10-R",
+    "G10-W10-C",
+    "G10-W10-T",
+    "G10-W11-S",
+    "G10-W11-P",
+    "G10-W11-M",
+    "G10-W11-R",
+    "G10-W11-C",
+    "G10-W11-T"
+  ]
+}

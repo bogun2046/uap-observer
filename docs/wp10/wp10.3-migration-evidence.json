@@ -1,0 +1,117 @@
+{
+  "schema": "wp10.3-migration-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "case": "empty_state_0021_0022_0021_0022_roundtrip",
+      "status": "passed"
+    },
+    {
+      "case": "legacy_v1_quarantine_with_v2_rebuild",
+      "status": "passed",
+      "cross_stage_legacy_grant_id": "73a97adf-169b-4f27-a89f-1f0ff49cf22a",
+      "active_entity_grants": 3,
+      "active_v2_entity_manifests": 1,
+      "unresolved_legacy_quarantines": 2,
+      "v2_grant_id": "cc5b7e0f-1ebb-41b0-a070-b30a8f34d3a3",
+      "rebuild_status": "succeeded",
+      "replay_status": "succeeded",
+      "replayed": true,
+      "input_digest_before": "fa06cb01abe61ee8b3df125a40e79d2d1da8b96454ddc66adae96ab9ad863941",
+      "input_digest_after_second_quarantine": "fa06cb01abe61ee8b3df125a40e79d2d1da8b96454ddc66adae96ab9ad863941",
+      "result_digest_before": "269dbcad10b30e899e78926befa29de631ace80daff55c2c5535b76b4c0d090c",
+      "result_digest_after_second_quarantine": "269dbcad10b30e899e78926befa29de631ace80daff55c2c5535b76b4c0d090c",
+      "public_entities": 1,
+      "entity_public_identities": 1,
+      "quarantined_v1_excluded": true
+    },
+    {
+      "case": "claims_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "evidence_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "claim_evidence_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "document_entities_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "search_documents_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "claim_identity_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "evidence_identity_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    },
+    {
+      "case": "rebuild_run_independent_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "target_rows_before": 1,
+      "target_rows_after": 1,
+      "all_other_wp10_3_guard_rows": 0,
+      "migration_version_preserved": "0022_wp10_claim_search_projection",
+      "destructive_ddl_not_run": true
+    }
+  ]
+}

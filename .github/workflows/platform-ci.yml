@@ -1,0 +1,557 @@
+name: Platform CI
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - "docs/wp1/**"
+      - "docs/wp2/**"
+      - "docs/wp3/**"
+      - "docs/wp4/**"
+      - "docs/wp5/**"
+      - "docs/wp6/**"
+      - "docs/wp7/**"
+      - "docs/wp8/**"
+      - "docs/wp9/**"
+      - "docs/wp10/**"
+      - ".github/workflows/platform-ci.yml"
+      - "Makefile"
+  push:
+    branches: [main]
+    paths:
+      - "platform/**"
+      - "docs/wp1/**"
+      - "docs/wp2/**"
+      - "docs/wp3/**"
+      - "docs/wp4/**"
+      - "docs/wp5/**"
+      - "docs/wp6/**"
+      - "docs/wp7/**"
+      - "docs/wp8/**"
+      - "docs/wp9/**"
+      - "docs/wp10/**"
+      - ".github/workflows/platform-ci.yml"
+      - "Makefile"
+  workflow_dispatch:
+    inputs:
+      failure_injection:
+        description: "Deliberately fail security to prove the aggregate gate closes"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UAP_APP_IMAGE: uap-platform-quality:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Create ephemeral CI credentials
+        run: platform/scripts/bootstrap-env.sh
+      - name: Build the pinned development image
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml build app
+      - name: Verify lock file
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env UV_CACHE_DIR=/tmp/uv-cache
+          "$UAP_APP_IMAGE"
+          uv lock --check
+      - name: Lint
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env RUFF_CACHE_DIR=/tmp/ruff-cache
+          "$UAP_APP_IMAGE"
+          ruff check src tests tools alembic
+      - name: Type check
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          mypy --cache-dir=/tmp/mypy-cache src tests tools
+      - name: Unit tests
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env COVERAGE_FILE=/tmp/.coverage
+          "$UAP_APP_IMAGE"
+          pytest -p no:cacheprovider --cov --cov-report=term-missing
+      - name: WP2 contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_platform.py
+      - name: WP3 migration contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp3.py
+      - name: WP4 durable-jobs contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp4.py
+      - name: WP4 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp4_evidence.py --output /tmp/wp4-evidence
+      - name: WP5 collector contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp5.py
+      - name: WP5 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp5_evidence.py --output /tmp/wp5-evidence
+      - name: WP6 extraction contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp6.py
+      - name: WP6 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp6_evidence.py --output /tmp/wp6-evidence
+      - name: WP7 model governance contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp7.py
+      - name: WP7 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp7_evidence.py --output /tmp/wp7-evidence
+      - name: WP8 knowledge contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp8.py
+      - name: WP9 review contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/validate_wp9.py
+      - name: Record WP10.6-A host git path set
+        run: |
+          set -euo pipefail
+          git cat-file -e 34c57bcadfeb67053c4c47f8cde237a3af185ba8^{commit}
+          {
+            git diff --name-only 34c57bcadfeb67053c4c47f8cde237a3af185ba8
+            git ls-files --others --exclude-standard
+          } | awk 'NF' | sort -u > "$RUNNER_TEMP/wp10-git-paths.txt"
+      - name: WP10 publication chain contract checks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --volume "$RUNNER_TEMP/wp10-git-paths.txt:/tmp/wp10-git-paths.txt:ro"
+          --workdir /repo/platform
+          --env PYTHONPATH=/repo/platform
+          --env UAP_WP10_GIT_PATHS_FILE=/tmp/wp10-git-paths.txt
+          "$UAP_APP_IMAGE"
+          python -m tools.validate_wp10
+      - name: WP8 evidence manifest scope
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo"
+          --workdir /repo/platform
+          "$UAP_APP_IMAGE"
+          python tools/build_wp8_evidence.py --output /tmp/wp8-evidence
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UAP_APP_IMAGE: uap-platform-ci:${{ github.sha }}
+      UAP_POSTGRES_RUNTIME_IMAGE: uap-postgres-ci:${{ github.sha }}
+      UAP_SECURITY_TOOLS_IMAGE: uap-platform-security-tools:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Create ephemeral CI credentials
+        run: platform/scripts/bootstrap-env.sh
+      - name: Build deployable application, hardened PostgreSQL, and object storage images
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml -f compose.staging.yaml build app postgres object-store
+      - name: Build isolated security tools image
+        working-directory: platform
+        run: |
+          python_image=$(sed -n 's/^UAP_PYTHON_IMAGE=//p' .env.versions)
+          uv_version=$(sed -n 's/^UAP_UV_VERSION=//p' .env.versions)
+          docker build --target development --build-arg "PYTHON_IMAGE=$python_image" --build-arg "UV_VERSION=$uv_version" --tag "$UAP_SECURITY_TOOLS_IMAGE" .
+      - name: Scan every deployable image and fail on High or Critical
+        working-directory: platform
+        run: scripts/scan-images.sh "$UAP_APP_IMAGE" "$UAP_POSTGRES_RUNTIME_IMAGE" "$RUNNER_TEMP/image-scan-reports"
+      - name: Audit runtime dependencies
+        working-directory: platform
+        run: |
+          docker run --rm --env XDG_CACHE_HOME=/tmp/.cache "$UAP_SECURITY_TOOLS_IMAGE" \
+            /bin/sh -ec 'uv export --frozen --all-groups --no-emit-project --output-file /tmp/locked.txt && pip-audit --cache-dir /tmp/pip-audit --disable-pip --requirement /tmp/locked.txt'
+      - name: Scan Python code
+        working-directory: platform
+        run: docker run --rm "$UAP_SECURITY_TOOLS_IMAGE" bandit -q -r src
+      - name: Run gitleaks against committed history
+        run: |
+          image=$(sed -n 's/^UAP_GITLEAKS_IMAGE=//p' platform/.env.versions)
+          docker run --rm -v "$PWD:/repo" "$image" detect --source=/repo --redact --no-banner
+      - name: Deliberate security failure injection
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_injection }}
+        run: exit 86
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create ephemeral CI credentials
+        run: platform/scripts/bootstrap-env.sh
+      - name: Start PostgreSQL for isolated G10 databases
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml up --build --detach --wait postgres
+      - name: Build the G10 probe image
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml build object-store-init
+      - name: Verify every migration revision in sequence
+        working-directory: platform
+        run: scripts/verify-migration-chain.sh
+      - name: Prove failed migrations close the privileged login
+        working-directory: platform
+        run: scripts/verify-migrator-failure-close.sh
+      - name: Verify frozen migration entrypoint remains present
+        working-directory: platform
+        run: test -x scripts/migrate-platform.sh
+      - name: Validate WP10.6-B G10-26 matrix contract
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo/platform
+          --env PYTHONPATH=/repo/platform
+          "${UAP_APP_IMAGE:-uap-platform:development}"
+          python -m tools.validate_wp10_6
+      - name: Provision isolated G10 database topology and disposable object store
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          legacy_db="uap_wp10_legacy_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          legacy_probe_db="uap_wp10_legacy_probe_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          wp10_1_db="uap_wp10_1_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          wp10_2_db="uap_wp10_2_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          wp10_3_db="uap_wp10_3_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          wp10_4_db="uap_wp10_4_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          wp10_5_db="uap_wp10_5_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          regression_db="uap_wp10_regression_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          backend_network="${UAP_COMPOSE_PROJECT_NAME}_backend"
+          disposable_id="ci${GITHUB_RUN_ID}r${GITHUB_RUN_ATTEMPT}"
+          short_id=$(printf '%s' "$disposable_id" | tr -cd 'a-zA-Z0-9' | cut -c1-12)
+          disposable_project="uap-g10-25-os-${short_id}"
+          disposable_network="$disposable_project"
+          api_port=$((18000 + (GITHUB_RUN_ID % 1000)))
+          app_image="${UAP_APP_IMAGE:-uap-platform:development}"
+
+          printf 'UAP_WP10_LEGACY_DB=%s\n' "$legacy_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_LEGACY_PROBE_DB=%s\n' "$legacy_probe_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_1_DB=%s\n' "$wp10_1_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_2_DB=%s\n' "$wp10_2_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_3_DB=%s\n' "$wp10_3_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_4_DB=%s\n' "$wp10_4_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_5_DB=%s\n' "$wp10_5_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_REGRESSION_DB=%s\n' "$regression_db" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_BACKEND_NETWORK=%s\n' "$backend_network" >> "$GITHUB_ENV"
+          printf 'UAP_S3_DISPOSABLE_ID=%s\n' "$disposable_id" >> "$GITHUB_ENV"
+          printf 'UAP_G10_25_COMPOSE_PROJECT=%s\n' "$disposable_project" >> "$GITHUB_ENV"
+          printf 'UAP_G10_25_NETWORK=%s\n' "$disposable_network" >> "$GITHUB_ENV"
+          printf 'UAP_G10_25_S3_API_PORT=%s\n' "$api_port" >> "$GITHUB_ENV"
+
+          postgres_user=$(sed -n 's/^UAP_POSTGRES_USER=//p' .env)
+          postgres_password=$(sed -n 's/^UAP_POSTGRES_PASSWORD=//p' .env)
+          create_database() {
+            docker compose --env-file .env.versions --env-file .env -f compose.yaml \
+              exec -T postgres createdb --username "$postgres_user" "$1"
+          }
+          run_tool() {
+            database_url="postgresql+psycopg://${postgres_user}:${postgres_password}@postgres:5432/$1"
+            db_env=$(mktemp "$RUNNER_TEMP/wp10-db-env.XXXXXX")
+            chmod 600 "$db_env"
+            printf 'UAP_DATABASE_URL=%s\n' "$database_url" > "$db_env"
+            if docker run --rm --network "$backend_network" --env-file .env --env-file "$db_env" \
+              "$app_image" "${@:2}"; then
+              status=0
+            else
+              status=$?
+            fi
+            rm -f "$db_env"
+            return "$status"
+          }
+          close_migrator() {
+            run_tool "$1" python tools/configure_roles.py disable-migrator
+          }
+          create_database "$legacy_db"
+          create_database "$legacy_probe_db"
+          create_database "$wp10_1_db"
+          create_database "$wp10_2_db"
+          create_database "$wp10_3_db"
+          create_database "$wp10_4_db"
+          create_database "$wp10_5_db"
+          create_database "$regression_db"
+          run_tool "$legacy_db" alembic upgrade 0019_manual_claims_binding
+          run_tool "$legacy_db" python tools/configure_roles.py configure
+          close_migrator "$legacy_db"
+          run_tool "$legacy_probe_db" alembic upgrade 0019_manual_claims_binding
+          run_tool "$legacy_probe_db" python tools/configure_roles.py configure
+          close_migrator "$legacy_probe_db"
+          run_tool "$wp10_1_db" alembic upgrade 0019_manual_claims_binding
+          run_tool "$wp10_1_db" python tools/configure_roles.py configure
+          close_migrator "$wp10_1_db"
+          run_tool "$wp10_2_db" alembic upgrade 0020_wp10_publication_contract
+          run_tool "$wp10_2_db" python tools/configure_roles.py configure
+          close_migrator "$wp10_2_db"
+          run_tool "$wp10_3_db" alembic upgrade 0021_wp10_publisher_projection
+          run_tool "$wp10_3_db" python tools/configure_roles.py configure
+          close_migrator "$wp10_3_db"
+          run_tool "$wp10_4_db" alembic upgrade 0022_wp10_claim_search_projection
+          run_tool "$wp10_4_db" python tools/configure_roles.py configure
+          close_migrator "$wp10_4_db"
+          run_tool "$wp10_5_db" alembic upgrade 0023_wp10_api_read_indexes
+          run_tool "$wp10_5_db" python tools/configure_roles.py configure
+          close_migrator "$wp10_5_db"
+          run_tool "$regression_db" alembic upgrade 0021_wp10_publisher_projection
+          run_tool "$regression_db" python tools/configure_roles.py configure
+          close_migrator "$regression_db"
+
+          export UAP_DATABASE_URL="postgresql+psycopg://${postgres_user}:${postgres_password}@postgres:5432/${legacy_db}"
+          export UAP_S3_DISPOSABLE=1
+          ./scripts/g10-25-disposable-object-store.sh start
+      - name: Run WP10.6-B G10-26 migration matrix
+        working-directory: platform
+        env:
+          WP10_MIGRATION_EVIDENCE_HOST: ${{ runner.temp }}/wp10-6-migration-evidence
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          mkdir -p "$WP10_MIGRATION_EVIDENCE_HOST"
+          matrix_env=$(mktemp "$RUNNER_TEMP/wp10-6-matrix-env.XXXXXX")
+          matrix_container="uap-g10-26-matrix-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          chmod 600 "$matrix_env"
+          printf 'UAP_WP10_6_ADMIN_URL=postgresql+psycopg://%s:%s@postgres:5432/%s\n' \
+            "$UAP_POSTGRES_USER" "$UAP_POSTGRES_PASSWORD" "$UAP_POSTGRES_DB" > "$matrix_env"
+          trap 'docker rm --force "$matrix_container" >/dev/null 2>&1 || true; rm -f "$matrix_env"' EXIT
+          docker create --name "$matrix_container" \
+            --network "${UAP_WP10_BACKEND_NETWORK}" \
+            --env-file .env --env-file "$matrix_env" \
+            --volume "$WP10_MIGRATION_EVIDENCE_HOST:/tmp/wp10-6-migration-evidence" \
+            --workdir /app \
+            "${UAP_APP_IMAGE:-uap-platform:development}" \
+            python -m tools.wp10_6_migration_probe \
+              --evidence-out /tmp/wp10-6-migration-evidence/g10-26.json
+          set +e
+          docker start --attach "$matrix_container"
+          status=$?
+          set -e
+          exit "$status"
+      - name: Upload G10-26 migration evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wp10-6-g10-26-migration-evidence
+          path: ${{ runner.temp }}/wp10-6-migration-evidence
+          if-no-files-found: error
+      - name: Run legacy WP3 through WP9.6 probes on isolated legacy probe database
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          legacy_env=$(mktemp "$RUNNER_TEMP/wp10-legacy-probe-env.XXXXXX")
+          legacy_container="uap-g10-25-legacy-probes-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          chmod 600 "$legacy_env"
+          printf 'UAP_DATABASE_URL=postgresql+psycopg://%s:%s@postgres:5432/%s\n' \
+            "$UAP_POSTGRES_USER" "$UAP_POSTGRES_PASSWORD" "$UAP_WP10_LEGACY_PROBE_DB" > "$legacy_env"
+          printf 'UAP_S3_ENDPOINT=g10-25-object-store:8333\n' >> "$legacy_env"
+          printf 'UAP_S3_SECURE=false\n' >> "$legacy_env"
+          printf 'UAP_S3_DISPOSABLE=1\n' >> "$legacy_env"
+          printf 'UAP_S3_DISPOSABLE_ID=%s\n' "$UAP_S3_DISPOSABLE_ID" >> "$legacy_env"
+          trap 'docker rm --force "$legacy_container" >/dev/null 2>&1 || true; rm -f "$legacy_env"' EXIT
+          docker create --name "$legacy_container" \
+            --network "$UAP_WP10_BACKEND_NETWORK" \
+            --env-file .env --env-file "$legacy_env" \
+            --workdir /app \
+            "${UAP_APP_IMAGE:-uap-platform:development}" \
+            /bin/sh -ec '
+              python tools/wp3_runtime_probe.py
+              python tools/wp4_runtime_probe.py
+              python tools/wp5_runtime_probe.py
+              python tools/wp6_runtime_probe.py
+              python tools/wp7_runtime_probe.py
+              python tools/wp8_runtime_probe.py --from wp8.1
+              python tools/wp9_1_runtime_probe.py
+              python tools/wp9_2_runtime_probe.py
+              python tools/wp9_3_runtime_probe.py
+              python tools/wp9_4_runtime_probe.py
+              python tools/wp9_5_runtime_probe.py
+              python tools/wp9_6_runtime_probe.py
+            '
+          docker network connect "$UAP_G10_25_NETWORK" "$legacy_container"
+          set +e
+          docker start --attach "$legacy_container"
+          status=$?
+          set -e
+          exit "$status"
+      - name: Rotate disposable object store before full G10-25
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          export UAP_S3_DISPOSABLE=1
+          ./scripts/g10-25-disposable-object-store.sh stop
+
+          next_disposable_id="wp10ci${GITHUB_RUN_ID}r${GITHUB_RUN_ATTEMPT}"
+          next_short_id=$(printf '%s' "$next_disposable_id" | tr -cd 'a-zA-Z0-9' | cut -c1-12)
+          next_disposable_project="uap-g10-25-os-${next_short_id}"
+          next_disposable_network="$next_disposable_project"
+          printf 'UAP_S3_DISPOSABLE_ID=%s\n' "$next_disposable_id" >> "$GITHUB_ENV"
+          printf 'UAP_G10_25_COMPOSE_PROJECT=%s\n' "$next_disposable_project" >> "$GITHUB_ENV"
+          printf 'UAP_G10_25_NETWORK=%s\n' "$next_disposable_network" >> "$GITHUB_ENV"
+          export UAP_S3_DISPOSABLE_ID="$next_disposable_id"
+          export UAP_G10_25_COMPOSE_PROJECT="$next_disposable_project"
+          export UAP_G10_25_NETWORK="$next_disposable_network"
+          export UAP_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_LEGACY_DB}"
+          ./scripts/g10-25-disposable-object-store.sh start
+      - name: Run WP10 WP3-through-WP10.5 runtime probe
+        working-directory: platform
+        env:
+          WP10_EVIDENCE_HOST: ${{ runner.temp }}/wp10-runtime-evidence
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          export UAP_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_LEGACY_DB}"
+          export UAP_WP10_LEGACY_DATABASE_URL="$UAP_DATABASE_URL"
+          export UAP_WP10_1_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_1_DB}"
+          export UAP_WP10_2_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_2_DB}"
+          export UAP_WP10_3_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_3_DB}"
+          export UAP_WP10_4_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_4_DB}"
+          export UAP_WP10_5_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_5_DB}"
+          export UAP_WP10_2_REGRESSION_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_REGRESSION_DB}"
+          export UAP_S3_ENDPOINT=g10-25-object-store:8333
+          export UAP_S3_SECURE=false
+          export UAP_S3_DISPOSABLE=1
+          mkdir -p "$WP10_EVIDENCE_HOST"
+          runtime_env=$(mktemp "$RUNNER_TEMP/wp10-runtime-env.XXXXXX")
+          runtime_container="uap-g10-25-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          chmod 600 "$runtime_env"
+          {
+            printf 'UAP_DATABASE_URL=%s\n' "$UAP_DATABASE_URL"
+            printf 'UAP_WP10_LEGACY_DATABASE_URL=%s\n' "$UAP_WP10_LEGACY_DATABASE_URL"
+            printf 'UAP_WP10_1_DATABASE_URL=%s\n' "$UAP_WP10_1_DATABASE_URL"
+            printf 'UAP_WP10_2_DATABASE_URL=%s\n' "$UAP_WP10_2_DATABASE_URL"
+            printf 'UAP_WP10_3_DATABASE_URL=%s\n' "$UAP_WP10_3_DATABASE_URL"
+            printf 'UAP_WP10_4_DATABASE_URL=%s\n' "$UAP_WP10_4_DATABASE_URL"
+            printf 'UAP_WP10_5_DATABASE_URL=%s\n' "$UAP_WP10_5_DATABASE_URL"
+            printf 'UAP_WP10_2_REGRESSION_DATABASE_URL=%s\n' "$UAP_WP10_2_REGRESSION_DATABASE_URL"
+            printf 'UAP_S3_ENDPOINT=%s\n' "$UAP_S3_ENDPOINT"
+            printf 'UAP_S3_SECURE=false\n'
+            printf 'UAP_S3_DISPOSABLE=1\n'
+            printf 'UAP_S3_DISPOSABLE_ID=%s\n' "$UAP_S3_DISPOSABLE_ID"
+          } > "$runtime_env"
+          trap 'docker rm --force "$runtime_container" >/dev/null 2>&1 || true; rm -f "$runtime_env"' EXIT
+          docker create --name "$runtime_container" \
+            --network "$UAP_WP10_BACKEND_NETWORK" \
+            --env-file .env --env-file "$runtime_env" \
+            --volume "$WP10_EVIDENCE_HOST:/tmp/wp10-runtime-evidence" \
+            --workdir /app \
+            "${UAP_APP_IMAGE:-uap-platform:development}" \
+            python -m tools.wp10_runtime_probe --evidence-dir /tmp/wp10-runtime-evidence
+          docker network connect "$UAP_G10_25_NETWORK" "$runtime_container"
+          set +e
+          docker start --attach "$runtime_container"
+          status=$?
+          set -e
+          exit "$status"
+      - name: Upload WP10 runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wp10-runtime-evidence
+          path: ${{ runner.temp }}/wp10-runtime-evidence
+          if-no-files-found: error
+      - name: Stop disposable object store
+        if: always()
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          export UAP_S3_DISPOSABLE=1
+          ./scripts/g10-25-disposable-object-store.sh stop || true
+      - name: Stop isolated PostgreSQL
+        if: always()
+        working-directory: platform
+        run: docker compose --env-file .env.versions --env-file .env -f compose.yaml down --volumes --remove-orphans
+
+  gate:
+    if: always()
+    needs: [quality, security, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every platform gate
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        run: test "$QUALITY_RESULT" = success && test "$SECURITY_RESULT" = success && test "$INTEGRATION_RESULT" = success

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAP 内部资料库 V1-1</title>
+<style>
+body { font: 15px system-ui; margin: 0; background: #f4f5f7; color: #17202a }
+header { padding: 18px 24px; background: #14213d; color: white }
+main { display: grid; grid-template-columns: minmax(320px,38%) 1fr; gap: 16px; padding: 16px }
+.panel { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px #0002 }
+input, select, button { padding: 8px; margin: 3px } button { cursor: pointer }
+.item { border-top: 1px solid #ddd; padding: 10px 0 } .item a { font-weight: 650; color: #164e83 }
+pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f8; padding: 12px }
+.bad { color: #a11 } @media(max-width:800px) { main { grid-template-columns: 1fr } }
+</style>
+<header><h1>UAP 内部资料库 V1-1</h1><small>RAW / AI_RESULT; 未获公开授权</small></header>
+<main>
+  <section class="panel">
+    <input id="token" type="password" placeholder="本机管理令牌">
+    <button onclick="loadList()">加载</button><div id="usage"></div><div id="list"></div>
+  </section>
+  <section class="panel" id="detail">选择一条资料。</section>
+</main>
+<script>
+const hdr = () => ({Authorization: 'Bearer ' + document.querySelector('#token').value});
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+async function api(path, opt={}) {
+  opt.headers = {...hdr(), ...(opt.headers || {})};
+  const response = await fetch(path, opt);
+  if (!response.ok) throw Error(await response.text());
+  return response.json();
+}
+async function loadList() {
+  try {
+    const [data, budget] = await Promise.all([
+      api('/internal/v1/documents'), api('/internal/v1/usage')
+    ]);
+    const cost = (budget.monthly_cost_microunits / 1000000).toFixed(6);
+    usage.innerHTML = `<p class="${budget.warning ? 'bad' : ''}">本月 DeepSeek：¥${cost} / ¥20.00${budget.blocked ? '（已停止）' : budget.warning ? '（预警）' : ''}</p>`;
+    list.innerHTML = data.items.map(item => `<div class="item"><a href="#" onclick="detailDoc('${item.document_id}')">${esc(item.original_title)}</a><br><small>${esc(item.source_name)} · ${esc(item.internal_state)}</small></div>`).join('');
+  } catch (error) { list.innerHTML = '<p class="bad">' + esc(error) + '</p>'; }
+}
+async function detailDoc(id) {
+  try {
+    const item = await api('/internal/v1/documents/' + id);
+    detail.innerHTML = `<h2>${esc(item.original_title)}</h2>
+      <p><a href="${esc(item.canonical_url)}" target="_blank">原始地址</a> ·
+      <b>${esc(item.internal_state)}</b> · 公开授权: 否</p>
+      <h3>中文摘要</h3><p>${esc(item.summary_text)}</p>
+      <h3>关键主张/来源陈述</h3><pre>${esc(JSON.stringify(item.claims,null,2))}</pre>
+      <h3>实体候选</h3><pre>${esc(JSON.stringify(item.entities,null,2))}</pre>
+      <h3>原文</h3><pre>${esc(item.source_text)}</pre>
+      <select id="task"><option>classification</option><option>summary</option>
+      <option>claim_extraction</option><option>entity_extraction</option></select>
+      <input id="reason" placeholder="重试原因"><button onclick="retry('${id}')">受控重试</button>
+      <p id="retryResult"></p>`;
+  } catch (error) { detail.innerHTML = '<p class="bad">' + esc(error) + '</p>'; }
+}
+async function retry(id) {
+  try {
+    const data = await api('/internal/v1/documents/' + id + '/reanalyze', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({task_type:task.value, reason:reason.value})
+    });
+    retryResult.textContent = 'Queued ' + data.job_id;
+  } catch (error) { retryResult.textContent = error; }
+}
+</script>
+</html>

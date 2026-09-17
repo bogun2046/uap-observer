@@ -1,0 +1,589 @@
+{
+  "schema": "wp10.3-runtime-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "kind": "assertion",
+      "name": "G10-11 dependency SQLSTATE",
+      "passed": true,
+      "actual": "40001",
+      "expected": "40001"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 dependency code",
+      "passed": true,
+      "actual": "publication_dependency_not_ready",
+      "expected": "publication_dependency_not_ready"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 dependency failure has no state change",
+      "passed": true,
+      "actual": {
+        "event": [
+          null,
+          null,
+          "2026-08-30 15:18:01.283411+00:00",
+          null,
+          "c50180cd-2632-43e2-a3c3-18e241a03477",
+          "2026-08-30 15:19:01.286057+00:00",
+          1
+        ],
+        "projection": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          "3536223126043cc46281f9217caed1e8f19da2b8d05257b88b59477485571343"
+        ]
+      },
+      "expected": {
+        "event": [
+          null,
+          null,
+          "2026-08-30 15:18:01.283411+00:00",
+          null,
+          "c50180cd-2632-43e2-a3c3-18e241a03477",
+          "2026-08-30 15:19:01.286057+00:00",
+          1
+        ],
+        "projection": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          "3536223126043cc46281f9217caed1e8f19da2b8d05257b88b59477485571343"
+        ]
+      }
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 dependency no claim",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 dependency retry",
+      "passed": true,
+      "actual": "retry_wait",
+      "expected": "retry_wait"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 AI claim visible",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 evidence visible",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 claim evidence atomic",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-14 hidden entity has no link",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-12 concurrent ordinals unique",
+      "passed": true,
+      "actual": 3,
+      "expected": 3
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-14 entity publish reconciles link",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-14 shared entity links are deduplicated",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-14 internal entity id hidden",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-14 internal claim id hidden",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-12 identity and ordinal stable",
+      "passed": true,
+      "actual": [
+        "4bc42800-8b73-4437-aec0-68b3d54d868c",
+        0
+      ],
+      "expected": [
+        "4bc42800-8b73-4437-aec0-68b3d54d868c",
+        0
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-12 revise replaced claim text",
+      "passed": true,
+      "actual": "WP10.3 manual claim ai-revised revision 2",
+      "expected": "WP10.3 manual claim ai-revised revision 2"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 search vector deterministic",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 evidence excluded",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 source URL excluded",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 search facets exact",
+      "passed": true,
+      "actual": [
+        "category",
+        "fact_status",
+        "source_name"
+      ],
+      "expected": [
+        "category",
+        "fact_status",
+        "source_name"
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 claim text included",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 claim withdraw removes search text",
+      "passed": true,
+      "actual": -1,
+      "expected": -1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 document withdraw hides document",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 document withdraw cascades claims",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 document withdraw removes search",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 claim grants remain active",
+      "passed": true,
+      "actual": 3,
+      "expected": 3
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 republish reuses document identity",
+      "passed": true,
+      "actual": "275df73d-1ab2-47dc-ae6e-947380a529ed",
+      "expected": "275df73d-1ab2-47dc-ae6e-947380a529ed"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 republish restores active claims",
+      "passed": true,
+      "actual": 3,
+      "expected": 3
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-13 republish restores search",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-11 public reader can read claims",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "42501",
+      "primary": "permission denied for schema audit"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-14 public reader cannot read internal manifests",
+      "passed": true,
+      "actual": "42501",
+      "expected": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild succeeded",
+      "passed": true,
+      "actual": "succeeded",
+      "expected": "succeeded"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild replay",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild digest stable",
+      "passed": true,
+      "actual": "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382",
+      "expected": "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild does not ack pending event",
+      "passed": true,
+      "actual": [
+        null,
+        null
+      ],
+      "expected": [
+        null,
+        null
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 online/rebuild content digest",
+      "passed": true,
+      "actual": "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382",
+      "expected": "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+    },
+    {
+      "kind": "state",
+      "name": "G10-15 rebuild counts and digest",
+      "before": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "after": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_rebuild_mismatch"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 replay tamper SQLSTATE",
+      "passed": true,
+      "actual": "22023",
+      "expected": "22023"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 replay tamper code",
+      "passed": true,
+      "actual": "publication_rebuild_mismatch",
+      "expected": "publication_rebuild_mismatch"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 replay tamper has no projection change",
+      "passed": true,
+      "actual": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "expected": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "state",
+      "name": "G10-15 replay tamper rollback counts and digest",
+      "before": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "after": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "40001",
+      "primary": "publication_rebuild_id_conflict"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild conflict SQLSTATE",
+      "passed": true,
+      "actual": "40001",
+      "expected": "40001"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild conflict code",
+      "passed": true,
+      "actual": "publication_rebuild_id_conflict",
+      "expected": "publication_rebuild_id_conflict"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild mismatch status",
+      "passed": true,
+      "actual": "failed",
+      "expected": "failed"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 rebuild mismatch stable code",
+      "passed": true,
+      "actual": "publication_rebuild_mismatch",
+      "expected": "publication_rebuild_mismatch"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 mismatch projection rollback",
+      "passed": true,
+      "actual": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "expected": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "state",
+      "name": "G10-15 mismatch rollback counts and digest",
+      "before": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "after": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 missing manifests status",
+      "passed": true,
+      "actual": "failed",
+      "expected": "failed"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 missing manifests code",
+      "passed": true,
+      "actual": "publication_rebuild_mismatch",
+      "expected": "publication_rebuild_mismatch"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 missing manifests have no projection change",
+      "passed": true,
+      "actual": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "expected": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "state",
+      "name": "G10-15 missing manifest categories rollback",
+      "categories": [
+        "document",
+        "entity",
+        "claim"
+      ],
+      "before": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ],
+      "after": [
+        1,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        "28bcc6c74b6a96c9bfd3c097e5c261cd2b6765b887b159a26cf05f1f15d20382"
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "42501",
+      "primary": "permission denied for function rebuild_public_projection"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 API rebuild denied",
+      "passed": true,
+      "actual": "42501",
+      "expected": "42501"
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "42501",
+      "primary": "permission denied for function rebuild_public_projection"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-15 Publisher rebuild denied",
+      "passed": true,
+      "actual": "42501",
+      "expected": "42501"
+    }
+  ]
+}

@@ -1,0 +1,315 @@
+{
+  "checks": [
+    {
+      "actual": [],
+      "expected": [],
+      "name": "required_files",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "expected": [],
+      "name": "repository_delivery_files",
+      "passed": true
+    },
+    {
+      "actual": {
+        "image": "python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7",
+        "python_version": "3.12.11",
+        "requires_python": ">=3.12,<3.13"
+      },
+      "expected": true,
+      "name": "python_312_policy",
+      "passed": true
+    },
+    {
+      "actual": "postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+      "expected": true,
+      "name": "postgres_16_policy",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "shared_version_source",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "locked_installation",
+      "passed": true
+    },
+    {
+      "actual": [
+        "app",
+        "minio",
+        "minio-init",
+        "postgres"
+      ],
+      "expected": true,
+      "name": "compose_services",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "compose_healthchecks",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "empty_environment_bootstrap",
+      "passed": true
+    },
+    {
+      "actual": {
+        "build": {
+          "target": "runtime"
+        },
+        "environment": {
+          "UAP_APP_ENV": "staging"
+        },
+        "restart": "unless-stopped"
+      },
+      "expected": true,
+      "name": "staging_runtime_target",
+      "passed": true
+    },
+    {
+      "actual": {
+        "UAP_MINIO_ROOT_PASSWORD": false,
+        "UAP_MINIO_ROOT_USER": false,
+        "UAP_POSTGRES_PASSWORD": false
+      },
+      "expected": {
+        "UAP_MINIO_ROOT_PASSWORD": false,
+        "UAP_MINIO_ROOT_USER": false,
+        "UAP_POSTGRES_PASSWORD": false
+      },
+      "name": "secret_template_empty",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "secret_generation",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "secret_build_context_exclusion",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "expected": [],
+      "name": "ci_fail_closed_gate",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "ci_read_only_permissions",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "staging_idempotent_deploy",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "expected": [],
+      "name": "single_new_migration_authority",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "expected": [],
+      "name": "static_secret_scan",
+      "passed": true
+    }
+  ],
+  "manifest": [
+    {
+      "path": ".github/workflows/platform-ci.yml",
+      "sha256": "874cf42126897ade555b2bd2d87e8107f44d9c93ba4389e3812f04b6530d6143",
+      "size": 5009
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "e0bbd9409f4f86a1dfd045aa17df18f94012b5d4863ce67d78628ea07eaaa4de",
+      "size": 519
+    },
+    {
+      "path": "Makefile",
+      "sha256": "bd4ca40d14871a418d214ece215741fdbb11e1b2d814535f40410869b9efa7de",
+      "size": 293
+    },
+    {
+      "path": "docs/wp2/README.md",
+      "sha256": "e9125435c9984d99013da6ef681089ec34e81cb83c25c4f3e4c065ef92a7ac4c",
+      "size": 1265
+    },
+    {
+      "path": "docs/wp2/acceptance-cases.md",
+      "sha256": "a8c8b99a92bd58d2c062bad328e58f85664901c3deca4166ec40153a472b72a2",
+      "size": 2982
+    },
+    {
+      "path": "docs/wp2/acceptance-ticket.md",
+      "sha256": "641a472dc0752e48ebf8ad74e2cf26ea6f092f5d4744c8bde140d0cd77adfa7c",
+      "size": 743
+    },
+    {
+      "path": "docs/wp2/development-self-review.md",
+      "sha256": "0576a32b578e8c065bf5a6d921f5a242ef3c6a6d2863606b176adaf4c2d70d6d",
+      "size": 2207
+    },
+    {
+      "path": "docs/wp2/implementation-ticket.md",
+      "sha256": "eead6b9baa8d5b22fb956bb272ff3b01795958ff9b48fced19be61b3285d85c0",
+      "size": 1602
+    },
+    {
+      "path": "docs/wp2/staging-deployment.md",
+      "sha256": "b38691a4c0b88595be3e646987d7b167c7c52ed2a8ceb4ec523991f3b36ed74e",
+      "size": 2442
+    },
+    {
+      "path": "platform/.dockerignore",
+      "sha256": "acaadd8089c35f25a161699c5d82b87b0311c2036d26e57065a24fe784c2df48",
+      "size": 151
+    },
+    {
+      "path": "platform/.env.example",
+      "sha256": "cdad36a4378c36952276582bc2531bfeebc3956060674603da40510af3e4bced",
+      "size": 437
+    },
+    {
+      "path": "platform/.env.versions",
+      "sha256": "7dcc38b681918337682df79ec2126fdce8b1683fec424e84ec154984c5b7ab40",
+      "size": 631
+    },
+    {
+      "path": "platform/.python-version",
+      "sha256": "43fd694bd564dd2215f51a6b23f6a3712834850225e629d7781c81c71076092d",
+      "size": 8
+    },
+    {
+      "path": "platform/Dockerfile",
+      "sha256": "efa234e89ea0da757004378ff17027be394235344d257870a73098216acdf087",
+      "size": 989
+    },
+    {
+      "path": "platform/Makefile",
+      "sha256": "ea4f280b236b5f0f2c9df787ad220ecd9aad0d7aea0729680a6ebbd3a44baeb6",
+      "size": 863
+    },
+    {
+      "path": "platform/README.md",
+      "sha256": "23a0aeda023556e5bb1f970e1796d2dfdc3bc2a20b5df13351bc4663c132b1f7",
+      "size": 761
+    },
+    {
+      "path": "platform/alembic/env.py",
+      "sha256": "511ac1c571504d307afacd64e04041303e1cb81944388826c34c57bc696b3718",
+      "size": 1560
+    },
+    {
+      "path": "platform/alembic/versions/.gitkeep",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "size": 1
+    },
+    {
+      "path": "platform/alembic.ini",
+      "sha256": "4576da5b2be56f263747ce3501c8b17792a0b8bac000c6842ce8d2127de57197",
+      "size": 647
+    },
+    {
+      "path": "platform/compose.staging.yaml",
+      "sha256": "cccbbc67ac6a191b75ba77f3e7ed60e6c4a7a88e82350d07db9dfd823e6e1e65",
+      "size": 201
+    },
+    {
+      "path": "platform/compose.yaml",
+      "sha256": "1cda418e36326987fc170c32b7934e7015bbecc346e044c487633d472996e0ac",
+      "size": 3411
+    },
+    {
+      "path": "platform/pyproject.toml",
+      "sha256": "fba8d47824567f2d437e393ef6adcbb2050c088a73a93d43075d9895b92290bc",
+      "size": 1398
+    },
+    {
+      "path": "platform/scripts/bootstrap-env.sh",
+      "sha256": "6186a3f00fbf65ecf01fbca4fa09dd7578f00ea294a7d6d32bc677622c4528cf",
+      "size": 1191
+    },
+    {
+      "path": "platform/scripts/deploy-staging.sh",
+      "sha256": "fc75a1360672bb5ffd9280380934ed580d33dd4ce8f6af08c89dbbd78e14127e",
+      "size": 961
+    },
+    {
+      "path": "platform/src/uap_platform/__init__.py",
+      "sha256": "3648908848d668c456f8818ba88694cbe8306b9a68e432017814faa90a0e20f0",
+      "size": 73
+    },
+    {
+      "path": "platform/src/uap_platform/config.py",
+      "sha256": "91a3d76ab8da2d020bb7d88ab74a9e8806911b4b3cebd6bc9655f16af2bf224c",
+      "size": 1581
+    },
+    {
+      "path": "platform/src/uap_platform/devserver.py",
+      "sha256": "8d5bdbd4f6732aeda1565a8bef857284a05dff575fde83824750c3011d2e25e2",
+      "size": 1801
+    },
+    {
+      "path": "platform/src/uap_platform/readiness.py",
+      "sha256": "08c010e9fcac271b47b0777f3b22a74df34934e7a5e881ee6bfdc533cce5b2db",
+      "size": 2630
+    },
+    {
+      "path": "platform/tests/test_config.py",
+      "sha256": "5cb7fe56cdad0f1316ed1783cc78df3bde79ab54137040bd71281716b4757c6c",
+      "size": 818
+    },
+    {
+      "path": "platform/tests/test_devserver.py",
+      "sha256": "b8c3129ab0e6ce95808dd3ac37b5a694d761ed1d503fa785dae097e0acb9f7ff",
+      "size": 2346
+    },
+    {
+      "path": "platform/tests/test_platform_policy.py",
+      "sha256": "2175a8b02f2bc6ec8407d9b68b6d9fa51054eb579f4c694d2641dff75ec8ce19",
+      "size": 289
+    },
+    {
+      "path": "platform/tests/test_readiness.py",
+      "sha256": "c21ac4a8adaeb25ab501982130125d3342a5cf7404690ce6d99b3bf58a176278",
+      "size": 4301
+    },
+    {
+      "path": "platform/tools/__init__.py",
+      "sha256": "b1b9bf0b1ec738f7880af3bbb01ac9053bdad749abbce1ed2935701e96f70b69",
+      "size": 40
+    },
+    {
+      "path": "platform/tools/validate_platform.py",
+      "sha256": "b0242fffdcad1d82848364cf62f96316b5766a44ebe88d3b2b4f65dd172742e3",
+      "size": 11914
+    },
+    {
+      "path": "platform/uv.lock",
+      "sha256": "77dda1d28d2bdf90071e17edd6cca4939e13d28b97f9b257b274397982c06516",
+      "size": 106243
+    }
+  ],
+  "passed": true
+}

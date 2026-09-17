@@ -1,0 +1,14 @@
+ARG POSTGRES_IMAGE=postgres:16.14-alpine
+FROM ${POSTGRES_IMAGE}
+
+# The upstream 16.14 image ships gosu built with a vulnerable Go standard
+# library. The service always runs as postgres, so the root-only drop-privilege
+# helper is unnecessary in the deployed image.
+USER root
+RUN rm -f /usr/local/bin/gosu \
+    && apk add --no-cache --upgrade \
+        'libuuid>=2.42.3-r1' 'libcrypto3>=3.5.8-r0' 'libssl3>=3.5.8-r0' \
+    && if apk info -e sqlite-libs >/dev/null 2>&1; then \
+         apk add --no-cache --upgrade sqlite-libs; \
+       fi
+USER postgres

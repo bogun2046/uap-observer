@@ -1,0 +1,42 @@
+{
+  "schema": "wp10.2-migration-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "case": "wp10_1_outbox_state_not_blocked",
+      "status": "passed",
+      "outbox_rows_preserved": 6
+    },
+    {
+      "case": "empty_state_roundtrip",
+      "status": "passed"
+    },
+    {
+      "case": "stateful_downgrade_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "attempt_rows_preserved": 3
+    },
+    {
+      "case": "terminal_event_without_attempt_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "delivery_attempt_rows_before": 0,
+      "delivery_attempt_rows_after": 0,
+      "event_state_unchanged": true,
+      "migration_version_preserved": "0021_wp10_publisher_projection"
+    },
+    {
+      "case": "retry_event_without_attempt_guard",
+      "status": "passed",
+      "sqlstate": "22023",
+      "primary": "publication_contract_state_blocks_downgrade",
+      "delivery_attempt_rows_before": 0,
+      "delivery_attempt_rows_after": 0,
+      "event_state_unchanged": true,
+      "migration_version_preserved": "0021_wp10_publisher_projection"
+    }
+  ]
+}

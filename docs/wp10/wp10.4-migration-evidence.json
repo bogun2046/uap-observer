@@ -1,0 +1,133 @@
+{
+  "schema": "wp10.4-migration-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "case": "0022_0023_0022_0023_roundtrip_and_explain",
+      "status": "passed",
+      "postgresql_version": "16.14",
+      "migration_version": "0023_wp10_api_read_indexes",
+      "capacity_documents": 2000,
+      "capacity_entities": 2000,
+      "index_definitions": {
+        "ix_public_documents_published_id": "CREATE INDEX ix_public_documents_published_id ON public.documents USING btree (published_at DESC, id DESC)",
+        "ix_public_documents_category_published_id": "CREATE INDEX ix_public_documents_category_published_id ON public.documents USING btree (category, published_at DESC, id DESC)",
+        "ix_public_documents_fact_status_published_id": "CREATE INDEX ix_public_documents_fact_status_published_id ON public.documents USING btree (fact_status, published_at DESC, id DESC)",
+        "ix_public_documents_category_fact_published_id": "CREATE INDEX ix_public_documents_category_fact_published_id ON public.documents USING btree (category, fact_status, published_at DESC, id DESC)",
+        "ix_public_entities_published_id": "CREATE INDEX ix_public_entities_published_id ON public.entities USING btree (published_at DESC, id DESC)",
+        "ix_public_entities_type_published_id": "CREATE INDEX ix_public_entities_type_published_id ON public.entities USING btree (entity_type, published_at DESC, id DESC)"
+      },
+      "document_plan_indexes": [
+        "ix_public_documents_category_fact_published_id"
+      ],
+      "entity_plan_indexes": [
+        "ix_public_entities_type_published_id"
+      ],
+      "search_plan_indexes": [
+        "ix_search_documents_vector"
+      ],
+      "document_plan": {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 0.28,
+          "Total Cost": 10.9,
+          "Plan Rows": 21,
+          "Plan Width": 24,
+          "Plans": [
+            {
+              "Node Type": "Index Only Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Scan Direction": "Forward",
+              "Index Name": "ix_public_documents_category_fact_published_id",
+              "Relation Name": "documents",
+              "Alias": "documents",
+              "Startup Cost": 0.28,
+              "Total Cost": 168.79,
+              "Plan Rows": 333,
+              "Plan Width": 24,
+              "Index Cond": "((category = 'official_report'::document_category) AND (fact_status = 'corroborated'::fact_status))"
+            }
+          ]
+        }
+      },
+      "entity_plan": {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 0.28,
+          "Total Cost": 8.29,
+          "Plan Rows": 1,
+          "Plan Width": 24,
+          "Plans": [
+            {
+              "Node Type": "Index Only Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Scan Direction": "Forward",
+              "Index Name": "ix_public_entities_type_published_id",
+              "Relation Name": "entities",
+              "Alias": "entities",
+              "Startup Cost": 0.28,
+              "Total Cost": 8.29,
+              "Plan Rows": 1,
+              "Plan Width": 24,
+              "Index Cond": "(entity_type = 'organization'::text)"
+            }
+          ]
+        }
+      },
+      "search_plan": {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 80.79,
+          "Total Cost": 84.8,
+          "Plan Rows": 1,
+          "Plan Width": 16,
+          "Plans": [
+            {
+              "Node Type": "Bitmap Heap Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Relation Name": "search_documents",
+              "Alias": "search",
+              "Startup Cost": 80.79,
+              "Total Cost": 84.8,
+              "Plan Rows": 1,
+              "Plan Width": 16,
+              "Recheck Cond": "(search_vector @@ '''rareterm'''::tsquery)",
+              "Plans": [
+                {
+                  "Node Type": "Bitmap Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Index Name": "ix_search_documents_vector",
+                  "Startup Cost": 0.0,
+                  "Total Cost": 80.79,
+                  "Plan Rows": 1,
+                  "Plan Width": 0,
+                  "Index Cond": "(search_vector @@ '''rareterm'''::tsquery)"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "signed_indexes_preserved": [
+        "ix_public_claims_document_ordinal",
+        "ix_public_document_entities_entity",
+        "ix_search_documents_vector",
+        "ix_search_documents_facets"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+services:
+  postgres:
+    restart: unless-stopped
+
+  object-store:
+    restart: unless-stopped
+
+  object-store-init:
+    build:
+      target: runtime
+
+  app:
+    build:
+      target: runtime
+    environment:
+      UAP_APP_ENV: staging
+    restart: unless-stopped

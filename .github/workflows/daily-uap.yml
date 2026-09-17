@@ -1,0 +1,322 @@
+name: Daily UAP Observer
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # 22:30 UTC = 06:30 Asia/Shanghai; leave time for the pipeline to
+    # finish before the target 07:30 publication window.
+    - cron: "30 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: uap-observer-daily
+  cancel-in-progress: false
+
+jobs:
+  collect-analyze-publish:
+    # The persistence step pushes the SQLite checkpoint with the Actions bot
+    # identity. Do not start a second collection run for that generated commit.
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      UAP_DB_PATH: data/uap.db
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      YOUTUBE_CHANNEL_IDS: ${{ vars.YOUTUBE_CHANNEL_IDS }}
+      YOUTUBE_OAUTH_TOKEN: ${{ secrets.YOUTUBE_OAUTH_TOKEN }}
+      YOUTUBE_TRANSCRIPT_LIMIT: ${{ vars.YOUTUBE_TRANSCRIPT_LIMIT || '5' }}
+      YOUTUBE_TRANSCRIPT_MAX_TOKENS: ${{ vars.YOUTUBE_TRANSCRIPT_MAX_TOKENS || '12000' }}
+      # Prefer DeepSeek automatically when no provider variable is set and its
+      # secret exists; an explicit AI_PROVIDER still takes precedence.
+      AI_PROVIDER: ${{ vars.AI_PROVIDER || (secrets.DEEPSEEK_API_KEY && 'deepseek' || 'openai') }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.6-luna' }}
+      DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-v4-flash' }}
+      OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || 'low' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install ".[dev]"
+
+      - name: Run regression tests
+        run: python -m pytest -vv --tb=short
+
+      - name: Initialize database
+        run: uap-observer init-db
+
+      - name: Synchronize sources
+        run: uap-observer sync-sources
+
+      - name: Collect RSS feeds
+        run: uap-observer collect-rss --limit 30
+
+      - name: Collect X posts
+        if: ${{ env.X_API_BEARER_TOKEN != '' }}
+        continue-on-error: true
+        run: uap-observer collect-x --limit 30
+
+      - name: Collect YouTube channel watchlist
+        if: ${{ env.YOUTUBE_API_KEY != '' && env.YOUTUBE_CHANNEL_IDS != '' }}
+        continue-on-error: true
+        run: uap-observer collect-youtube --limit 10
+
+      - name: Collect priority YouTube captions
+        if: ${{ env.YOUTUBE_OAUTH_TOKEN != '' }}
+        continue-on-error: true
+        run: uap-observer collect-youtube-transcripts --limit 5
+
+      - name: Collect official web release pages
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-press-products --limit 20
+
+      - name: Collect official case resolutions
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-case-resolutions --limit 20
+
+      - name: Collect official UAP imagery
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-official-imagery --limit 30
+
+      - name: Collect AARO EFOIA releases
+        continue-on-error: true
+        run: uap-observer collect-web --source aaro-efoia --limit 30
+
+      - name: Collect international official and scientific sources
+        continue-on-error: true
+        run: |
+          for source in \
+            brazil-national-archive-ovni \
+            chile-sefaa \
+            australia-national-archives-ufo \
+            mexico-sedena-transparency \
+            nasa-asrs \
+            noaa-space-weather \
+            imo-fireball-events; do
+            uap-observer collect-web --source "$source" --limit 30 || true
+          done
+
+      - name: Record source health
+        if: ${{ always() }}
+        run: uap-observer source-status
+
+      - name: Extract article text
+        continue-on-error: true
+        # Extraction is intentionally bounded: each URL can take up to 30s.
+        run: >-
+          uap-observer extract-articles --limit 40 --retry-failed
+          --max-failed-attempts 3
+
+      - name: Check DeepSeek API health
+        if: ${{ env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '' }}
+        # One /models request validates the key, API connection, and configured
+        # model before any title or article batch can issue billable calls.
+        run: uap-observer deepseek-health-check
+
+      - name: Analyze articles
+        id: analyze
+        if: ${{ (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '') }}
+        # AI calls are sequential; keep one scheduled run within the job budget.
+        # Translate a wider, newest-first title queue independently of the
+        # extraction-bound article-analysis batch.
+        run: uap-observer analyze-articles --limit 40 --title-translation-limit 100 --retry-failed
+
+      - name: Report AI analysis failure
+        if: ${{ always() && steps.analyze.outcome == 'failure' }}
+        run: echo "AI analysis stopped after provider or title-translation failures; publishing is blocked for this run."
+
+      - name: Explain skipped AI step
+        if: ${{ !((env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') || (env.AI_PROVIDER != 'deepseek' && env.OPENAI_API_KEY != '')) }}
+        run: echo "No API key is configured for ${AI_PROVIDER}; leaving extracted articles queued for a later run."
+
+      - name: Link analyzed entities
+        run: uap-observer link-entities --limit 1000
+
+      - name: Generate Markdown site
+        run: uap-observer publish-markdown --output site/generated
+
+      - name: Verify generated site
+        run: |
+          test -f site/generated/index.md
+          test -f site/generated/news/index.md
+          test -f site/generated/search.md
+          test -f site/generated/search.json
+          test -f site/generated/events/index.md
+          test -f site/generated/timeline.md
+          test -f site/generated/graph.md
+          test -f site/generated/graph.json
+          test -f site/generated/relationships.md
+          python -m json.tool site/generated/graph.json >/dev/null
+          python -m json.tool site/generated/search.json >/dev/null
+
+      - name: Build HTML site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: site/generated
+          destination: site/_site
+
+      - name: Verify HTML site
+        run: |
+          test -f site/_site/index.html
+          test -f site/_site/search.html
+          test -f site/_site/search.json
+          test -f site/_site/news/index.html
+          test -f site/_site/graph.html
+
+      - name: Verify pipeline health
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sqlite3
+          from pathlib import Path
+
+          database = sqlite3.connect(os.environ["UAP_DB_PATH"])
+          completed_extraction = database.execute(
+              "SELECT COUNT(*) FROM news WHERE extraction_status = 'completed'"
+          ).fetchone()[0]
+          completed_analysis = database.execute(
+              "SELECT COUNT(*) FROM news WHERE processing_status = 'completed'"
+          ).fetchone()[0]
+          failed_extraction = database.execute(
+              "SELECT COUNT(*) FROM news WHERE extraction_status = 'failed'"
+          ).fetchone()[0]
+          blocked_extraction = database.execute(
+              """
+              SELECT COUNT(*) FROM news
+              WHERE extraction_status = 'failed'
+                AND extraction_error LIKE '%403%'
+              """
+          ).fetchone()[0]
+          metadata_only_extraction = database.execute(
+              """
+              SELECT COUNT(*) FROM news
+              WHERE extraction_status = 'skipped'
+                AND extracted_by IN ('official-metadata-only', 'reddit-metadata-only')
+              """
+          ).fetchone()[0]
+          failed_analysis = database.execute(
+              "SELECT COUNT(*) FROM news WHERE processing_status = 'failed'"
+          ).fetchone()[0]
+          if completed_extraction == 0:
+              raise SystemExit(
+                  "Pipeline health check failed: no completed article extraction"
+              )
+          if completed_analysis == 0:
+              print(
+                  "Pipeline health notice: no completed AI analysis; "
+                  "publishing source records with pending-analysis labels."
+              )
+
+          search_index = json.loads(Path("site/generated/search.json").read_text())
+          missing_pages = [
+              item["url"]
+              for item in search_index
+              if not (Path("site/_site") / item["url"]).exists()
+          ]
+          if missing_pages:
+              raise SystemExit(f"Pipeline health check failed; missing pages: {missing_pages}")
+
+          untranslated_titles = [
+              item["id"]
+              for item in search_index
+              if item.get("title")
+              and re.search(r"[A-Za-z]", item["title"])
+              and not re.search(r"[\u4e00-\u9fff]", item["title"])
+          ]
+          untranslated_summaries = [
+              item["id"]
+              for item in search_index
+              if item.get("summary")
+              and re.search(r"[A-Za-z]", item["summary"])
+              and not re.search(r"[\u4e00-\u9fff]", item["summary"])
+          ]
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              Path(summary_path).write_text(
+                  "## UAP Observer pipeline health\n\n"
+                  f"- Extraction completed: **{completed_extraction}**\n"
+                  f"- AI analysis completed: **{completed_analysis}**\n"
+                  f"- Extraction failed: **{failed_extraction}**\n"
+                  f"- Extraction blocked by source (403): **{blocked_extraction}**\n"
+                  f"- Extraction metadata-only: **{metadata_only_extraction}**\n"
+                  f"- AI analysis failed: **{failed_analysis}**\n"
+                  f"- Titles without Chinese text: **{len(untranslated_titles)}**\n"
+                  f"- Summaries without Chinese text: **{len(untranslated_summaries)}**\n"
+                  f"- Published pages: **{len(search_index)}**\n",
+                  encoding="utf-8",
+              )
+          if untranslated_titles or untranslated_summaries:
+              raise SystemExit(
+                  "Pipeline health check failed; untranslated public content: "
+                  f"title_ids={untranslated_titles[:20]} "
+                  f"summary_ids={untranslated_summaries[:20]}"
+              )
+          print(
+              "Pipeline health OK; "
+              f"extraction_completed={completed_extraction} "
+              f"analysis_completed={completed_analysis} "
+              f"extraction_failed={failed_extraction} "
+              f"extraction_blocked_403={blocked_extraction} "
+              f"extraction_metadata_only={metadata_only_extraction} "
+              f"analysis_failed={failed_analysis} "
+              f"published_pages={len(search_index)}"
+          )
+          PY
+
+      - name: Checkpoint SQLite WAL
+        run: sqlite3 data/uap.db "PRAGMA wal_checkpoint(TRUNCATE);"
+
+      - name: Persist SQLite database
+        id: persist_db
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f data/uap.db
+          if git diff --cached --quiet; then
+            echo "SQLite database unchanged"
+          else
+            git commit -m "chore: update daily UAP database"
+            # A manual merge or another workflow run may have advanced main
+            # while this job was collecting. Rebase the generated checkpoint
+            # before pushing so the publish job does not fail on a stale ref.
+            git fetch origin main
+            git rebase origin/main
+            git push
+          fi
+
+      - name: Report database persistence failure
+        if: ${{ always() && steps.persist_db.outcome == 'failure' }}
+        run: echo "SQLite checkpoint persistence failed; Pages deployment will continue with this run's generated artifact."
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/_site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

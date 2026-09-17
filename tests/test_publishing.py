@@ -1,0 +1,322 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from uap_observer.ai_analysis import ANALYSIS_VERSION
+from uap_observer.database import Database
+from uap_observer.models import (
+    AnalysisRiskFlag,
+    EntityType,
+    Event,
+    FactStatus,
+    News,
+    NewsCategory,
+    Person,
+    Relationship,
+)
+from uap_observer.publishing import MarkdownPublisher
+from uap_observer.repositories import Repository
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class PublishingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_directory = tempfile.TemporaryDirectory()
+        self.database = Database(
+            Path(self.temp_directory.name) / "test.db",
+            PROJECT_ROOT / "migrations",
+        )
+        self.database.initialize()
+        self.repository = Repository(self.database)
+
+    def tearDown(self) -> None:
+        self.temp_directory.cleanup()
+
+    def add_published_news(self) -> int:
+        news_id = self.repository.add_news(
+            News(
+                title="待翻译标题",
+                original_title="Public UAP Research Update",
+                source="Test Agency",
+                source_url="https://example.test/article",
+                publish_date="2026-07-28T10:00:00Z",
+                category=NewsCategory.OTHER,
+                credibility=5,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE news SET extraction_status = 'completed' WHERE id = ?",
+                (news_id,),
+            )
+        analysis = {
+            "chinese_title": "公开报告讨论异常现象观察方法",
+            "chinese_summary": "该公开来源介绍了观察方法，并区分记录与解释。",
+            "category": "official_report",
+            "fact_status": "official_record",
+            "key_facts": ["报告已经由来源机构公开发布。"],
+            "viewpoints": ["报告没有确认异常现象的具体来源。"],
+            "named_persons": [],
+            "named_organizations": ["Test Agency"],
+            "related_events": [],
+            "confidence": 0.9,
+            "risk_flags": ["single_source_claim"],
+        }
+        self.assertTrue(self.repository.claim_analysis_task(news_id))
+        self.repository.complete_analysis(
+            news_id,
+            title=analysis["chinese_title"],
+            summary=analysis["chinese_summary"],
+            category=NewsCategory.OFFICIAL_REPORT,
+            fact_status=FactStatus.OFFICIAL_RECORD,
+            key_facts=analysis["key_facts"],
+            viewpoints=analysis["viewpoints"],
+            model="fake-model",
+            response_id="resp_test",
+            analysis_version=ANALYSIS_VERSION,
+            confidence=0.9,
+            risk_flags=[AnalysisRiskFlag.SINGLE_SOURCE_CLAIM],
+            analysis_json=json.dumps(analysis, ensure_ascii=False),
+        )
+        return news_id
+
+    def test_publisher_generates_pages_without_article_body(self) -> None:
+        news_id = self.add_published_news()
+        event_id = self.repository.add_event(
+            Event(
+                event_name="Test Historical Event",
+                date_start="2004-11-02",
+                country="USA",
+                description="公开资料记录的历史事件条目。",
+                credibility=3,
+            )
+        )
+        self.assertGreater(event_id, 0)
+        person_id = self.repository.add_person(Person(name="Test Person", organization="Test Agency"))
+        self.repository.add_relationship(
+            Relationship(
+                source_type=EntityType.NEWS,
+                source_id=news_id,
+                target_type=EntityType.PERSON,
+                target_id=person_id,
+                relationship_type="mentions_person",
+                evidence_news_id=news_id,
+                confidence=0.9,
+            )
+        )
+        output = Path(self.temp_directory.name) / "generated"
+
+        result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        self.assertEqual(result.news_pages, 1)
+        self.assertEqual(result.event_count, 1)
+        homepage = (output / "index.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        legacy_detail = output / "news" / f"{news_id}-public-uap-research-update.md"
+        timeline = (output / "timeline.md").read_text(encoding="utf-8")
+        events = (output / "events" / "index.md").read_text(encoding="utf-8")
+        persons = (output / "persons" / "index.md").read_text(encoding="utf-8")
+        relationships = (output / "relationships.md").read_text(encoding="utf-8")
+        graph_page = (output / "graph.md").read_text(encoding="utf-8")
+        graph_data = json.loads((output / "graph.json").read_text(encoding="utf-8"))
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        search_page = (output / "search.md").read_text(encoding="utf-8")
+
+        self.assertIn("开放观测档案", homepage)
+        self.assertIn("让未知", homepage)
+        self.assertIn('class="hero-quote"', homepage)
+        self.assertIn('class="hero-latest-news', homepage)
+        self.assertIn('class="hero-uap-motion"', homepage)
+        self.assertIn("浏览事件档案", homepage)
+        self.assertIn('href="news/index.html"', homepage)
+        self.assertIn(f"news/{news_id}.html", homepage)
+        self.assertNotIn("hero-material-note", homepage)
+        self.assertNotIn('class="daily-update-entry"', homepage)
+        self.assertIn(f"]({news_id}.html", news_index)
+        self.assertIn("官方报告", news_index)
+        self.assertIn("../search.html", news_index)
+        self.assertTrue((output / "_config.yml").exists())
+        self.assertTrue((output / "_layouts" / "default.html").exists())
+        self.assertTrue((output / "assets" / "site.css").exists())
+        self.assertTrue((output / "assets" / "site.js").exists())
+        self.assertTrue((output / "assets" / "graph.js").exists())
+        self.assertTrue((output / "assets" / "silver-metal-background-hero.png").exists())
+        self.assertTrue((output / "assets" / "world-map.svg").exists())
+        self.assertIn('class="world-map"', homepage)
+        self.assertNotIn('class="land ', homepage)
+        self.assertNotIn(f"news/news/{news_id}", news_index)
+        self.assertTrue(legacy_detail.exists())
+        self.assertIn(f"../news/{news_id}.html", legacy_detail.read_text(encoding="utf-8"))
+        self.assertIn("## 原始来源", detail)
+        self.assertIn("正文已成功提取。", detail)
+        self.assertIn("[打开原文](https://example.test/article)", detail)
+        self.assertNotIn("内部正文不应出现在页面", detail)
+        self.assertIn("2004", timeline)
+        self.assertIn("Test Historical Event", events)
+        self.assertIn("Test Person", detail)
+        self.assertIn("Test Person", persons)
+        self.assertIn("mentions_person", relationships)
+        self.assertIn("人物关系图", graph_page)
+        self.assertEqual(graph_data["meta"]["person_count"], 1)
+        self.assertEqual(search_index[0]["url"], f"news/{news_id}.html")
+        self.assertNotIn("内部正文不应出现在页面", json.dumps(search_index, ensure_ascii=False))
+        self.assertIn("uap-search", search_page)
+
+    def test_empty_publisher_writes_safe_empty_pages(self) -> None:
+        output = Path(self.temp_directory.name) / "empty"
+        result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        self.assertEqual(result.news_pages, 0)
+        self.assertIn(
+            "暂无已发布的来源记录",
+            (output / "index.md").read_text(encoding="utf-8"),
+        )
+        self.assertIn("暂无已录入", (output / "events" / "index.md").read_text(encoding="utf-8"))
+        self.assertEqual(json.loads((output / "search.json").read_text(encoding="utf-8")), [])
+
+    def test_publisher_includes_source_filtered_news_before_ai(self) -> None:
+        source_summary = "Source supplied English summary that must not be published as AI output."
+        news_id = self.repository.add_news(
+            News(
+                title="待处理UAP来源记录",
+                original_title="Queued UAP report",
+                source="Test source",
+                source_url="https://example.test/queued",
+                category=NewsCategory.OTHER,
+                credibility=3,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                summary=source_summary,
+            )
+        )
+        output = Path(self.temp_directory.name) / "queued"
+
+        result = MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        self.assertEqual(result.news_pages, 1)
+        homepage = (output / "index.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        status_message = "原文正文尚未提取，AI 摘要将在正文提取完成后生成。"
+
+        self.assertIn("待处理UAP来源记录", news_index)
+        self.assertEqual(search_index[0]["title"], "待处理UAP来源记录")
+        self.assertEqual(search_index[0]["summary"], status_message)
+        self.assertIn(status_message, news_index)
+        self.assertIn("原文正文尚未提取", detail)
+        self.assertNotIn(source_summary, homepage)
+        self.assertNotIn(source_summary, news_index)
+        self.assertNotIn(source_summary, detail)
+        self.assertNotIn(source_summary, json.dumps(search_index, ensure_ascii=False))
+
+    def test_publisher_labels_youtube_description_fallback(self) -> None:
+        news_id = self.repository.add_news(
+            News(
+                title="YouTube UAP report",
+                original_title="YouTube UAP report",
+                source="YouTube UAP Channel Watchlist",
+                source_url="https://www.youtube.com/watch?v=video-3",
+                category=NewsCategory.OTHER,
+                credibility=2,
+                fact_status=FactStatus.SOURCE_REPORTED,
+            )
+        )
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE news SET extraction_status = 'completed', extracted_by = ? WHERE id = ?",
+                ("youtube-description-fallback", news_id),
+            )
+        output = Path(self.temp_directory.name) / "youtube-fallback"
+
+        MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        self.assertIn("视频简介已提取；尚未获得字幕逐字稿", detail)
+
+    def test_publisher_labels_official_metadata_only_record_as_finished(self) -> None:
+        source_summary = "2025 | FY25 UAP Annual Report"
+        news_id = self.repository.add_news(
+            News(
+                title="2025财年UAP年度报告",
+                original_title="Fiscal Year 2025 Consolidated Annual Report on UAP",
+                source="AARO Congressional and Press Products",
+                source_url="https://www.aaro.mil/example/fy25-report.pdf",
+                category=NewsCategory.OFFICIAL_REPORT,
+                credibility=5,
+                fact_status=FactStatus.OFFICIAL_RECORD,
+                summary=source_summary,
+            )
+        )
+        self.assertTrue(self.repository.claim_article_task(news_id))
+        self.repository.skip_unavailable_article(
+            news_id,
+            error=(
+                "AARO official source blocked automated access with HTTP 403; "
+                "no verified public text fallback is available"
+            ),
+            extracted_by="official-metadata-only",
+        )
+        output = Path(self.temp_directory.name) / "metadata-only"
+
+        MarkdownPublisher(self.repository, output).publish(today="2026-07-28")
+
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        summary = "来源无可验证的公开正文；本条仅展示来源元数据，不生成无依据的 AI 摘要。"
+        self.assertIn("内容分析：已跳过", detail)
+        self.assertIn("正文提取：仅保留元数据", detail)
+        self.assertIn("本条仅保留元数据", detail)
+        self.assertEqual(search_index[0]["summary"], summary)
+        self.assertIn(summary, news_index)
+        self.assertNotIn(source_summary, detail)
+        self.assertNotIn(source_summary, news_index)
+
+    def test_publisher_labels_reddit_metadata_only_record_as_finished(self) -> None:
+        source_summary = "submitted by /u/example [link] [comments]"
+        news_id = self.repository.add_news(
+            News(
+                title="Reddit来源记录",
+                original_title="Reddit source record",
+                source="Reddit r/UFOs",
+                source_url="https://www.reddit.com/r/UFOs/comments/example/record/",
+                category=NewsCategory.OTHER,
+                credibility=1,
+                fact_status=FactStatus.SOURCE_REPORTED,
+                raw_content=source_summary,
+            )
+        )
+        self.assertTrue(self.repository.claim_article_task(news_id))
+        self.repository.skip_unavailable_article(
+            news_id,
+            error=(
+                "Reddit blocked automated access with HTTP 403 and its RSS entry "
+                "contains no usable public post text"
+            ),
+            extracted_by="reddit-metadata-only",
+        )
+        output = Path(self.temp_directory.name) / "reddit-metadata-only"
+
+        MarkdownPublisher(self.repository, output).publish(today="2026-08-11")
+
+        detail = (output / "news" / f"{news_id}.md").read_text(encoding="utf-8")
+        news_index = (output / "news" / "index.md").read_text(encoding="utf-8")
+        search_index = json.loads((output / "search.json").read_text(encoding="utf-8"))
+        summary = "来源无可验证的公开正文；本条仅展示来源元数据，不生成无依据的 AI 摘要。"
+        self.assertIn("内容分析：已跳过", detail)
+        self.assertIn("正文提取：仅保留元数据", detail)
+        self.assertIn("Reddit 拒绝自动抓取（HTTP 403）", detail)
+        self.assertEqual(search_index[0]["summary"], summary)
+        self.assertIn(summary, news_index)
+        self.assertNotIn(source_summary, detail)
+        self.assertNotIn(source_summary, news_index)
+
+
+if __name__ == "__main__":
+    unittest.main()

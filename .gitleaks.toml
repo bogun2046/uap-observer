@@ -1,0 +1,12 @@
+title = "UAP WP10.6-A gitleaks allowlist"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "34c57bc baseline generic-api-key false positives: empty ACCESS_KEY template and frozen doc SHA-256 next to api-contract.md. Not live credentials. Three exact paths only."
+paths = [
+  '''(^|/)platform/\.env\.example$''',
+  '''(^|/)platform/tools/validate_wp10_4\.py$''',
+  '''(^|/)platform/tools/validate_wp10_5\.py$''',
+]

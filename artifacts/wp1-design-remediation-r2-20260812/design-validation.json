@@ -1,0 +1,335 @@
+{
+  "checks": [
+    {
+      "actual": [],
+      "expected": [],
+      "name": "required_files",
+      "passed": true
+    },
+    {
+      "actual": 49,
+      "expected": 49,
+      "name": "logical_table_count",
+      "passed": true
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "logical_table_names_unique",
+      "passed": true
+    },
+    {
+      "actual": 44,
+      "expected": 44,
+      "name": "table_owner_coverage",
+      "passed": true
+    },
+    {
+      "actual": 44,
+      "expected": 44,
+      "name": "table_primary_key_coverage",
+      "passed": true
+    },
+    {
+      "actual": 44,
+      "expected": 44,
+      "name": "table_unique_constraint_coverage",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "openapi_version",
+      "passed": true
+    },
+    {
+      "actual": 7,
+      "expected": 7,
+      "name": "public_api_paths",
+      "passed": true
+    },
+    {
+      "actual": 5,
+      "expected": 5,
+      "name": "admin_api_paths",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "expected": [],
+      "name": "forbidden_api_fields",
+      "passed": true
+    },
+    {
+      "actual": "valid OpenAPI 3.1",
+      "expected": true,
+      "name": "openapi_spec_validation",
+      "passed": true
+    },
+    {
+      "actual": {
+        "DocumentDetail": [],
+        "EntityDetail": [],
+        "ReviewCaseDetail": []
+      },
+      "expected": {
+        "DocumentDetail": [],
+        "EntityDetail": [],
+        "ReviewCaseDetail": []
+      },
+      "name": "detail_schema_positive_instances",
+      "passed": true
+    },
+    {
+      "actual": {
+        "DocumentDetail": true,
+        "EntityDetail": true,
+        "ReviewCaseDetail": true
+      },
+      "expected": {
+        "DocumentDetail": true,
+        "EntityDetail": true,
+        "ReviewCaseDetail": true
+      },
+      "name": "detail_schema_additional_property_rejection",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "data_layers",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "jobs_not_business_tables",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "stored_object_registry",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "publication_authorization_coverage",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "analysis_selection_composite_fk",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "entity_candidate_provenance",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "postgres_authority",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "single_migration_chain",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "real_relation_foreign_keys",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "publisher_process_boundary",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "model_run_ops_layer_flow",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "dictionary_relationship_fk_completeness",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "relation_grant_withdrawal_closure",
+      "passed": true
+    },
+    {
+      "actual": {
+        "runtime_public_writers": [
+          "uap_publisher"
+        ],
+        "uap_worker_public": "—"
+      },
+      "expected": {
+        "runtime_public_writers": [
+          "uap_publisher"
+        ],
+        "uap_worker_public": "—"
+      },
+      "name": "worker_publisher_permission_isolation",
+      "passed": true
+    },
+    {
+      "actual": [],
+      "expected": [],
+      "name": "balanced_markdown_fences",
+      "passed": true
+    }
+  ],
+  "generated_at": "2026-08-11T16:41:23.009256Z",
+  "git_head": "6ca1af5adb9d1d2572b75d3c557896f02efb7e70",
+  "manifest": [
+    {
+      "path": "docs/wp1/README.md",
+      "sha256": "3996e07d406fd7259f58a98a277a4a81962bca5d4dbb03378a51fc430bf29340",
+      "size": 2466
+    },
+    {
+      "path": "docs/wp1/acceptance-cases.md",
+      "sha256": "74133f61753bf239688ec7b3e5956e2058e86e4b8500e2124eb070c140e33f44",
+      "size": 2835
+    },
+    {
+      "path": "docs/wp1/acceptance-record-template.md",
+      "sha256": "e0d88811327473bdb65436b3c80880cbb7bef57c87c7ddba44d8e4cabdfbc591",
+      "size": 334
+    },
+    {
+      "path": "docs/wp1/adr/0001-modular-monolith-and-workers.md",
+      "sha256": "77b0779056bbc955228d3807ff3f264431d35146ebe8e055507395cb6823bfa7",
+      "size": 1296
+    },
+    {
+      "path": "docs/wp1/adr/0002-postgresql-and-single-migration-authority.md",
+      "sha256": "0be77d097e66a50033e4632243d9d6a1612197474812335f72ce9943ec706a01",
+      "size": 1101
+    },
+    {
+      "path": "docs/wp1/adr/0003-content-addressed-object-storage.md",
+      "sha256": "ab5f99185d773c9b2ac8201e9da22572fb0438b7744f609572518cfd578f712c",
+      "size": 1318
+    },
+    {
+      "path": "docs/wp1/adr/0004-durable-jobs-and-transactional-outbox.md",
+      "sha256": "c411cd5b1ab39ddf1ec0a79d2dba98f1cc0cf16fef06faeb39762656078619ee",
+      "size": 1164
+    },
+    {
+      "path": "docs/wp1/adr/0005-append-only-model-results.md",
+      "sha256": "42143a5d66591103a6672340fc261797cfca964316624882ab3f69c563b91fd9",
+      "size": 1184
+    },
+    {
+      "path": "docs/wp1/adr/0006-separate-public-read-model.md",
+      "sha256": "5d2b300a95da824832cd1d762656430590fb540f460fea4a82ba7e1741357ea6",
+      "size": 1339
+    },
+    {
+      "path": "docs/wp1/adr/0007-postgresql-full-text-search-first.md",
+      "sha256": "5043d2c3ce6737fd8a828a136188004e8f21908a22c298845564dc70c8ac4598",
+      "size": 685
+    },
+    {
+      "path": "docs/wp1/architecture.md",
+      "sha256": "1718c7487013d1eec4a8fd0c3a12e0669de84b208165dfa43baf37b2924c2434",
+      "size": 8812
+    },
+    {
+      "path": "docs/wp1/data-model.md",
+      "sha256": "c03aecefd2077a779f7a1a42f1c76a9ad247ebdddc3a269188de3d725b9801d4",
+      "size": 31171
+    },
+    {
+      "path": "docs/wp1/development-self-review-r2.md",
+      "sha256": "08a5968eee0aece9a84df23ae745f59df443a72cc1145e95624f149823008e90",
+      "size": 2542
+    },
+    {
+      "path": "docs/wp1/development-self-review.md",
+      "sha256": "66e58df9872e5e89b16cde2c4496fb45c93973d628424ee62c196f2ddd94fdc8",
+      "size": 2809
+    },
+    {
+      "path": "docs/wp1/g1-rejection-record.md",
+      "sha256": "91b47c2025885d7e3a110601e2bd1a5e4bcd5ac20ac7b1d3534f45dfb056f8c5",
+      "size": 1881
+    },
+    {
+      "path": "docs/wp1/g1-remediation-report.md",
+      "sha256": "92eb75bb3f6a35eb09520f8df16d499d5d42000e3afccb03bcf40d43bd091bcb",
+      "size": 2200
+    },
+    {
+      "path": "docs/wp1/g1-remediation-round2-report.md",
+      "sha256": "788cf178f129931164fe76501ec1923534eea9bb5ff3a030637c7ea5cb17086c",
+      "size": 1894
+    },
+    {
+      "path": "docs/wp1/g1-second-rejection-record.md",
+      "sha256": "541aeb64dac7bf091746e1c06b24b1b961839d56a174af5c8aaaa60309a6d02e",
+      "size": 1774
+    },
+    {
+      "path": "docs/wp1/module-boundaries.md",
+      "sha256": "f1c12ee30a528707189167f6764417cd3fe39e11d99651aba5343e24704a83c1",
+      "size": 5036
+    },
+    {
+      "path": "docs/wp1/openapi-examples.json",
+      "sha256": "be51e6ac9518c8d8ba210dd4f396414501078132e248c82f7ee344bd22c99ff7",
+      "size": 2076
+    },
+    {
+      "path": "docs/wp1/openapi.yaml",
+      "sha256": "30a68084398247cb62e3ed07f998b0be26ab658a2299b982fe47f99d1ae0aa24",
+      "size": 19659
+    },
+    {
+      "path": "docs/wp1/permissions.md",
+      "sha256": "b16806543ce8aa962542aebc8f5d3fe59d8ea5f7e2b4a1a497cc28d11dd5247a",
+      "size": 6369
+    },
+    {
+      "path": "docs/wp1/service-targets.md",
+      "sha256": "d42ca1745a00d7426134e95e8a6692c277f3f7d368f196dc99ec4d04de4b6902",
+      "size": 4242
+    },
+    {
+      "path": "tools/requirements-wp1-validation.txt",
+      "sha256": "23b64e141a3cf4adff819a9553fda2db4794df53ad2519871d82b6dcced4be19",
+      "size": 88
+    },
+    {
+      "path": "tools/validate_wp1_design.py",
+      "sha256": "c4dcbd7bca0904cf50faa2002c640fea40bc8bd684154fc463889fe8b8041ebd",
+      "size": 16076
+    }
+  ],
+  "passed": true,
+  "schema_tool_error": null,
+  "schema_tool_path": "/private/tmp/uap-wp1-schema-tools",
+  "schema_tool_versions": {
+    "PyYAML": "6.0.2",
+    "jsonschema": "4.23.0",
+    "openapi-spec-validator": "0.7.1"
+  }
+}

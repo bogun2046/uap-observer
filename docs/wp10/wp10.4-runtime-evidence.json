@@ -1,0 +1,916 @@
+{
+  "schema": "wp10.4-runtime-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "kind": "capacity_fixture",
+      "documents": 2200,
+      "entities": 2200,
+      "search_documents": 2200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 document list status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 request ID preserved",
+      "actual": "fff45e7c-dfbc-43d0-842e-2cf7e9e9545a",
+      "expected": "fff45e7c-dfbc-43d0-842e-2cf7e9e9545a",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 success media",
+      "actual": "application/json",
+      "expected": "application/json",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 document page size",
+      "actual": 2,
+      "expected": 2,
+      "passed": true
+    },
+    {
+      "kind": "pagination_mutation",
+      "name": "G10-17 document insert revise withdraw during page",
+      "inserted": "278d8712-041b-4e79-99a0-5c83fd08d883",
+      "revised": "876f31c4-14ad-42aa-b88d-aa3e8b7f83e9",
+      "withdrawn": "80ae84f3-e7eb-4463-b1a6-927766681db3",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 document second page",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 no duplicate after concurrent insert",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 new row does not enter passed interval",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 document detail status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 claims fixed ordering",
+      "actual": [
+        0,
+        1
+      ],
+      "expected": [
+        0,
+        1
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 entities C ordering",
+      "actual": [
+        "Alpha Org",
+        "北京"
+      ],
+      "expected": [
+        "Alpha Org",
+        "北京"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 claim detail",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 claim evidence",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 entity detail",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 relation field omitted",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 entity reverse association",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 empty entity page",
+      "actual": {
+        "items": [],
+        "next_cursor": null
+      },
+      "expected": {
+        "items": [],
+        "next_cursor": null
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 relation capability status",
+      "actual": 404,
+      "expected": 404,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 relation capability code",
+      "actual": "api_capability_closed",
+      "expected": "api_capability_closed",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 relation detail capability status",
+      "actual": 404,
+      "expected": 404,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 relation detail capability code",
+      "actual": "api_capability_closed",
+      "expected": "api_capability_closed",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 healthz status",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 healthz body",
+      "actual": {
+        "status": "ok"
+      },
+      "expected": {
+        "status": "ok"
+      },
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-16 unknown path code",
+      "actual": "api_resource_not_found",
+      "expected": "api_resource_not_found",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 entity first page",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 entity second page",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 entity no duplicate",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 entity inserted row does not enter passed interval",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "pagination_mutation",
+      "name": "G10-17 entity insert revise withdraw during page",
+      "inserted": "04d66efd-c2b4-4305-ab87-41812b5f619e",
+      "revised": "b2fda1c5-b726-43f4-a92c-9e36b338bb02",
+      "withdrawn": "797eb2f9-8986-4f91-a6fe-e082a6089925",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 English golden search",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 search first page size",
+      "actual": 2,
+      "expected": 2,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 search second page",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 search no duplicate",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 search inserted row does not enter passed interval",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 search withdraw affected one row",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 search inserted rank is above page boundary",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "pagination_mutation",
+      "name": "G10-17 search insert revise withdraw during page",
+      "inserted": "20fea827-9a76-494e-bac2-9c621cd6e365",
+      "revised": "876f31c4-14ad-42aa-b88d-aa3e8b7f83e9",
+      "withdrawn": "480bfaa1-7d5f-4119-b189-a3d0669d6f0a",
+      "withdraw_delete_count": 1,
+      "before_page": [
+        "a7a0ad8d-9eb8-4f81-8679-b48e46a7ac22",
+        "876f31c4-14ad-42aa-b88d-aa3e8b7f83e9"
+      ],
+      "after_page": [
+        "ff2ff5b5-2f72-40c3-b286-16d5ded1235d",
+        "3a490246-67da-4d65-90d2-0fde34eb8acb"
+      ],
+      "before_boundary_rank": 0.22500001,
+      "inserted_rank": 2.3,
+      "inserted_in_after_page": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 Chinese golden search",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 Chinese result present",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 category/fact filter",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 q boundary 1",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 q boundary 2",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 q boundary 200",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 q boundary 201",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 injection is data",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 projection survives injection",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 0 status",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 0 code",
+      "actual": "api_cursor_invalid",
+      "expected": "api_cursor_invalid",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 1 status",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 1 code",
+      "actual": "api_cursor_invalid",
+      "expected": "api_cursor_invalid",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 2 status",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 2 code",
+      "actual": "api_cursor_invalid",
+      "expected": "api_cursor_invalid",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 3 status",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 3 code",
+      "actual": "api_cursor_invalid",
+      "expected": "api_cursor_invalid",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 4 status",
+      "actual": 400,
+      "expected": 400,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-17 invalid cursor 4 code",
+      "actual": "api_cursor_invalid",
+      "expected": "api_cursor_invalid",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-18 capacity request",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "performance",
+      "name": "phase search p95 ms",
+      "value": 13.506,
+      "samples": 40,
+      "threshold_ms": 500.0,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 actual reader session",
+      "actual": "uap_public_reader",
+      "expected": "uap_public_reader",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 ingest schema usage denied",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 core schema usage denied",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 ops schema usage denied",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 audit schema usage denied",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "statement_class": "permission",
+      "sqlstate": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 privilege SQLSTATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "statement_class": "permission",
+      "sqlstate": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 privilege SQLSTATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "statement_class": "permission",
+      "sqlstate": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 privilege SQLSTATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "statement_class": "permission",
+      "sqlstate": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 privilege SQLSTATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "statement_class": "permission",
+      "sqlstate": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 privilege SQLSTATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "statement_class": "permission",
+      "sqlstate": "42501"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 privilege SQLSTATE",
+      "actual": "42501",
+      "expected": "42501",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 pending and internal ID hidden",
+      "actual": 404,
+      "expected": 404,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 stable public identity differs",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 apply commit visible atomically",
+      "actual": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 internal document UUID absent",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 grant UUID absent",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 withdrawn unified 404",
+      "actual": 404,
+      "expected": 404,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 withdrawn code",
+      "actual": "api_resource_not_found",
+      "expected": "api_resource_not_found",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-20 no withdrawal-extending cache",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-19 response/problem/log/header redaction",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "kind": "process_environment",
+      "present_keys": [
+        "LANG",
+        "PATH",
+        "PYTHONPATH",
+        "UAP_PUBLIC_CURSOR_SECRET",
+        "UAP_PUBLIC_DATABASE_URL",
+        "UAP_PUBLIC_HOST",
+        "UAP_PUBLIC_POOL_MAX_SIZE",
+        "UAP_PUBLIC_POOL_MIN_SIZE",
+        "UAP_PUBLIC_PORT"
+      ],
+      "forbidden_dsn_present": false,
+      "passed": true
+    }
+  ]
+}

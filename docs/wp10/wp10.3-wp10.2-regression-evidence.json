@@ -1,0 +1,1520 @@
+{
+  "schema": "wp10.2-runtime-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "kind": "assertion",
+      "name": "G10-06 publisher-only claim",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 api cannot claim",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 uap_api cannot use Publisher functions",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 uap_worker cannot use Publisher functions",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 uap_scheduler cannot use Publisher functions",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 uap_public_reader cannot use Publisher functions",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 publisher cannot execute ops.ack_outbox(uuid,uuid)",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 publisher cannot execute audit.record_review_decision(uuid,audit.review_decision,text,jsonb)",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 publisher cannot execute core.merge_entities(uuid,uuid,uuid,text)",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 publisher cannot execute core.reverse_entity_merge(uuid,uuid,text)",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 one concurrent lease",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "40001",
+      "primary": "publication_lease_lost"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 wrong token SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 wrong token code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 wrong token has no state change",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "40001",
+      "primary": "publication_lease_lost"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 wrong fail token SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 wrong fail token code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 forged fail token has no state change",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "42501",
+      "primary": "permission denied for function ack_outbox"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 generic ack denied",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "42501",
+      "primary": "permission denied for table documents"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 publisher public DML denied",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_claim_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid lease parameter",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid lease parameter code",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_claim_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid limit parameter",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid limit parameter code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid parameters do not create attempts",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid parameters have no state change",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 invalid/terminal events not claimed",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 relation terminal attempt",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 relation remains unpublished",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 relation is terminal",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-06 relation terminal code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 stable document slug",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 revision one",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 stable id on revise",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 stable slug on revise",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 revision two",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 published_at preserved",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 stale event does not downgrade",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 withdraw hides document",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-07 identity survives withdraw",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 retired entity apply is not replay",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 retired entity does not project",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 retired entity does not create identity",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 merged entity apply is not replay",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 merged entity does not project",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 merged entity does not create identity",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 disputed apply waits for status lock",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 disputed entity apply is not replay",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 disputed entity does not project",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 disputed entity does not create identity",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 disputed event is acknowledged without publication",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 stable entity slug",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 entity visible",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 same names use different IDs",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 stable entity ID on revise",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 entity grant on revise",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 entity revision two",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 withdraw hides entity",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-08 identity survives entity withdraw",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 normal analysis does not enqueue resolve_relations",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 worker claim set omits resolve_relations",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 misclaim is terminal",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 misclaim uses knowledge_relation_task_not_in_wp8",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 misclaim does not write core.relations",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation review rejected",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation review leaves no case",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 Publisher does not claim relation",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation remains unpublished",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation is terminal",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation terminal state",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation terminal attempt recorded",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-09 relation tables unchanged",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected attempt SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected attempt rolls back state",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 injected attempt",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "4767ceaf-2e1b-4151-8627-0b48e482facb",
+          "2026-08-30 14:45:23.504847+00:00",
+          "2026-08-30 14:45:22.503644+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "4767ceaf-2e1b-4151-8627-0b48e482facb",
+          "2026-08-30 14:45:23.504847+00:00",
+          "2026-08-30 14:45:22.503644+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 event visible after attempt",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected identity SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected identity rolls back state",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 injected identity",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "5ede982c-838b-41cb-8ec5-56443c1a75dd",
+          "2026-08-30 14:45:24.643493+00:00",
+          "2026-08-30 14:45:23.642968+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "5ede982c-838b-41cb-8ec5-56443c1a75dd",
+          "2026-08-30 14:45:24.643493+00:00",
+          "2026-08-30 14:45:23.642968+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 event visible after identity",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected public_upsert SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected public_upsert rolls back state",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 injected public_upsert",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "c9e2f0a0-bd95-4bf4-b380-843e1c02db0d",
+          "2026-08-30 14:45:25.771669+00:00",
+          "2026-08-30 14:45:24.770913+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "c9e2f0a0-bd95-4bf4-b380-843e1c02db0d",
+          "2026-08-30 14:45:25.771669+00:00",
+          "2026-08-30 14:45:24.770913+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 event visible after public_upsert",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected deferred_constraint SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected deferred_constraint rolls back state",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 injected deferred_constraint",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "47625ae4-4992-49f6-b894-3376bc516c04",
+          "2026-08-30 14:45:26.901818+00:00",
+          "2026-08-30 14:45:25.901125+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "47625ae4-4992-49f6-b894-3376bc516c04",
+          "2026-08-30 14:45:26.901818+00:00",
+          "2026-08-30 14:45:25.901125+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 event visible after deferred_constraint",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected ack SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 injected ack rolls back state",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 injected ack",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "87e39546-6ad0-406d-bf02-53613aaaf600",
+          "2026-08-30 14:45:28.019503+00:00",
+          "2026-08-30 14:45:27.019073+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "87e39546-6ad0-406d-bf02-53613aaaf600",
+          "2026-08-30 14:45:28.019503+00:00",
+          "2026-08-30 14:45:27.019073+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 event visible after ack",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_payload_hash_mismatch"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash state unchanged",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-hash",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_failure_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash summary SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash summary code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash summary has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-hash summary",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_failure_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash null-summary SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash null-summary code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash null-summary has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-hash null-summary",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_failure_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash overlong-summary SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash overlong-summary code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash overlong-summary has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-hash overlong-summary",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "8d187599-bc7e-4f63-a3ae-052c156e66fb",
+          "2026-08-30 14:45:29.144841+00:00",
+          "2026-08-30 14:45:28.143693+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash terminal outcome",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-hash remains unpublished",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_event_aggregate_mismatch"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate state unchanged",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-aggregate",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_failure_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate summary SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate summary code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate summary has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-aggregate summary",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_failure_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate null-summary SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate null-summary code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate null-summary has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-aggregate null-summary",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "22023",
+      "primary": "publication_failure_parameters_invalid"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate overlong-summary SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate overlong-summary code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate overlong-summary has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 tamper-aggregate overlong-summary",
+      "before": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "after": [
+        [
+          null,
+          null,
+          1,
+          "89f2b91d-89fc-48f6-abde-6ca3cb95c352",
+          "2026-08-30 14:45:29.164070+00:00",
+          "2026-08-30 14:45:28.163613+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "running",
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate terminal outcome",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 tamper-aggregate remains unpublished",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 retry outcome",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "40001",
+      "primary": "publication_lease_lost"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 old token after new attempt SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 old token after new attempt code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 expired apply token has no state change",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "40001",
+      "primary": "publication_lease_lost"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 old fail token SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 old fail token code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 expired fail token has no state change",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 new attempt applies",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 same-token replay",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 replay returns same attempt",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 replay returns same digest",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 replay has no writes",
+      "passed": true
+    },
+    {
+      "kind": "sql_error",
+      "sqlstate": "40001",
+      "primary": "publication_delivery_attempt_conflict"
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 operation conflict SQLSTATE",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 operation conflict code",
+      "passed": true
+    },
+    {
+      "kind": "assertion",
+      "name": "G10-10 operation conflict has no state change",
+      "passed": true
+    },
+    {
+      "kind": "state",
+      "name": "G10-10 operation conflict",
+      "before": [
+        [
+          "2026-08-30 14:45:29.306192+00:00",
+          null,
+          1,
+          null,
+          null,
+          "2026-08-30 14:45:29.303319+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "succeeded",
+          "1246fa5cc5f96d2a2086e1253377cddb6b995c1a9e7925abc071ef5801572b72",
+          null,
+          null,
+          "2026-08-30 14:45:29.306192+00:00",
+          null
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "after": [
+        [
+          "2026-08-30 14:45:29.306192+00:00",
+          null,
+          1,
+          null,
+          null,
+          "2026-08-30 14:45:29.303319+00:00",
+          null,
+          null
+        ],
+        [
+          1,
+          1,
+          "succeeded",
+          "1246fa5cc5f96d2a2086e1253377cddb6b995c1a9e7925abc071ef5801572b72",
+          null,
+          null,
+          "2026-08-30 14:45:29.306192+00:00",
+          null
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    }
+  ]
+}

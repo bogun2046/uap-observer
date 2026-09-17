@@ -1,0 +1,84 @@
+services:
+  v1-bootstrap:
+    image: ${UAP_APP_IMAGE:-uap-platform:development}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      args:
+        PYTHON_IMAGE: ${UAP_PYTHON_IMAGE:?load platform/.env.versions}
+        UV_VERSION: ${UAP_UV_VERSION:?load platform/.env.versions}
+    depends_on:
+      object-store-init:
+        condition: service_completed_successfully
+    environment:
+      UAP_V1_BOOTSTRAP_DATABASE_URL: postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+    command: ["uap-platform-v1-bootstrap"]
+    restart: "no"
+    networks: [backend]
+
+  v1-scheduler:
+    image: ${UAP_APP_IMAGE:-uap-platform:development}
+    depends_on:
+      v1-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      UAP_V1_SCHEDULER_DATABASE_URL: postgresql+psycopg://uap_scheduler:${UAP_SCHEDULER_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        while true; do
+          uap-platform-v1-schedule;
+          sleep 1800;
+        done
+    init: true
+    restart: unless-stopped
+    networks: [backend]
+
+  v1-worker:
+    image: ${UAP_APP_IMAGE:-uap-platform:development}
+    depends_on:
+      v1-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      UAP_APP_ENV: development
+      UAP_LOG_LEVEL: ${UAP_LOG_LEVEL:-INFO}
+      UAP_V1_WORKER_DATABASE_URL: postgresql+psycopg://uap_worker:${UAP_WORKER_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_V1_MODEL_DATABASE_URL: postgresql+psycopg://uap_model_governance:${UAP_MODEL_GOVERNANCE_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_S3_ENDPOINT: object-store:8333
+      UAP_S3_ACCESS_KEY: ${UAP_S3_ACCESS_KEY}
+      UAP_S3_SECRET_KEY: ${UAP_S3_SECRET_KEY}
+      UAP_S3_SECURE: "false"
+      UAP_S3_BUCKETS: raw,derived,model-io,public-assets,backups
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      REDDIT_OAUTH_ACCESS_TOKEN: ${REDDIT_OAUTH_ACCESS_TOKEN:-}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-}
+    command: ["uap-platform-v1-worker"]
+    init: true
+    restart: unless-stopped
+    networks: [backend, edge]
+
+  v1-library:
+    image: ${UAP_APP_IMAGE:-uap-platform:development}
+    depends_on:
+      v1-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      UAP_LOG_LEVEL: ${UAP_LOG_LEVEL:-INFO}
+      UAP_V1_READ_DATABASE_URL: postgresql+psycopg://uap_api:${UAP_API_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_V1_WORKER_DATABASE_URL: postgresql+psycopg://uap_worker:${UAP_WORKER_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_V1_MODEL_DATABASE_URL: postgresql+psycopg://uap_model_governance:${UAP_MODEL_GOVERNANCE_PASSWORD}@postgres:5432/${UAP_POSTGRES_DB}
+      UAP_V1_LOCAL_ADMIN_TOKEN: ${UAP_V1_LOCAL_ADMIN_TOKEN}
+      UAP_V1_LIBRARY_HOST: 0.0.0.0
+      UAP_V1_LIBRARY_PORT: "8091"
+      UAP_S3_ENDPOINT: object-store:8333
+      UAP_S3_ACCESS_KEY: ${UAP_S3_ACCESS_KEY}
+      UAP_S3_SECRET_KEY: ${UAP_S3_SECRET_KEY}
+      UAP_S3_SECURE: "false"
+      UAP_S3_BUCKETS: raw,derived,model-io,public-assets,backups
+    command: ["uap-platform-v1-library"]
+    ports:
+      - "127.0.0.1:${UAP_V1_LIBRARY_PORT:-8091}:8091"
+    init: true
+    restart: unless-stopped
+    networks: [backend, edge]

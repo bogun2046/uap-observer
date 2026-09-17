@@ -1,0 +1,86 @@
+{
+  "schema_version": "v1.sources.v1",
+  "schedule_interval_minutes": 30,
+  "deepseek_monthly_budget_cny": "20.00",
+  "deepseek_budget_warning_ratio_provisional": "0.80",
+  "sources": [
+    {
+      "id": "00000000-0000-7000-8000-000000001201",
+      "slug": "reddit-ufos-new",
+      "name": "Reddit r/UFOs new posts",
+      "source_type": "rss",
+      "homepage_url": "https://www.reddit.com/r/UFOs/",
+      "fetch_url": "https://www.reddit.com/r/UFOs/new/.rss",
+      "country_code": null,
+      "language_code": "en",
+      "enabled": true,
+      "v1_1_enabled": true,
+      "minimum_request_interval_seconds": 60,
+      "configuration": {
+        "format": "atom",
+        "transport": "rss_atom",
+        "fallback": "reddit_official_api",
+        "document_fetch_method": "reddit_post_atom",
+        "user_agent": "uap-platform-v1/1.0"
+      }
+    },
+    {
+      "id": "00000000-0000-7000-8000-000000001202",
+      "slug": "reddit-uap-new",
+      "name": "Reddit r/UAP new posts",
+      "source_type": "rss",
+      "homepage_url": "https://www.reddit.com/r/UAP/",
+      "fetch_url": "https://www.reddit.com/r/UAP/new/.rss",
+      "country_code": null,
+      "language_code": "en",
+      "enabled": true,
+      "v1_1_enabled": false,
+      "minimum_request_interval_seconds": 60,
+      "configuration": {
+        "format": "atom",
+        "transport": "rss_atom",
+        "fallback": "reddit_official_api",
+        "document_fetch_method": "reddit_post_atom",
+        "user_agent": "uap-platform-v1/1.0"
+      }
+    },
+    {
+      "id": "00000000-0000-7000-8000-000000001203",
+      "slug": "war-gov-pursue",
+      "name": "WAR.GOV PURSUE",
+      "source_type": "web",
+      "homepage_url": "https://www.war.gov/UFO/",
+      "fetch_url": "https://www.war.gov/UFO/",
+      "country_code": "US",
+      "language_code": "en",
+      "enabled": true,
+      "v1_1_enabled": false,
+      "minimum_request_interval_seconds": 900,
+      "configuration": {
+        "transport": "web",
+        "collector": "war_gov_pursue",
+        "discover": ["pdf", "image", "video", "metadata"],
+        "rollout": "after_v1_1"
+      }
+    },
+    {
+      "id": "00000000-0000-7000-8000-000000001204",
+      "slug": "war-gov-uap-releases",
+      "name": "WAR.GOV UAP releases",
+      "source_type": "web",
+      "homepage_url": "https://www.war.gov/News/Releases/Search/uap/",
+      "fetch_url": "https://www.war.gov/News/Releases/Search/uap/",
+      "country_code": "US",
+      "language_code": "en",
+      "enabled": true,
+      "v1_1_enabled": false,
+      "minimum_request_interval_seconds": 900,
+      "configuration": {
+        "transport": "web",
+        "collector": "war_gov_release_search",
+        "query": "uap",
+        "rollout": "after_v1_1"
+      }
+    }
+  ]
+}

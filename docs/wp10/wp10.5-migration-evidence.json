@@ -1,0 +1,16 @@
+{
+  "schema": "wp10.5-migration-evidence.v1",
+  "status": "passed",
+  "checks": [
+    {
+      "case": "0023_0024_0023_0024_roundtrip",
+      "status": "passed",
+      "postgresql_version": "16.14",
+      "parent_version": "0023_wp10_api_read_indexes",
+      "upgraded_version": "0024_wp10_admin_replay",
+      "restored_version": "0024_wp10_admin_replay",
+      "uap_api_execute": true,
+      "forbidden_execute": []
+    }
+  ]
+}
