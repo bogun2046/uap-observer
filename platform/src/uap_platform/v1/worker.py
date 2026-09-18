@@ -55,6 +55,7 @@ _ANALYSIS_ORDER = (
     ModelTaskType.CLAIM_EXTRACTION,
     ModelTaskType.ENTITY_EXTRACTION,
 )
+_MODEL_ORCHESTRATION_FIELDS = frozenset({"document_id"})
 
 
 def _uuid(payload: Mapping[str, object], key: str) -> uuid.UUID:
@@ -69,6 +70,24 @@ def _string(payload: Mapping[str, object], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{key} is required")
     return value
+
+
+def _model_payload_for_governance(payload: Mapping[str, object]) -> Mapping[str, object]:
+    """Keep model.v1 strict while removing V1 reanalysis orchestration metadata.
+
+    The Admin reanalysis enqueue boundary retains ``document_id`` for ownership
+    and audit correlation, but the frozen model.v1 contract is keyed by
+    ``document_version_id`` and does not permit it.  Only this known field is
+    removed; every other unknown field remains visible to ``build_model_request``
+    and therefore continues to fail closed.
+    """
+    if not _MODEL_ORCHESTRATION_FIELDS.intersection(payload):
+        return payload
+    return {
+        key: value
+        for key, value in payload.items()
+        if key not in _MODEL_ORCHESTRATION_FIELDS
+    }
 
 
 class V1Worker:
@@ -736,7 +755,8 @@ class V1Worker:
         lease_token: uuid.UUID,
         payload: Mapping[str, object],
     ) -> None:
-        run_id = self._model_handler.handle(job_id, attempt_id, lease_token, payload)
+        model_payload = _model_payload_for_governance(payload)
+        run_id = self._model_handler.handle(job_id, attempt_id, lease_token, model_payload)
         if _string(payload, "task_type") != ModelTaskType.CLASSIFICATION.value:
             return
         with self.model_connection.cursor() as cursor:

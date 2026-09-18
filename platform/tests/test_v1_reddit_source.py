@@ -14,10 +14,10 @@ from uap_platform.documents import (
     ExtractionOutcome,
     ExtractionResult,
 )
-from uap_platform.model_governance import DeepSeekProvider
+from uap_platform.model_governance import DeepSeekProvider, ModelTaskType, build_model_request
 from uap_platform.object_registry import ObjectClient, RegisteredObject, StorageDomain
 from uap_platform.v1.reddit_source import RedditOfficialApiClient
-from uap_platform.v1.worker import V1Worker
+from uap_platform.v1.worker import V1Worker, _model_payload_for_governance
 
 SOURCE_RUN_ID = uuid.UUID("00000000-0000-7000-8000-000000009201")
 SOURCE_ID = uuid.UUID("00000000-0000-7000-8000-000000009202")
@@ -92,6 +92,74 @@ def enqueued(connection: FakeConnection, job_type: str) -> list[tuple[object, ..
         if f"'{job_type}'" in statement:
             values.append(cast(tuple[object, ...], parameters))
     return values
+
+
+@pytest.mark.parametrize(
+    "task_type",
+    [
+        ModelTaskType.CLASSIFICATION.value,
+        ModelTaskType.SUMMARY.value,
+        ModelTaskType.CLAIM_EXTRACTION.value,
+        ModelTaskType.ENTITY_EXTRACTION.value,
+    ],
+)
+def test_reanalysis_orchestration_document_id_is_not_model_payload(
+    task_type: str,
+) -> None:
+    payload: dict[str, object] = {
+        "document_id": str(DOCUMENT_ID),
+        "document_version_id": str(VERSION_ID),
+        "prompt_version_id": str(uuid.uuid4()),
+        "task_type": task_type,
+        "provider": "static",
+        "model": "test-model",
+        "payload_schema_version": "model.v1",
+    }
+    model_payload = _model_payload_for_governance(payload)
+
+    assert "document_id" not in model_payload
+    request = build_model_request(
+        model_payload,
+        job_id=JOB_ID,
+        job_attempt_id=ATTEMPT_ID,
+        input_text="source text",
+    )
+    assert request.task_type.value == task_type
+
+    with pytest.raises(ValueError, match="unknown fields"):
+        build_model_request(
+            _model_payload_for_governance({**payload, "unexpected": True}),
+            job_id=JOB_ID,
+            job_attempt_id=ATTEMPT_ID,
+            input_text="source text",
+        )
+
+
+def test_analyze_uses_sanitized_model_boundary_without_mutating_job_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    worker = make_worker(FakeConnection())
+    received: list[object] = []
+
+    def handle(*args: object) -> uuid.UUID:
+        received.append(args[-1])
+        return uuid.uuid4()
+
+    monkeypatch.setattr(worker._model_handler, "handle", handle)
+    payload = {
+        "document_id": str(DOCUMENT_ID),
+        "document_version_id": str(VERSION_ID),
+        "prompt_version_id": str(uuid.uuid4()),
+        "task_type": ModelTaskType.SUMMARY.value,
+        "provider": "deepseek",
+        "model": "deepseek-flash",
+        "payload_schema_version": "model.v1",
+    }
+
+    worker._analyze(JOB_ID, ATTEMPT_ID, LEASE_TOKEN, payload)
+
+    assert received == [_model_payload_for_governance(payload)]
+    assert payload["document_id"] == str(DOCUMENT_ID)
 
 
 def test_atom_primary_enqueues_existing_raw_without_article_fetch() -> None:
