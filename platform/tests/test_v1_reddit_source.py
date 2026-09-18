@@ -141,8 +141,9 @@ def test_analyze_uses_sanitized_model_boundary_without_mutating_job_payload(
     worker = make_worker(FakeConnection())
     received: list[object] = []
 
-    def handle(*args: object) -> uuid.UUID:
+    def handle(*args: object, **kwargs: object) -> uuid.UUID:
         received.append(args[-1])
+        received.append(kwargs["explicit_reanalysis"])
         return uuid.uuid4()
 
     monkeypatch.setattr(worker._model_handler, "handle", handle)
@@ -158,7 +159,7 @@ def test_analyze_uses_sanitized_model_boundary_without_mutating_job_payload(
 
     worker._analyze(JOB_ID, ATTEMPT_ID, LEASE_TOKEN, payload)
 
-    assert received == [_model_payload_for_governance(payload)]
+    assert received == [_model_payload_for_governance(payload), True]
     assert payload["document_id"] == str(DOCUMENT_ID)
 
 

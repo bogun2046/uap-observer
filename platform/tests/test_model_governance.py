@@ -123,6 +123,51 @@ class FakeStore:
         self.finished.append(args)
 
 
+class ScopedFakeStore(FakeStore):
+    """Small per-semantic store for explicit reanalysis idempotency tests."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.runs_by_semantic: dict[str, tuple[uuid.UUID, ModelRunStatus]] = {}
+
+    def acquire_semantic_request(
+        self, semantic_idempotency_key: str
+    ) -> tuple[uuid.UUID, ModelRunStatus] | None:
+        return self.runs_by_semantic.get(semantic_idempotency_key)
+
+    def model_call_count(self, semantic_idempotency_key: str) -> int:
+        return sum(
+            1
+            for execution in self.executions
+            if execution.request.semantic_idempotency_key == semantic_idempotency_key
+        )
+
+    def accumulated_cost_minor_units(self, semantic_idempotency_key: str) -> int:
+        return sum(
+            execution.response.cost_minor_units
+            for execution in self.executions
+            if execution.request.semantic_idempotency_key == semantic_idempotency_key
+            and execution.response is not None
+        )
+
+    def persist_and_finish_job(
+        self,
+        job_id: uuid.UUID,
+        attempt_id: uuid.UUID,
+        token: uuid.UUID,
+        execution: ModelExecution,
+    ) -> uuid.UUID:
+        self.finished.append((job_id, attempt_id, token))
+        self.executions.append(execution)
+        run_id = uuid.uuid4()
+        if execution.status is ModelRunStatus.SUCCEEDED:
+            self.runs_by_semantic[execution.request.semantic_idempotency_key] = (
+                run_id,
+                ModelRunStatus.SUCCEEDED,
+            )
+        return run_id
+
+
 def test_build_model_request_is_strict_and_does_not_hash_prompt_text() -> None:
     request = build_model_request(
         model_payload(),
@@ -259,6 +304,118 @@ class SequenceProvider:
         if isinstance(outcome, Exception):
             raise outcome
         return outcome  # type: ignore[return-value]
+
+
+class CountingStaticProvider(StaticProvider):
+    def __init__(self, response: dict[str, object]) -> None:
+        super().__init__(response)
+        self.calls = 0
+
+    def complete(self, request: Any, prompt: PromptVersion) -> ProviderResponse:
+        self.calls += 1
+        return super().complete(request, prompt)
+
+
+@pytest.mark.parametrize(
+    ("task_type", "response"),
+    [
+        (
+            ModelTaskType.CLASSIFICATION.value,
+            {
+                "relevance": {"decision": "relevant", "reason": "source", "confidence": 0.9},
+                "labels": ["uap"],
+                "suggested_document_category": "other",
+            },
+        ),
+        (ModelTaskType.SUMMARY.value, {"summary": "摘要", "bullets": ["要点"]}),
+        (
+            ModelTaskType.CLAIM_EXTRACTION.value,
+            {
+                "claims": [
+                    {
+                        "claim": "A claim",
+                        "source_statement": "A source said this.",
+                        "speaker": None,
+                        "claim_type": "other",
+                        "assertion_status": "reported",
+                        "evidence": [{"locator_type": "text", "start": 0, "end": 7}],
+                    }
+                ]
+            },
+        ),
+        (
+            ModelTaskType.ENTITY_EXTRACTION.value,
+            {
+                "entities": [
+                    {
+                        "name": "UAP",
+                        "entity_type": "concept",
+                        "aliases": [],
+                        "evidence": [{"locator_type": "text", "start": 0, "end": 3}],
+                    }
+                ]
+            },
+        ),
+    ],
+)
+def test_explicit_reanalysis_scopes_each_task_to_its_job(
+    monkeypatch: pytest.MonkeyPatch, task_type: str, response: dict[str, object]
+) -> None:
+    from uap_platform.model_governance import workflow as workflow_module
+
+    store = ScopedFakeStore()
+    provider = CountingStaticProvider(response)
+    handler = ModelJobHandler(cast(Any, store), ProviderRegistry({"static": provider}))
+    monkeypatch.setattr(
+        workflow_module,
+        "_invoke_provider",
+        lambda current_provider, request, prompt: current_provider.complete(request, prompt),
+    )
+    payload = model_payload(task_type)
+    first_job = uuid.uuid4()
+    second_job = uuid.uuid4()
+
+    first_run = handler.handle(
+        first_job, ATTEMPT_ID, TOKEN, payload, explicit_reanalysis=True
+    )
+    second_run = handler.handle(
+        second_job, uuid.uuid4(), uuid.uuid4(), payload, explicit_reanalysis=True
+    )
+    retry_run = handler.handle(
+        first_job, uuid.uuid4(), uuid.uuid4(), payload, explicit_reanalysis=True
+    )
+
+    assert first_run != second_run
+    assert retry_run == first_run
+    assert provider.calls == 2
+    assert len(store.executions) == 2
+    assert (
+        store.executions[0].request.semantic_idempotency_key
+        != store.executions[1].request.semantic_idempotency_key
+    )
+    assert store.executions[0].request.job_attempt_id != store.executions[1].request.job_attempt_id
+
+
+def test_automatic_analysis_keeps_semantic_duplicate_suppression(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from uap_platform.model_governance import workflow as workflow_module
+
+    store = ScopedFakeStore()
+    provider = CountingStaticProvider({"summary": "摘要", "bullets": ["要点"]})
+    handler = ModelJobHandler(cast(Any, store), ProviderRegistry({"static": provider}))
+    monkeypatch.setattr(
+        workflow_module,
+        "_invoke_provider",
+        lambda current_provider, request, prompt: current_provider.complete(request, prompt),
+    )
+
+    first_run = handler.handle(JOB_ID, ATTEMPT_ID, TOKEN, model_payload())
+    second_run = handler.handle(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), model_payload())
+
+    assert second_run == first_run
+    assert provider.calls == 1
+    assert len(store.executions) == 1
 
 
 def test_provider_rate_limit_maps_to_retryable_failure() -> None:

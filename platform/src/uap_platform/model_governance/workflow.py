@@ -5,6 +5,7 @@ from __future__ import annotations
 import multiprocessing as mp
 import uuid
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -23,6 +24,7 @@ from .contracts import (
     ProviderError,
     ProviderResponse,
     ValidationStatus,
+    json_sha256,
     semantic_idempotency_key,
     sha256_bytes,
 )
@@ -98,6 +100,24 @@ def build_model_request(
     )
 
 
+def _scope_explicit_reanalysis(request: ModelRequest, job_id: uuid.UUID) -> ModelRequest:
+    """Give one explicit reanalysis job its own semantic execution scope.
+
+    The frozen model.v1 payload and its base semantic identity remain unchanged.
+    Job identity lives in orchestration metadata, so a new Admin request cannot
+    reuse an older automatic or explicit result while retries of the same job
+    retain one semantic key.  The attempt-level idempotency key is intentionally
+    preserved so retryable failures can create a later attempt normally.
+    """
+    scoped_key = "model-reanalysis:" + json_sha256(
+        {
+            "job_id": str(job_id),
+            "base_semantic_idempotency_key": request.semantic_idempotency_key,
+        }
+    )
+    return replace(request, semantic_idempotency_key=scoped_key)
+
+
 class ModelJobHandler:
     """Run one claimed model task without exposing raw Provider data in logs."""
 
@@ -120,6 +140,8 @@ class ModelJobHandler:
         job_attempt_id: uuid.UUID,
         lease_token: uuid.UUID,
         payload: Mapping[str, object],
+        *,
+        explicit_reanalysis: bool = False,
     ) -> uuid.UUID:
         try:
             document_version_id = _required_uuid(payload, "document_version_id")
@@ -130,6 +152,8 @@ class ModelJobHandler:
                 job_attempt_id=job_attempt_id,
                 input_text=input_text,
             )
+            if explicit_reanalysis:
+                request = _scope_explicit_reanalysis(request, job_id)
             prompt = self._store.load_prompt(request.prompt_version_id, request.task_type)
             if len(request.input_text.encode("utf-8")) > MODEL_MAX_INPUT_BYTES:
                 return self._persist_governance_failure(

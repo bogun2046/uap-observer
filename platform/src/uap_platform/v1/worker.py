@@ -755,8 +755,15 @@ class V1Worker:
         lease_token: uuid.UUID,
         payload: Mapping[str, object],
     ) -> None:
+        explicit_reanalysis = "document_id" in payload
         model_payload = _model_payload_for_governance(payload)
-        run_id = self._model_handler.handle(job_id, attempt_id, lease_token, model_payload)
+        run_id = self._model_handler.handle(
+            job_id,
+            attempt_id,
+            lease_token,
+            model_payload,
+            explicit_reanalysis=explicit_reanalysis,
+        )
         if _string(payload, "task_type") != ModelTaskType.CLASSIFICATION.value:
             return
         with self.model_connection.cursor() as cursor:
