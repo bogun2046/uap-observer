@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -39,6 +40,9 @@ from .contracts import (
     DocumentListSummary,
     EditorialContent,
     EditorialPatchRequest,
+    EditorialRevisionDetail,
+    EditorialRevisionPage,
+    EditorialRevisionRestoreRequest,
     EditorialRevisionSummary,
     EntityCandidatePage,
     EntityCandidateSummary,
@@ -69,6 +73,7 @@ from .pool import AdminApiPool
 CASE_SORT = "priority_desc,opened_at_asc,id_asc"
 CREATED_SORT = "created_at_asc,id_asc"
 OCCURRED_SORT = "occurred_at_asc,id_asc"
+REVISION_SORT = "revision_no_desc,id_desc"
 REVIEWER_ROLE = "reviewer"
 SENIOR_ROLE = "senior_reviewer"
 OPERATOR_ROLE = "data_operator"
@@ -538,7 +543,7 @@ class AdminQueryService:
                     document_version_id=version_id,
                     revision_no=cast(int, revision_row["revision_no"]),
                     operation=cast(
-                        Literal["save", "adopt", "trash", "restore"],
+                        Literal["save", "adopt", "trash", "restore", "restore_revision"],
                         revision_row["operation"],
                     ),
                     base_revision_no=cast(int, revision_row["base_revision_no"]),
@@ -717,6 +722,223 @@ class AdminQueryService:
                 filters_sha256=digest,
             )
         return AuditHistoryPage(items=items, next_cursor=next_cursor)
+
+    def list_editorial_revisions(
+        self,
+        *,
+        principal_id: UUID,
+        document_id: UUID,
+        limit: int,
+        cursor: str | None,
+    ) -> EditorialRevisionPage | None:
+        """List immutable editorial history for the document's current version."""
+
+        last_revision, last_id = self._revision_cursor(
+            cursor, filters_digest({"document_id": str(document_id)})
+        )
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as db_cursor:
+                db_cursor.execute(
+                    """
+                    SELECT version.id AS document_version_id,
+                           revision.id, revision.revision_no, revision.operation,
+                           revision.base_revision_no, revision.content,
+                           revision.source_map, revision.adopted_from,
+                           revision.created_by, revision.created_at,
+                           (revision.revision_no = current.current_revision_no) AS is_current,
+                           audit_event.metadata ->> 'reason' AS audit_reason
+                      FROM core.documents AS document
+                      JOIN LATERAL (
+                          SELECT item.id
+                            FROM core.document_versions AS item
+                           WHERE item.document_id = document.id
+                           ORDER BY item.version_no DESC, item.id DESC
+                           LIMIT 1
+                      ) AS version ON true
+                      JOIN LATERAL (
+                          SELECT max(item.revision_no) AS current_revision_no
+                            FROM core.editorial_revisions AS item
+                           WHERE item.document_version_id = version.id
+                      ) AS current ON true
+                      JOIN core.editorial_revisions AS revision
+                        ON revision.document_version_id = version.id
+                      LEFT JOIN LATERAL (
+                          SELECT event.metadata
+                            FROM audit.audit_events AS event
+                           WHERE event.target_type = 'document'
+                             AND event.target_id = document.id
+                             AND event.metadata ->> 'revision_no' = revision.revision_no::text
+                           ORDER BY event.occurred_at DESC, event.id DESC
+                           LIMIT 1
+                      ) AS audit_event ON true
+                     WHERE document.id = %s
+                       AND (
+                            %s::integer IS NULL
+                            OR revision.revision_no < %s::integer
+                            OR (revision.revision_no = %s::integer AND revision.id < %s::uuid)
+                       )
+                     ORDER BY revision.revision_no DESC, revision.id DESC
+                     LIMIT %s
+                    """,
+                    (document_id, last_revision, last_revision, last_revision, last_id, limit + 1),
+                )
+                rows = db_cursor.fetchall()
+        if not rows:
+            # Distinguish an empty history from an unknown document.
+            with self._pool.read_transaction(principal_id) as connection:
+                self._require_role(connection, EDITORIAL_ROLE)
+                with connection.cursor() as db_cursor:
+                    db_cursor.execute("SELECT 1 FROM core.documents WHERE id = %s", (document_id,))
+                    if db_cursor.fetchone() is None:
+                        return None
+        items = [
+            self._editorial_revision_summary(cast(Mapping[str, Any], row))
+            for row in rows[:limit]
+        ]
+        next_cursor = None
+        if len(rows) > limit and items:
+            tail = cast(Mapping[str, Any], rows[limit - 1])
+            next_cursor = self._cursor.encode(
+                resource="editorial-revisions",
+                sort=REVISION_SORT,
+                last=[int(tail["revision_no"]), str(tail["id"])],
+                filters_sha256=filters_digest({"document_id": str(document_id)}),
+            )
+        return EditorialRevisionPage(items=items, next_cursor=next_cursor)
+
+    def get_editorial_revision(
+        self, *, principal_id: UUID, document_id: UUID, revision_ref: str
+    ) -> EditorialRevisionDetail | None:
+        revision_no: int | None = None
+        revision_id: UUID | None = None
+        try:
+            revision_no = int(revision_ref)
+        except ValueError:
+            try:
+                revision_id = UUID(revision_ref)
+            except ValueError as error:
+                raise AdminError("api_request_invalid") from error
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as db_cursor:
+                db_cursor.execute(
+                    """
+                    SELECT version.id AS document_version_id,
+                           revision.id, revision.revision_no, revision.operation,
+                           revision.base_revision_no, revision.content,
+                           revision.source_map, revision.adopted_from,
+                           revision.created_by, revision.created_at,
+                           (revision.revision_no = current.current_revision_no) AS is_current,
+                           audit_event.metadata ->> 'reason' AS audit_reason
+                      FROM core.documents AS document
+                      JOIN LATERAL (
+                          SELECT item.id
+                            FROM core.document_versions AS item
+                           WHERE item.document_id = document.id
+                           ORDER BY item.version_no DESC, item.id DESC LIMIT 1
+                      ) AS version ON true
+                      JOIN LATERAL (
+                          SELECT max(item.revision_no) AS current_revision_no
+                            FROM core.editorial_revisions AS item
+                           WHERE item.document_version_id = version.id
+                      ) AS current ON true
+                      JOIN core.editorial_revisions AS revision
+                        ON revision.document_version_id = version.id
+                      LEFT JOIN LATERAL (
+                          SELECT event.metadata
+                            FROM audit.audit_events AS event
+                           WHERE event.target_type = 'document'
+                             AND event.target_id = document.id
+                             AND event.metadata ->> 'revision_no' = revision.revision_no::text
+                           ORDER BY event.occurred_at DESC, event.id DESC
+                           LIMIT 1
+                      ) AS audit_event ON true
+                     WHERE document.id = %s
+                       AND ((%s::integer IS NOT NULL AND revision.revision_no = %s::integer)
+                            OR (%s::uuid IS NOT NULL AND revision.id = %s::uuid))
+                    """,
+                    (document_id, revision_no, revision_no, revision_id, revision_id),
+                )
+                row = db_cursor.fetchone()
+        if row is None:
+            return None
+        summary = self._editorial_revision_summary(cast(Mapping[str, Any], row))
+        content = row["content"]
+        return EditorialRevisionDetail(
+            **summary.model_dump(),
+            content=(EditorialContent.model_validate(content) if content is not None else None),
+        )
+
+    def restore_editorial_revision(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        revision_ref: str,
+        request: EditorialRevisionRestoreRequest,
+    ) -> WriteResult:
+        source_revision_id: UUID | None = None
+        try:
+            source_revision_id = UUID(revision_ref)
+            source_revision_no: int | None = None
+        except ValueError:
+            try:
+                source_revision_no = int(revision_ref)
+            except ValueError as error:
+                raise AdminError("api_request_invalid") from error
+
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT revision.id
+                      FROM core.documents AS document
+                      JOIN LATERAL (
+                          SELECT item.id
+                            FROM core.document_versions AS item
+                           WHERE item.document_id = document.id
+                           ORDER BY item.version_no DESC, item.id DESC LIMIT 1
+                      ) AS version ON true
+                      JOIN core.editorial_revisions AS revision
+                        ON revision.document_version_id = version.id
+                     WHERE document.id = %s
+                       AND ((%s::integer IS NOT NULL AND revision.revision_no = %s::integer)
+                            OR (%s::uuid IS NOT NULL AND revision.id = %s::uuid))
+                       AND revision.content IS NOT NULL
+                    """,
+                    (
+                        document_id,
+                        source_revision_no,
+                        source_revision_no,
+                        source_revision_id,
+                        source_revision_id,
+                    ),
+                )
+                source = cursor.fetchone()
+                if source is None:
+                    raise AdminError("editorial_revision_not_found")
+                cursor.execute(
+                    """
+                    SELECT audit.restore_editorial_revision(%s, %s, %s, %s)
+                    """,
+                    (
+                        document_id,
+                        source["id"],
+                        request.expected_revision,
+                        request.reason,
+                    ),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "restore_editorial_revision")
+
+        return self._write_editorial(
+            principal_id, request_id, "editorial.revision_restore", _call
+        )
 
     def _load_editorial_context(
         self, connection: Connection[dict[str, object]], document_id: UUID, version_id: UUID
@@ -1638,6 +1860,25 @@ class AdminQueryService:
             raise CursorError("cursor is invalid")
         return created_at, item_id
 
+    def _revision_cursor(
+        self, cursor: str | None, digest: str
+    ) -> tuple[int | None, UUID | None]:
+        if not cursor:
+            return None, None
+        last = self._cursor.decode(
+            cursor, resource="editorial-revisions", sort=REVISION_SORT, filters_sha256=digest
+        )
+        if len(last) != 2:
+            raise CursorError("cursor is invalid")
+        try:
+            revision_no = int(last[0])
+            revision_id = UUID(str(last[1]))
+        except (TypeError, ValueError) as error:
+            raise CursorError("cursor is invalid") from error
+        if revision_no < 1 or str(revision_id) != str(last[1]):
+            raise CursorError("cursor is invalid")
+        return revision_no, revision_id
+
     def _occurred_cursor(
         self, cursor: str | None, digest: str
     ) -> tuple[datetime | None, UUID | None]:
@@ -1683,6 +1924,57 @@ class AdminQueryService:
         if not isinstance(value, datetime):
             raise CursorError("cursor is invalid")
         return value.isoformat()
+
+    @staticmethod
+    def _editorial_revision_summary(row: Mapping[str, Any]) -> EditorialRevisionSummary:
+        content = row.get("content")
+        adopted_from = dict(row.get("adopted_from") or {})
+        source_map = dict(row.get("source_map") or {})
+        source_id_raw = adopted_from.get("source_revision_id") or source_map.get(
+            "source_revision_id"
+        )
+        source_id: UUID | None = None
+        if source_id_raw:
+            try:
+                source_id = UUID(str(source_id_raw))
+            except ValueError:
+                source_id = None
+        source_no_raw = adopted_from.get("source_revision_no") or source_map.get(
+            "source_revision_no"
+        )
+        source_no = int(source_no_raw) if source_no_raw is not None else None
+        reason = (
+            row.get("reason")
+            or row.get("audit_reason")
+            or adopted_from.get("reason")
+            or source_map.get("reason")
+        )
+        digest = None
+        if content is not None:
+            digest = hashlib.sha256(
+                json.dumps(
+                    content, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                ).encode("utf-8")
+            ).hexdigest()
+        return EditorialRevisionSummary(
+            id=UUID(str(row["id"])),
+            document_version_id=UUID(str(row["document_version_id"])),
+            revision_no=int(row["revision_no"]),
+            operation=cast(
+                Literal["save", "adopt", "trash", "restore", "restore_revision"],
+                str(row["operation"]),
+            ),
+            base_revision_no=int(row["base_revision_no"]),
+            created_by=UUID(str(row["created_by"])),
+            created_at=row["created_at"],
+            source_map=source_map,
+            adopted_from=adopted_from,
+            is_current=bool(row.get("is_current", False)),
+            content_digest=digest,
+            reason=str(reason) if reason is not None else None,
+            source_revision_id=source_id,
+            source_revision_no=source_no,
+        )
 
     @staticmethod
     def _case_summary(row: Mapping[str, Any]) -> ReviewCaseSummary:

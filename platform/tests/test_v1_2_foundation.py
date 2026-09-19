@@ -127,3 +127,23 @@ def test_reanalysis_and_lifecycle_wrappers_are_narrow_and_versioned() -> None:
     )
     assert "uap_worker" in lifecycle and "uap_scheduler" in lifecycle
     assert lifecycle.count("review_idempotency_payload_conflict") >= 2
+
+
+def test_editorial_revision_restore_is_append_only_and_scoped() -> None:
+    root = Path(__file__).parents[1]
+    migration = root.joinpath(
+        "alembic/versions/0028_v12_editorial_revision_restore.py"
+    ).read_text(encoding="utf-8")
+    assert 'revision = "0028_v12_editorial_revision_restore"' in migration
+    assert 'down_revision = "0027_v12_editorial_lifecycle_concurrency"' in migration
+    assert "audit.restore_editorial_revision" in migration
+    assert "editorial.revision_restored" in migration
+    assert "source_revision_id" in migration
+    assert "previous_current_revision_id" in migration
+    assert "new_revision_id" in migration
+    assert "pg_advisory_xact_lock(9176" in migration
+    assert "editorial_revision_conflict" in migration
+    assert "editorial_document_trashed" in migration
+    assert "operation IN ('save', 'adopt', 'trash', 'restore', 'restore_revision')" in migration
+    assert "DROP FUNCTION IF EXISTS audit.restore_editorial_revision" in migration
+    assert "uap_worker" in migration and "uap_model_governance" in migration

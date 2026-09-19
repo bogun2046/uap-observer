@@ -20,6 +20,7 @@ from .contracts import (
     BindCandidateRequest,
     DecisionRequest,
     EditorialPatchRequest,
+    EditorialRevisionRestoreRequest,
     EntityType,
     LifecycleRequest,
     ManualClaimRequest,
@@ -173,6 +174,33 @@ class AdminApiApplication:
                     cursor=self._optional(query, "cursor"),
                 ),
             )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/editorial/revisions"):
+            self._require_query(query, {"limit", "cursor"})
+            parts = path.split("/")
+            if len(parts) != 7:
+                raise AdminError("api_resource_not_found")
+            return self._resource(
+                request_id,
+                self._service.list_editorial_revisions(
+                    principal_id=principal_id,
+                    document_id=self._nested_uuid(path, -3),
+                    limit=self._limit(query),
+                    cursor=self._optional(query, "cursor"),
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and "/editorial/revisions/" in path:
+            self._require_query(query, set())
+            parts = path.split("/")
+            if len(parts) != 8 or parts[-2] == "restore":
+                raise AdminError("api_resource_not_found")
+            return self._resource(
+                request_id,
+                self._service.get_editorial_revision(
+                    principal_id=principal_id,
+                    document_id=self._nested_uuid(path, -4),
+                    revision_ref=parts[-1],
+                ),
+            )
         if path == "/admin/v1/review-cases":
             self._require_query(query, {"status", "case_type", "assigned_to", "limit", "cursor"})
             return self._success(
@@ -291,6 +319,26 @@ class AdminApiApplication:
                     principal_id=principal_id,
                     request_id=request_id,
                     document_id=self._nested_uuid(path, -3),
+                    request=body,
+                ),
+            )
+        if (
+            method == "POST"
+            and path.startswith("/admin/v1/documents/")
+            and path.endswith("/restore")
+            and "/editorial/revisions/" in path
+        ):
+            parts = path.split("/")
+            if len(parts) != 9:
+                raise AdminError("api_resource_not_found")
+            body = self._model(EditorialRevisionRestoreRequest, payload)
+            return self._success(
+                request_id,
+                self._service.restore_editorial_revision(
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    document_id=self._nested_uuid(path, -5),
+                    revision_ref=parts[-2],
                     request=body,
                 ),
             )

@@ -76,7 +76,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
 <script>
 (() => {
   'use strict';
-  const state = { token: '', document: null, audit: [], editing: false, view: 'library', changed: new Set() };
+  const state = { token: '', document: null, audit: [], revisions: [], historical: null, editing: false, view: 'library', changed: new Set() };
   const $ = (id) => document.getElementById(id);
   const taskNames = { classification: 'Classification', summary: 'Summary', claim_extraction: 'Claims', entity_extraction: 'Entities' };
   class ApiError extends Error {
@@ -140,7 +140,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
   }
   async function loadDetail(id) {
     if (!id) return; $('detail').replaceChildren(); add($('detail'), 'div', '加载详情中…', 'hint');
-    try { const [document, audit] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`)]); state.document = document; state.audit = audit.items || []; state.editing = false; state.changed.clear(); renderDetail(); }
+    try { const [document, audit, revisions] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`), api(`/admin/v1/documents/${encodeURIComponent(id)}/editorial/revisions?limit=100`)]); state.document = document; state.audit = audit.items || []; state.revisions = revisions.items || []; state.historical = null; state.editing = false; state.changed.clear(); renderDetail(); }
     catch (error) { showApiError(error instanceof ApiError ? error : new Error('无法加载详情')); }
   }
   function renderDetail() {
@@ -151,7 +151,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
     const actions = add(heading, 'div', '', 'actions');
     if (!isTrashed()) { button(actions, state.editing ? 'Cancel' : 'Edit', () => { state.editing = !state.editing; state.changed.clear(); renderDetail(); }, state.editing ? '' : 'primary'); if (state.editing) button(actions, 'Save', saveEditorial, 'primary'); button(actions, 'Move to Trash', trashDocument, 'danger'); }
     else button(actions, 'Restore', restoreDocument, 'primary');
-    renderSource(panel, raw, item); renderEditorial(panel, editorial, item); renderAi(panel); renderAudit(panel);
+    renderSource(panel, raw, item); renderEditorial(panel, editorial, item); renderRevisionHistory(panel); renderHistorical(panel); renderAi(panel); renderAudit(panel);
   }
   function renderSource(panel, raw, item) {
     const section = add(panel, 'section', ''); add(section, 'h2', 'SOURCE / RAW'); const grid = add(section, 'div', '', 'grid');
@@ -166,6 +166,35 @@ textarea { min-height:84px; resize:vertical; width:100% }
     const grid = add(section, 'div', '', 'grid'); fieldInput(grid, 'title', '标题', editorial.title || item.raw && item.raw.original_title || ''); fieldInput(grid, 'summary', '中文摘要', editorial.summary || '', 'textarea'); fieldInput(grid, 'bullets', 'Bullets（每行一条）', (editorial.bullets || []).join('\n'), 'textarea'); fieldInput(grid, 'category', '分类', editorial.category || 'other'); fieldInput(grid, 'labels', 'Labels（每行一个）', (editorial.labels || []).join('\n'), 'textarea'); fieldInput(section, 'claims', 'Claims JSON（editorial overlay）', jsonText(editorial.claims || []), 'textarea'); fieldInput(section, 'entities', 'Entities JSON（editorial overlay）', jsonText(editorial.entities || []), 'textarea'); add(section, 'div', '未修改字段不会提交；明确清空会提交空字符串、空数组或 null。', 'hint');
   }
   function renderEditorialCards(parent, label, values) { add(parent, 'h3', label); if (!values.length) { add(parent, 'div', '—', 'hint'); return; } for (const value of values) { const card = add(parent, 'div', '', `card${value.state === 'removed' ? ' removed' : ''}`); add(card, 'strong', value.claim || value.name || '—'); add(card, 'div', value.source_statement || value.entity_type || '', 'meta'); add(card, 'div', jsonText(value.evidence_span_ids || value.evidence || []), 'hint'); } }
+  function renderRevisionHistory(panel) {
+    const section = add(panel, 'section', ''); add(section, 'h2', 'REVISION HISTORY');
+    if (!state.revisions.length) { add(section, 'div', '暂无 editorial 修订历史。', 'hint'); return; }
+    add(section, 'div', '历史修订为只读；恢复会以当前版本为父级创建新的 revision。', 'hint');
+    for (const item of state.revisions) {
+      const card = add(section, 'div', '', 'card');
+      add(card, 'strong', `revision ${item.revision_no}${item.is_current ? ' · CURRENT' : ''}`);
+      add(card, 'div', `${item.created_at || '—'} · actor=${item.created_by || '—'} · ${item.operation || '—'}`, 'meta');
+      if (item.reason) add(card, 'div', `reason: ${item.reason}`, 'hint');
+      if (item.source_revision_no) add(card, 'div', `source revision: ${item.source_revision_no}`, 'hint');
+      const actions = add(card, 'div', '', 'actions');
+      button(actions, 'View read-only', () => viewRevision(item.revision_no));
+      if (!isTrashed() && !item.is_current) button(actions, 'Restore as New Revision', () => restoreRevision(item.revision_no), 'primary');
+    }
+  }
+  function renderHistorical(panel) {
+    if (!state.historical) return;
+    const section = add(panel, 'section', ''); add(section, 'h2', `HISTORICAL REVISION ${state.historical.revision_no} · READ-ONLY`);
+    add(section, 'div', '这是历史内容快照，不可直接编辑；如需使用请“Restore as New Revision”。', 'notice');
+    const content = state.historical.content || {};
+    for (const [label, value] of [['标题', content.title], ['摘要', content.summary], ['Bullets', content.bullets], ['分类', content.category], ['Labels', content.labels]]) { const wrap = add(section, 'div', '', 'field'); add(wrap, 'label', label); add(wrap, 'div', Array.isArray(value) ? value.join('\n') : value || '—', 'readonly'); }
+    renderEditorialCards(section, 'Claims', content.claims || []); renderEditorialCards(section, 'Entities', content.entities || []);
+  }
+  async function viewRevision(revisionNo) { try { state.historical = await api(`/admin/v1/documents/${state.document.document_id}/editorial/revisions/${revisionNo}`); renderDetail(); } catch (error) { showApiError(error instanceof ApiError ? error : new Error('无法读取历史修订')); } }
+  async function restoreRevision(revisionNo) {
+    if (!window.confirm(`确认以 revision ${revisionNo} 内容创建新的当前修订？旧修订不会被修改。`)) return;
+    try { await api(`/admin/v1/documents/${state.document.document_id}/editorial/revisions/${revisionNo}/restore`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ expected_revision:revision(), reason:`restored from revision ${revisionNo}` }) }); setNotice(`已从 revision ${revisionNo} 创建新的 editorial revision。`, 'notice success'); await loadDetail(state.document.document_id); }
+    catch (error) { showApiError(error instanceof ApiError ? error : new Error('恢复历史修订失败')); }
+  }
   function renderAi(panel) {
     const section = add(panel, 'section', ''); add(section, 'h2', 'AI RESULTS');
     for (const task of ['classification', 'summary', 'claim_extraction', 'entity_extraction']) { const row = aiResult(task); if (!row) { add(section, 'div', `${taskNames[task]}：尚无结果`, 'hint'); continue; } const card = add(section, 'div', '', 'card'); const run = row.model_run || {}; add(card, 'h3', `${taskNames[task]} · ${row.validation_status || run.status || 'unknown'}`); add(card, 'div', `model=${run.model || '—'} · prompt=${run.prompt_version || '—'} · tokens=${run.input_tokens || 0}/${run.output_tokens || 0} · cost=${run.cost_minor_units || 0} ${run.currency || 'CNY'}`, 'meta'); add(card, 'pre', jsonText(row.result), 'readonly'); if (!isTrashed() && row.validation_status === 'valid') { const actions = add(card, 'div', '', 'actions'); if (task === 'summary') button(actions, 'Adopt AI Summary', () => adopt(task, ['summary', 'bullets'])); else if (task === 'classification') button(actions, 'Adopt AI Category / Labels', () => adopt(task, ['category', 'labels'])); else if (task === 'claim_extraction') { button(actions, 'Adopt AI Claims', () => adopt(task, ['claims'])); (row.result.claims || []).forEach((_, index) => button(actions, `Adopt claim #${index + 1}`, () => adoptCandidate(task, index))); } else { button(actions, 'Adopt AI Entities', () => adopt(task, ['entities'])); (row.result.entities || []).forEach((_, index) => button(actions, `Adopt entity #${index + 1}`, () => adoptCandidate(task, index))); } } if (!isTrashed()) button(card, `Reanalyze ${taskNames[task]}`, () => reanalyze(task)); }

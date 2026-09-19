@@ -14,6 +14,8 @@ from uap_platform.admin_api.contracts import (
     DocumentDetail,
     DocumentListPage,
     EditorialPatchRequest,
+    EditorialRevisionDetail,
+    EditorialRevisionPage,
     TrashDocumentPage,
     WriteResult,
 )
@@ -55,6 +57,23 @@ class FakeEditorialService:
     def list_document_audit(self, **kwargs: Any) -> AuditHistoryPage:
         self.calls.append(("audit", kwargs))
         return AuditHistoryPage(items=[], next_cursor=None)
+
+    def list_editorial_revisions(self, **kwargs: Any) -> EditorialRevisionPage:
+        self.calls.append(("revision-list", kwargs))
+        return EditorialRevisionPage(items=[], next_cursor=None)
+
+    def get_editorial_revision(self, **kwargs: Any) -> EditorialRevisionDetail | None:
+        self.calls.append(("revision-detail", kwargs))
+        return None
+
+    def restore_editorial_revision(self, **kwargs: Any) -> WriteResult:
+        self.calls.append(("revision-restore", kwargs))
+        return WriteResult(
+            operation="editorial.revision_restore",
+            resource_id=uuid4(),
+            request_id=kwargs["request_id"],
+            publication=None,
+        )
 
     def save_editorial(self, **kwargs: Any) -> WriteResult:
         self.calls.append(("save", kwargs))
@@ -203,6 +222,33 @@ def test_document_detail_and_trash_are_editorial_routes() -> None:
     assert detail.status == 404
     assert trash.status == 200
     assert audit.status == 200
+
+
+def test_editorial_revision_history_routes_preserve_document_identity() -> None:
+    service = FakeEditorialService()
+    app = _app(service)
+    history = app.handle(
+        "GET", f"/admin/v1/documents/{DOCUMENT_ID}/editorial/revisions?limit=10", _headers()
+    )
+    assert history.status == 200
+    assert service.calls[-1][0] == "revision-list"
+    assert service.calls[-1][1]["document_id"] == DOCUMENT_ID
+    detail = app.handle(
+        "GET",
+        f"/admin/v1/documents/{DOCUMENT_ID}/editorial/revisions/3",
+        _headers(),
+    )
+    assert detail.status == 404
+    restore = app.handle(
+        "POST",
+        f"/admin/v1/documents/{DOCUMENT_ID}/editorial/revisions/1/restore",
+        _headers(),
+        json.dumps({"expected_revision": 3, "reason": "restore prior editorial"}).encode(),
+    )
+    assert restore.status == 200
+    assert service.calls[-1][0] == "revision-restore"
+    assert service.calls[-1][1]["document_id"] == DOCUMENT_ID
+    assert service.calls[-1][1]["revision_ref"] == "1"
 
 
 def test_document_list_is_oidc_read_projection_and_excludes_unknown_query() -> None:

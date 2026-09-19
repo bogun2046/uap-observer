@@ -259,16 +259,35 @@ class LifecycleRequest(StrictModel):
     reason: str | None = Field(default=None, max_length=5_000)
 
 
+class EditorialRevisionRestoreRequest(StrictModel):
+    expected_revision: int = Field(ge=0)
+    reason: str | None = Field(default=None, max_length=5_000)
+
+
 class EditorialRevisionSummary(StrictModel):
     id: UUID
     document_version_id: UUID
     revision_no: int = Field(ge=1)
-    operation: Literal["save", "adopt", "trash", "restore"]
+    operation: Literal["save", "adopt", "trash", "restore", "restore_revision"]
     base_revision_no: int = Field(ge=0)
     created_by: UUID
     created_at: datetime
     source_map: dict[str, Any]
     adopted_from: dict[str, Any]
+    is_current: bool = False
+    content_digest: str | None = None
+    reason: str | None = None
+    source_revision_id: UUID | None = None
+    source_revision_no: int | None = None
+
+
+class EditorialRevisionPage(StrictModel):
+    items: list[EditorialRevisionSummary]
+    next_cursor: str | None
+
+
+class EditorialRevisionDetail(EditorialRevisionSummary):
+    content: EditorialContent | None
 
 
 class DocumentDetail(StrictModel):
