@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Literal, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from psycopg import Connection
 from psycopg.errors import Error as PsycopgError
@@ -38,7 +38,9 @@ from .contracts import (
     DocumentDetail,
     DocumentListPage,
     DocumentListSummary,
+    EditorialClaimMutationRequest,
     EditorialContent,
+    EditorialEntityMutationRequest,
     EditorialPatchRequest,
     EditorialRevisionDetail,
     EditorialRevisionPage,
@@ -68,6 +70,7 @@ from .contracts import (
 )
 from .cursor import CursorCodec, CursorError, filters_digest
 from .errors import AdminError, map_database_error
+from .evidence import materialize_ai_evidence
 from .pool import AdminApiPool
 
 CASE_SORT = "priority_desc,opened_at_asc,id_asc"
@@ -554,8 +557,7 @@ class AdminQueryService:
                 ),
                 "content": (
                     None
-                    if revision_row["content"] is None
-                    and revision_row["latest_content"] is None
+                    if revision_row["content"] is None and revision_row["latest_content"] is None
                     else cast(
                         dict[str, Any],
                         revision_row["content"]
@@ -709,9 +711,7 @@ class AdminQueryService:
                     (document_id, last_occurred, last_occurred, last_id, limit + 1),
                 )
                 rows = db_cursor.fetchall()
-        items = [
-            AuditHistoryEvent(**cast(dict[str, Any], dict(row))) for row in rows[:limit]
-        ]
+        items = [AuditHistoryEvent(**cast(dict[str, Any], dict(row))) for row in rows[:limit]]
         next_cursor = None
         if len(rows) > limit and items:
             tail = rows[limit - 1]
@@ -793,8 +793,7 @@ class AdminQueryService:
                     if db_cursor.fetchone() is None:
                         return None
         items = [
-            self._editorial_revision_summary(cast(Mapping[str, Any], row))
-            for row in rows[:limit]
+            self._editorial_revision_summary(cast(Mapping[str, Any], row)) for row in rows[:limit]
         ]
         next_cursor = None
         if len(rows) > limit and items:
@@ -936,9 +935,7 @@ class AdminQueryService:
                 raise AdminError("api_internal_error")
             return self._scalar_uuid(row, "restore_editorial_revision")
 
-        return self._write_editorial(
-            principal_id, request_id, "editorial.revision_restore", _call
-        )
+        return self._write_editorial(principal_id, request_id, "editorial.revision_restore", _call)
 
     def _load_editorial_context(
         self, connection: Connection[dict[str, object]], document_id: UUID, version_id: UUID
@@ -1047,6 +1044,228 @@ class AdminQueryService:
             _call,
         )
 
+    def _validate_evidence_ids(
+        self, connection: Connection[dict[str, object]], version_id: UUID, ids: list[UUID]
+    ) -> None:
+        if not ids:
+            return
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, document_version_id, extraction_id
+                  FROM core.evidence_spans
+                 WHERE id = ANY(%s::uuid[])
+                """,
+                (ids,),
+            )
+            rows = cursor.fetchall()
+        found = {UUID(str(row["id"])) for row in rows}
+        if len(found) != len(set(ids)):
+            raise AdminError("editorial_evidence_not_found")
+        for row in rows:
+            if UUID(str(row["document_version_id"])) != version_id:
+                raise AdminError("editorial_evidence_version_mismatch")
+            if row["extraction_id"] is None:
+                raise AdminError("editorial_evidence_extraction_mismatch")
+
+    def mutate_editorial_claim(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        operation: Literal["add", "edit", "remove", "restore", "remove_evidence"],
+        request: EditorialClaimMutationRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            _, revision, current, trashed = self._load_editorial_context(
+                connection, document_id, request.document_version_id
+            )
+            if trashed:
+                raise AdminError("editorial_document_trashed")
+            if revision != request.expected_revision:
+                raise AdminError("editorial_revision_conflict")
+            claims = list(current.get("claims") or [])
+            target_id = request.claim_id or (request.claim.claim_id if request.claim else None)
+            index = next(
+                (
+                    i
+                    for i, item in enumerate(claims)
+                    if target_id and item.get("claim_id") == str(target_id)
+                ),
+                None,
+            )
+            if index is None and request.item_ordinal is not None:
+                index = request.item_ordinal if request.item_ordinal < len(claims) else None
+            if operation == "add":
+                if request.claim is None:
+                    raise AdminError("editorial_evidence_request_invalid")
+                item = request.claim.model_dump(mode="json")
+                item["claim_id"] = item.get("claim_id") or str(uuid4())
+                if request.evidence_span_ids is not None:
+                    item["evidence_span_ids"] = [str(value) for value in request.evidence_span_ids]
+                self._validate_evidence_ids(
+                    connection,
+                    request.document_version_id,
+                    [UUID(str(value)) for value in item.get("evidence_span_ids", [])],
+                )
+                claims.append(item)
+                action = "editorial.claim.added"
+            else:
+                if index is None:
+                    raise AdminError("editorial_ai_item_not_found")
+                item = dict(claims[index])
+                if operation == "edit":
+                    if request.claim is None:
+                        raise AdminError("editorial_evidence_request_invalid")
+                    item.update(request.claim.model_dump(mode="json"))
+                    item["claim_id"] = item.get("claim_id") or (
+                        str(target_id) if target_id else str(uuid4())
+                    )
+                    action = "editorial.claim.edited"
+                elif operation == "remove":
+                    item["state"] = "removed"
+                    action = "editorial.claim.removed"
+                elif operation == "restore":
+                    item["state"] = "active"
+                    action = "editorial.claim.restored"
+                else:
+                    item["evidence_span_ids"] = []
+                    action = "editorial.claim.evidence_removed"
+                if request.evidence_span_ids is not None:
+                    item["evidence_span_ids"] = [str(value) for value in request.evidence_span_ids]
+                self._validate_evidence_ids(
+                    connection,
+                    request.document_version_id,
+                    [UUID(str(value)) for value in item.get("evidence_span_ids", [])],
+                )
+                claims[index] = item
+            current["claims"] = claims
+            validated = self._validate_editorial_content(current)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.save_editorial_revision(%s, %s, %s::jsonb, %s::jsonb, %s::jsonb)",
+                    (
+                        request.document_version_id,
+                        request.expected_revision,
+                        json.dumps(validated.model_dump(mode="json"), sort_keys=True),
+                        json.dumps(
+                            {"claims": {"source": "editorial", "action": action}}, sort_keys=True
+                        ),
+                        json.dumps(
+                            {"action": action, "item_id": item.get("claim_id")}, sort_keys=True
+                        ),
+                    ),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "save_editorial_revision")
+
+        return self._write_editorial(
+            principal_id, request_id, f"editorial.claim.{operation}", _call
+        )
+
+    def mutate_editorial_entity(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        operation: Literal["add", "edit", "remove", "restore", "remove_evidence"],
+        request: EditorialEntityMutationRequest,
+    ) -> WriteResult:
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            self._require_role(connection, EDITORIAL_ROLE)
+            _, revision, current, trashed = self._load_editorial_context(
+                connection, document_id, request.document_version_id
+            )
+            if trashed:
+                raise AdminError("editorial_document_trashed")
+            if revision != request.expected_revision:
+                raise AdminError("editorial_revision_conflict")
+            entities = list(current.get("entities") or [])
+            target_id = request.entity_id or (request.entity.entity_id if request.entity else None)
+            index = next(
+                (
+                    i
+                    for i, item in enumerate(entities)
+                    if target_id and item.get("entity_id") == str(target_id)
+                ),
+                None,
+            )
+            if index is None and request.item_ordinal is not None:
+                index = request.item_ordinal if request.item_ordinal < len(entities) else None
+            if operation == "add":
+                if request.entity is None:
+                    raise AdminError("editorial_evidence_request_invalid")
+                item = request.entity.model_dump(mode="json")
+                item["entity_id"] = item.get("entity_id") or str(uuid4())
+                if request.evidence_span_ids is not None:
+                    item["evidence_span_ids"] = [str(value) for value in request.evidence_span_ids]
+                self._validate_evidence_ids(
+                    connection,
+                    request.document_version_id,
+                    [UUID(str(value)) for value in item.get("evidence_span_ids", [])],
+                )
+                entities.append(item)
+                action = "editorial.entity.added"
+            else:
+                if index is None:
+                    raise AdminError("editorial_ai_item_not_found")
+                item = dict(entities[index])
+                if operation == "edit":
+                    if request.entity is None:
+                        raise AdminError("editorial_evidence_request_invalid")
+                    item.update(request.entity.model_dump(mode="json"))
+                    item["entity_id"] = item.get("entity_id") or (
+                        str(target_id) if target_id else str(uuid4())
+                    )
+                    action = "editorial.entity.edited"
+                elif operation == "remove":
+                    item["state"] = "removed"
+                    action = "editorial.entity.removed"
+                elif operation == "restore":
+                    item["state"] = "active"
+                    action = "editorial.entity.restored"
+                else:
+                    item["evidence_span_ids"] = []
+                    action = "editorial.entity.evidence_removed"
+                if request.evidence_span_ids is not None:
+                    item["evidence_span_ids"] = [str(value) for value in request.evidence_span_ids]
+                self._validate_evidence_ids(
+                    connection,
+                    request.document_version_id,
+                    [UUID(str(value)) for value in item.get("evidence_span_ids", [])],
+                )
+                entities[index] = item
+            current["entities"] = entities
+            validated = self._validate_editorial_content(current)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT audit.save_editorial_revision(%s, %s, %s::jsonb, %s::jsonb, %s::jsonb)",
+                    (
+                        request.document_version_id,
+                        request.expected_revision,
+                        json.dumps(validated.model_dump(mode="json"), sort_keys=True),
+                        json.dumps(
+                            {"entities": {"source": "editorial", "action": action}}, sort_keys=True
+                        ),
+                        json.dumps(
+                            {"action": action, "item_id": item.get("entity_id")}, sort_keys=True
+                        ),
+                    ),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("api_internal_error")
+            return self._scalar_uuid(row, "save_editorial_revision")
+
+        return self._write_editorial(
+            principal_id, request_id, f"editorial.entity.{operation}", _call
+        )
+
     def adopt_editorial(
         self,
         *,
@@ -1104,6 +1323,62 @@ class AdminQueryService:
                     changes[field] = result_payload[field]
                 else:
                     raise AdminError("editorial_adopt_field_invalid")
+            if task_type in {"claim_extraction", "entity_extraction"} and (
+                "claims" in request.fields or "entities" in request.fields
+            ):
+                resolved = materialize_ai_evidence(
+                    connection,
+                    self._object_client,
+                    analysis_result_id=request.source_analysis_result_id,
+                    document_version_id=request.document_version_id,
+                    result_type=task_type,
+                    item_ordinal=request.item_ordinal,
+                )
+                source_items = result_payload.get(
+                    "claims" if task_type == "claim_extraction" else "entities"
+                )
+                if not isinstance(source_items, Sequence) or isinstance(source_items, (str, bytes)):
+                    raise AdminError("editorial_ai_result_invalid")
+                adopted_items: list[dict[str, object]] = []
+                for ordinal, raw_item in enumerate(source_items):
+                    if request.item_ordinal is not None and ordinal != request.item_ordinal:
+                        continue
+                    if not isinstance(raw_item, Mapping):
+                        raise AdminError("editorial_ai_result_invalid")
+                    item = dict(raw_item)
+                    item.pop("evidence", None)
+                    if task_type == "claim_extraction":
+                        item = {
+                            "claim_id": str(uuid4()),
+                            "claim": item.get("claim", ""),
+                            "source_statement": item.get("source_statement", ""),
+                            "speaker": item.get("speaker"),
+                            "claim_type": item.get("claim_type", "other"),
+                            "assertion_status": item.get("assertion_status", "unverified"),
+                            "evidence_span_ids": [
+                                str(value)
+                                for value in resolved.get(
+                                    0 if request.item_ordinal is not None else ordinal, []
+                                )
+                            ],
+                            "state": "active",
+                        }
+                    else:
+                        item = {
+                            "entity_id": str(uuid4()),
+                            "name": item.get("name", ""),
+                            "entity_type": item.get("entity_type", "concept"),
+                            "aliases": item.get("aliases", []),
+                            "evidence_span_ids": [
+                                str(value)
+                                for value in resolved.get(
+                                    0 if request.item_ordinal is not None else ordinal, []
+                                )
+                            ],
+                            "state": "active",
+                        }
+                    adopted_items.append(item)
+                changes["claims" if task_type == "claim_extraction" else "entities"] = adopted_items
             current.update(changes)
             validated = self._validate_editorial_content(current)
             source_map = {
@@ -1113,11 +1388,30 @@ class AdminQueryService:
                 }
                 for field in request.fields
             }
-            adopted_from = {
+            adopted_from: dict[str, Any] = {
                 "analysis_result_id": str(request.source_analysis_result_id),
                 "result_type": task_type,
                 "fields": list(request.fields),
             }
+            if task_type in {"claim_extraction", "entity_extraction"} and (
+                "claims" in request.fields or "entities" in request.fields
+            ):
+                if request.item_ordinal is not None:
+                    adopted_from["item_ordinal"] = request.item_ordinal
+                evidence_ids: list[str] = []
+                evidence_items = cast(
+                    Sequence[object], changes.get("claims") or changes.get("entities") or []
+                )
+                adopted_from["item_ordinals"] = [
+                    request.item_ordinal if request.item_ordinal is not None else index
+                    for index, _item in enumerate(evidence_items)
+                ]
+                for evidence_item in evidence_items:
+                    if isinstance(evidence_item, Mapping):
+                        evidence_ids.extend(
+                            str(value) for value in evidence_item.get("evidence_span_ids", [])
+                        )
+                adopted_from["resolved_evidence_span_ids"] = evidence_ids
             with connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT audit.adopt_editorial_suggestion("
@@ -1860,9 +2154,7 @@ class AdminQueryService:
             raise CursorError("cursor is invalid")
         return created_at, item_id
 
-    def _revision_cursor(
-        self, cursor: str | None, digest: str
-    ) -> tuple[int | None, UUID | None]:
+    def _revision_cursor(self, cursor: str | None, digest: str) -> tuple[int | None, UUID | None]:
         if not cursor:
             return None, None
         last = self._cursor.decode(

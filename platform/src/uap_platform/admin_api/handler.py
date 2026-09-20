@@ -7,7 +7,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Literal, cast
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 
@@ -19,6 +19,8 @@ from .contracts import (
     AssignmentRequest,
     BindCandidateRequest,
     DecisionRequest,
+    EditorialClaimMutationRequest,
+    EditorialEntityMutationRequest,
     EditorialPatchRequest,
     EditorialRevisionRestoreRequest,
     EntityType,
@@ -296,6 +298,117 @@ class AdminApiApplication:
         request_id: UUID,
     ) -> HttpResponse:
         self._require_query(query, set())
+        parts = path.split("/")
+        if path.startswith("/admin/v1/documents/") and "/editorial/claims" in path:
+            if len(parts) == 7 and method == "POST":
+                body = self._model(EditorialClaimMutationRequest, payload)
+                return self._success(
+                    request_id,
+                    self._service.mutate_editorial_claim(
+                        principal_id=principal_id,
+                        request_id=request_id,
+                        document_id=self._nested_uuid(path, -3),
+                        operation="add",
+                        request=body,
+                    ),
+                )
+            if len(parts) == 9 and method == "PATCH":
+                body = self._model(EditorialClaimMutationRequest, payload)
+                try:
+                    identifier: dict[str, Any] = {"claim_id": UUID(parts[-2])}
+                except ValueError:
+                    identifier = {"item_ordinal": int(parts[-2])}
+                body = body.model_copy(update=identifier)
+                return self._success(
+                    request_id,
+                    self._service.mutate_editorial_claim(
+                        principal_id=principal_id,
+                        request_id=request_id,
+                        document_id=self._nested_uuid(path, -5),
+                        operation="edit",
+                        request=body,
+                    ),
+                )
+            if (
+                len(parts) == 9
+                and method == "POST"
+                and parts[-1] in {"remove", "restore", "evidence"}
+            ):
+                body = self._model(EditorialClaimMutationRequest, payload)
+                try:
+                    identifier = {"claim_id": UUID(parts[-2])}
+                except ValueError:
+                    identifier = {"item_ordinal": int(parts[-2])}
+                body = body.model_copy(update=identifier)
+                operation = cast(
+                    Literal["remove", "restore", "remove_evidence"],
+                    "remove_evidence" if parts[-1] == "evidence" else parts[-1],
+                )
+                return self._success(
+                    request_id,
+                    self._service.mutate_editorial_claim(
+                        principal_id=principal_id,
+                        request_id=request_id,
+                        document_id=self._nested_uuid(path, -5),
+                        operation=operation,
+                        request=body,
+                    ),
+                )
+        if path.startswith("/admin/v1/documents/") and "/editorial/entities" in path:
+            if len(parts) == 7 and method == "POST":
+                body = self._model(EditorialEntityMutationRequest, payload)
+                return self._success(
+                    request_id,
+                    self._service.mutate_editorial_entity(
+                        principal_id=principal_id,
+                        request_id=request_id,
+                        document_id=self._nested_uuid(path, -3),
+                        operation="add",
+                        request=body,
+                    ),
+                )
+            if len(parts) == 9 and method == "PATCH":
+                body = self._model(EditorialEntityMutationRequest, payload)
+                try:
+                    identifier = {"entity_id": UUID(parts[-2])}
+                except ValueError:
+                    identifier = {"item_ordinal": int(parts[-2])}
+                body = body.model_copy(update=identifier)
+                return self._success(
+                    request_id,
+                    self._service.mutate_editorial_entity(
+                        principal_id=principal_id,
+                        request_id=request_id,
+                        document_id=self._nested_uuid(path, -5),
+                        operation="edit",
+                        request=body,
+                    ),
+                )
+            if (
+                len(parts) == 9
+                and method == "POST"
+                and parts[-1] in {"remove", "restore", "evidence"}
+            ):
+                body = self._model(EditorialEntityMutationRequest, payload)
+                try:
+                    identifier = {"entity_id": UUID(parts[-2])}
+                except ValueError:
+                    identifier = {"item_ordinal": int(parts[-2])}
+                body = body.model_copy(update=identifier)
+                operation = cast(
+                    Literal["remove", "restore", "remove_evidence"],
+                    "remove_evidence" if parts[-1] == "evidence" else parts[-1],
+                )
+                return self._success(
+                    request_id,
+                    self._service.mutate_editorial_entity(
+                        principal_id=principal_id,
+                        request_id=request_id,
+                        document_id=self._nested_uuid(path, -5),
+                        operation=operation,
+                        request=body,
+                    ),
+                )
         if path.startswith("/admin/v1/documents/") and path.endswith("/editorial"):
             if method != "PATCH" or path.count("/") != 5:
                 raise AdminError("api_resource_not_found")

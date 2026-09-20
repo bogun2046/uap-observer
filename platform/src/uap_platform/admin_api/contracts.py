@@ -201,6 +201,26 @@ class EditorialEntity(StrictModel):
     state: Literal["active", "removed"] = "active"
 
 
+class EditorialClaimMutationRequest(StrictModel):
+    document_version_id: UUID
+    expected_revision: int = Field(ge=0)
+    claim: EditorialClaim | None = None
+    claim_id: UUID | None = None
+    item_ordinal: int | None = Field(default=None, ge=0)
+    evidence_span_ids: list[UUID] | None = Field(default=None, max_length=20)
+    reason: str | None = Field(default=None, max_length=2_000)
+
+
+class EditorialEntityMutationRequest(StrictModel):
+    document_version_id: UUID
+    expected_revision: int = Field(ge=0)
+    entity: EditorialEntity | None = None
+    entity_id: UUID | None = None
+    item_ordinal: int | None = Field(default=None, ge=0)
+    evidence_span_ids: list[UUID] | None = Field(default=None, max_length=20)
+    reason: str | None = Field(default=None, max_length=2_000)
+
+
 class EditorialContent(StrictModel):
     title: str = Field(min_length=1, max_length=500)
     summary: str | None = Field(default=None, max_length=20_000)
@@ -246,6 +266,7 @@ class AdoptEditorialRequest(StrictModel):
         ]
     ] = Field(min_length=1, max_length=7)
     values: dict[str, Any] = Field(default_factory=dict)
+    item_ordinal: int | None = Field(default=None, ge=0)
 
 
 class ReanalysisRequest(StrictModel):
