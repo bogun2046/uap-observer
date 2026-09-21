@@ -118,8 +118,10 @@ def main() -> None:
         seed_grantor(admin)
         senior = insert_person(admin)
         reviewer = insert_person(admin)
+        editorial_admin = insert_person(admin)
         bind_role(admin, senior, "senior_reviewer")
         bind_role(admin, reviewer, "reviewer")
+        bind_role(admin, editorial_admin, "editorial_admin")
         admin.commit()
 
         service = PublicationService(
@@ -219,6 +221,10 @@ def main() -> None:
                     post_grant,
                 ),
                 ("SELECT count(*) FROM public.documents WHERE id=%s", post_document),
+                (
+                    "SELECT count(*) FROM public.search_documents WHERE document_id=%s",
+                    post_document,
+                ),
             )
         )
         projected = rejected_code(
@@ -246,6 +252,10 @@ def main() -> None:
                     post_grant,
                 ),
                 ("SELECT count(*) FROM public.documents WHERE id=%s", post_document),
+                (
+                    "SELECT count(*) FROM public.search_documents WHERE document_id=%s",
+                    post_document,
+                ),
             )
         )
         require("post-publication rejection mutated state", before == after)
@@ -308,6 +318,19 @@ def main() -> None:
             "reviewer role crossed withdrawal authority boundary",
             unauthorized[0] == "42501",
         )
+        editorial_unauthorized = rejected_code(
+            lambda: decide_withdraw(
+                api,
+                principal_id=editorial_admin,
+                request_id=uuid.uuid4(),
+                case_id=lease_case,
+                reason="An editorial administrator cannot withdraw publication authority.",
+            )
+        )
+        require(
+            "editorial admin crossed withdrawal authority boundary",
+            editorial_unauthorized[0] == "42501",
+        )
 
     print(
         json.dumps(
@@ -319,6 +342,7 @@ def main() -> None:
                 "post_publication_revoke": "REJECTED",
                 "post_publication_state": "UNCHANGED",
                 "live_lease_race_guard": "PASS",
+                "editorial_admin_boundary": "PASS",
                 "senior_reviewer_boundary": "PASS",
             },
             sort_keys=True,

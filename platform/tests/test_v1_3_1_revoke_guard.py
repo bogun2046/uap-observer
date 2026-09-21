@@ -94,3 +94,5 @@ def test_runtime_probe_covers_revoke_contract_and_race_boundaries() -> None:
     assert "post-publication rejection mutated state" in text
     assert "live lease did not fence revoke" in text
     assert 'bind_role(admin, senior, "senior_reviewer")' in text
+    assert 'bind_role(admin, editorial_admin, "editorial_admin")' in text
+    assert "public.search_documents WHERE document_id=%s" in text
