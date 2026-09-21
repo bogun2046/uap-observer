@@ -76,3 +76,20 @@ def test_ui_uses_admin_evidence_limit() -> None:
         "evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=200"
         not in html
     )
+
+
+def test_editorial_claim_entity_mutations_use_dom_forms() -> None:
+    html = library_html()
+    assert "role', 'dialog'" in html
+    assert "modal-claim" in html
+    assert "modal-source_statement" in html
+    assert "modal-claim_type" in html
+    assert "modal-assertion_status" in html
+    assert "modal-name" in html
+    assert "modal-entity_type" in html
+    assert "modal-aliases" in html
+    assert "editorial/${kind}/${value.claim_id || value.entity_id}" in html
+    assert "expected_revision:revision()" in html
+    assert "evidence_span_ids: manual ? [] : (value.evidence_span_ids || [])" in html
+    assert "prompt(" not in html
+    assert "confirm(" not in html
