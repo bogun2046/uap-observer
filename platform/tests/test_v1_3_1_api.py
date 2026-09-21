@@ -141,6 +141,10 @@ def test_submission_does_not_expose_direct_publication_route() -> None:
     assert "PUBLICATION STATUS" in html
     assert "Submit revision" in html
     assert "publication-review" in html
+    assert "View Review Case" in html
+    assert "/decisions" in html
+    assert "structured_changes" in html
+    assert "Approve publication" in html
     assert "publish-now" not in html
     assert "prompt(" not in html
     assert "confirm(" not in html

@@ -80,7 +80,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
 <script>
 (() => {
   'use strict';
-  const state = { token: '', document: null, audit: [], revisions: [], evidence: {}, historical: null, editing: false, view: 'library', changed: new Set(), modal: null };
+  const state = { token: '', document: null, audit: [], revisions: [], evidence: {}, historical: null, reviewCase: null, editing: false, view: 'library', changed: new Set(), modal: null };
   const $ = (id) => document.getElementById(id);
   const taskNames = { classification: 'Classification', summary: 'Summary', claim_extraction: 'Claims', entity_extraction: 'Entities' };
   class ApiError extends Error {
@@ -155,6 +155,16 @@ textarea { min-height:84px; resize:vertical; width:100% }
     } else if (modal.type === 'publication-review') {
       modalField(form, 'reason', 'Publication review reason', modal.value.reason || '', 'textarea');
       add(form, 'div', `将提交当前 Editorial revision ${modal.value.revision_no}；该 revision 创建后不会自动升级。`, 'hint');
+    } else if (modal.type === 'publication-decision') {
+      modalField(form, 'reason', 'Decision reason', modal.value.reason || '', 'textarea');
+      if (modal.value.decision === 'approve') {
+        add(form, 'div', '批准只会使用这里明确选择的 Editorial revision 创建 grant、manifest 和 outbox；Publisher 仍未启动。', 'hint');
+        modalField(form, 'title', 'Publication title', modal.value.title || '');
+        modalField(form, 'summary', 'Publication summary', modal.value.summary || '', 'textarea');
+        optionSelect(form, 'category', 'Publication category', modal.value.category || 'other', ['official_report', 'government_document', 'military', 'scientific_research', 'historical_event', 'sighting', 'disputed_event', 'other']);
+        optionSelect(form, 'fact_status', 'Fact status', modal.value.fact_status || 'source_reported', ['official_record', 'corroborated', 'source_reported', 'unverified', 'disputed', 'opinion']);
+        add(form, 'div', `Editorial revision ${modal.value.revision_no} · summary result ${modal.value.summary_analysis_result_id || 'none'}`, 'hint');
+      }
     }
     const actions = add(form, 'div', '', 'actions'); button(actions, 'Cancel', closeModal); button(actions, modal.submitLabel || 'Save', modal.onSubmit, 'primary');
   }
@@ -181,7 +191,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
   }
   async function loadDetail(id) {
     if (!id) return; $('detail').replaceChildren(); add($('detail'), 'div', '加载详情中…', 'hint');
-    try { const [document, audit, revisions] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`), api(`/admin/v1/documents/${encodeURIComponent(id)}/editorial/revisions?limit=100`)]); const evidence = await api(`/admin/v1/evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=100`).catch(() => ({items:[]})); state.document = document; state.audit = audit.items || []; state.revisions = revisions.items || []; state.evidence = Object.fromEntries((evidence.items || []).map((span) => [span.id, span])); state.historical = null; state.editing = false; state.changed.clear(); renderDetail(); }
+    try { const [document, audit, revisions] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`), api(`/admin/v1/documents/${encodeURIComponent(id)}/editorial/revisions?limit=100`)]); const evidence = await api(`/admin/v1/evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=100`).catch(() => ({items:[]})); state.document = document; state.audit = audit.items || []; state.revisions = revisions.items || []; state.evidence = Object.fromEntries((evidence.items || []).map((span) => [span.id, span])); state.historical = null; state.reviewCase = null; state.editing = false; state.changed.clear(); renderDetail(); }
     catch (error) { showApiError(error instanceof ApiError ? error : new Error('无法加载详情')); }
   }
   function renderDetail() {
@@ -217,7 +227,44 @@ textarea { min-height:84px; resize:vertical; width:100% }
       const actions = add(section, 'div', '', 'actions');
       button(actions, `Submit revision ${item.editorial.revision.revision_no} for Review`, () => submitPublicationReview(), 'primary');
     }
+    if (publication.review_case_id) {
+      const reviewActions = add(section, 'div', '', 'actions');
+      button(reviewActions, 'View Review Case', () => loadReviewCase(publication.review_case_id));
+      if (state.reviewCase && state.reviewCase.id === publication.review_case_id) renderReviewCase(section, item, publication);
+    }
     add(section, 'div', 'Publication authorization is separate from Editorial editing. Authorization creates review/grant/manifest/outbox state only; it does not make the document public.', 'hint');
+  }
+  function renderReviewCase(section, item, publication) {
+    const review = state.reviewCase;
+    const card = add(section, 'div', '', 'card');
+    add(card, 'h3', 'REVIEW CASE');
+    add(card, 'div', `case=${review.id} · status=${review.status} · selected revision=${review.editorial_revision_no || '—'}`, 'meta');
+    if (review.decisions && review.decisions.length) {
+      for (const decision of review.decisions) add(card, 'div', `#${decision.sequence_no} ${decision.decision} · ${decision.reason}`, 'hint');
+    } else add(card, 'div', '尚无 Review Decision。', 'hint');
+    if (review.status === 'open' || review.status === 'assigned') {
+      const actions = add(card, 'div', '', 'actions');
+      button(actions, 'Approve publication', () => openPublicationDecision('approve', item, publication), 'primary');
+      button(actions, 'Reject', () => openPublicationDecision('reject', item, publication), 'danger');
+      button(actions, 'Dispute', () => openPublicationDecision('dispute', item, publication));
+    }
+  }
+  async function loadReviewCase(caseId) {
+    try { state.reviewCase = await api(`/admin/v1/review-cases/${encodeURIComponent(caseId)}`); renderDetail(); }
+    catch (error) { state.reviewCase = null; setNotice(error.message || 'Review Case 读取失败（需要 reviewer 权限）。', 'notice error'); }
+  }
+  function openPublicationDecision(decision, item, publication) {
+    const editorial = currentEditorial();
+    const summaryResult = aiResult('summary');
+    const summaryAnalysisResultId = summaryResult && summaryResult.result && summaryResult.result.summary === editorial.summary ? summaryResult.analysis_result_id : null;
+    state.modal = { title:`${decision === 'approve' ? 'Approve' : decision === 'reject' ? 'Reject' : 'Dispute'} Publication`, type:'publication-decision', value:{ decision, revision_no:publication.selected_editorial_revision_no || revision(), title:editorial.title || '', summary:editorial.summary || '', category:editorial.category || 'other', fact_status:'source_reported', summary_analysis_result_id:summaryAnalysisResultId, reason:'' }, submitLabel:'Record decision', onSubmit:async () => {
+      const reason = $('modal-reason').value.trim();
+      if (!reason || reason.length < 10) { state.modal.error='Reason must be at least 10 characters'; renderModal(); return; }
+      const structured_changes = decision === 'approve' ? { publication:{ title:$('modal-title').value.trim(), summary:$('modal-summary').value.trim() || null, category:$('modal-category').value, fact_status:$('modal-fact_status').value, summary_analysis_result_id:summaryAnalysisResultId } } : {};
+      if (decision === 'approve' && !structured_changes.publication.title) { state.modal.error='Publication title is required'; renderModal(); return; }
+      try { await api(`/admin/v1/review-cases/${encodeURIComponent(publication.review_case_id)}/decisions`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ decision, reason, structured_changes }) }); closeModal(); setNotice('Review Decision 已记录；Publication authorization 仍等待 Publisher。', 'notice success'); state.reviewCase = null; await loadDetail(item.document_id); }
+      catch (error) { state.modal.error = error.message || 'Review Decision 记录失败（请确认 reviewer/senior-reviewer 权限）。'; renderModal(); }
+    } }; renderModal();
   }
   function submitPublicationReview() {
     const current = state.document && state.document.editorial && state.document.editorial.revision;
