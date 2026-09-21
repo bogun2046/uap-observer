@@ -30,6 +30,7 @@ from .contracts import (
     OpenCaseRequest,
     Problem,
     PublicationEventState,
+    PublicationReviewRequest,
     ReanalysisRequest,
     ReasonRequest,
     ReviewCaseType,
@@ -143,6 +144,28 @@ class AdminApiApplication:
                     principal_id=principal_id,
                     limit=self._limit(query),
                     cursor=self._optional(query, "cursor"),
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/publication"):
+            self._require_query(query, set())
+            if path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            return self._resource(
+                request_id,
+                self._service.get_publication_status(
+                    principal_id=principal_id,
+                    document_id=self._nested_uuid(path, -2),
+                ),
+            )
+        if path.startswith("/admin/v1/documents/") and path.endswith("/publication-status"):
+            self._require_query(query, set())
+            if path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            return self._resource(
+                request_id,
+                self._service.get_publication_status(
+                    principal_id=principal_id,
+                    document_id=self._nested_uuid(path, -2),
                 ),
             )
         if path == "/admin/v1/documents":
@@ -505,6 +528,36 @@ class AdminApiApplication:
                 subject_id=body.subject_id,
                 priority=body.priority,
                 reason=body.reason,
+            )
+            return self._success(request_id, result)
+        if (
+            method == "POST"
+            and path.startswith("/admin/v1/documents/")
+            and path.endswith("/publication-review")
+        ):
+            if path.count("/") != 5:
+                raise AdminError("api_resource_not_found")
+            body = self._model(PublicationReviewRequest, payload)
+            result = self._service.submit_publication_review(
+                principal_id=principal_id,
+                request_id=request_id,
+                document_id=self._nested_uuid(path, -2),
+                request=body,
+            )
+            return self._success(request_id, result)
+        if (
+            method == "POST"
+            and path.startswith("/admin/v1/documents/")
+            and path.endswith("/publication/review")
+        ):
+            if path.count("/") != 6:
+                raise AdminError("api_resource_not_found")
+            body = self._model(PublicationReviewRequest, payload)
+            result = self._service.submit_publication_review(
+                principal_id=principal_id,
+                request_id=request_id,
+                document_id=self._nested_uuid(path, -3),
+                request=body,
             )
             return self._success(request_id, result)
         if path.startswith("/admin/v1/review-cases/") and path.endswith("/assignment"):

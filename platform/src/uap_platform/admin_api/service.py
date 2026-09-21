@@ -25,6 +25,7 @@ from uap_platform.review.promotion import (
     bind_entity_candidate,
     select_analysis_result,
 )
+from uap_platform.review.publication import open_document_publication_review_case
 from uap_platform.review.session import require_active_role
 
 from .contracts import (
@@ -57,13 +58,16 @@ from .contracts import (
     PublicationEventPage,
     PublicationEventState,
     PublicationEventSummary,
+    PublicationReviewRequest,
     PublicationState,
+    PublicationStatus,
     ReanalysisRequest,
     ReviewCaseDetail,
     ReviewCasePage,
     ReviewCaseSummary,
     ReviewDecision,
     ReviewDecisionSummary,
+    ReviewStatus,
     TrashDocumentPage,
     TrashDocumentSummary,
     WriteResult,
@@ -119,11 +123,15 @@ class AdminQueryService:
                     SELECT review_case.id, review_case.case_type, review_case.status,
                            review_case.priority, review_case.assigned_to, review_case.opened_by,
                            review_case.opened_at, review_case.closed_at,
+                           review_case.editorial_revision_id,
+                           editorial_revision.revision_no AS editorial_revision_no,
                            COALESCE(
                                review_case.document_version_id, review_case.claim_id,
                                review_case.entity_id, review_case.relation_id
                            ) AS subject_id
                       FROM audit.review_cases AS review_case
+                      LEFT JOIN core.editorial_revisions AS editorial_revision
+                        ON editorial_revision.id = review_case.editorial_revision_id
                      WHERE (%s::audit.review_status IS NULL
                             OR review_case.status = %s::audit.review_status)
                        AND (%s::audit.review_case_type IS NULL
@@ -189,11 +197,15 @@ class AdminQueryService:
                     SELECT review_case.id, review_case.case_type, review_case.status,
                            review_case.priority, review_case.assigned_to, review_case.opened_by,
                            review_case.opened_at, review_case.closed_at,
+                           review_case.editorial_revision_id,
+                           editorial_revision.revision_no AS editorial_revision_no,
                            COALESCE(
                                review_case.document_version_id, review_case.claim_id,
                                review_case.entity_id, review_case.relation_id
                            ) AS subject_id
                       FROM audit.review_cases AS review_case
+                      LEFT JOIN core.editorial_revisions AS editorial_revision
+                        ON editorial_revision.id = review_case.editorial_revision_id
                      WHERE review_case.id = %s
                     """,
                     (case_id,),
@@ -458,6 +470,7 @@ class AdminQueryService:
                     (version_id,),
                 )
                 revision = cursor.fetchone()
+            publication = self._publication_status(connection, document_id)
 
         source_text = None
         if self._object_client is not None and row["text_object_id"] is not None:
@@ -609,6 +622,70 @@ class AdminQueryService:
                 "trashed": trashed,
                 "reanalyze_allowed": not trashed,
             },
+            publication=publication,
+        )
+
+    def get_publication_status(
+        self, *, principal_id: UUID, document_id: UUID
+    ) -> PublicationStatus | None:
+        """Return the server-owned publication status read model."""
+
+        with self._pool.read_transaction(principal_id) as connection:
+            self._require_any_role(
+                connection, (EDITORIAL_ROLE, REVIEWER_ROLE, SENIOR_ROLE, OPERATOR_ROLE)
+            )
+            return self._publication_status(connection, document_id)
+
+    def submit_publication_review(
+        self,
+        *,
+        principal_id: UUID,
+        request_id: UUID,
+        document_id: UUID,
+        request: PublicationReviewRequest,
+    ) -> WriteResult:
+        """Submit a selected current Editorial revision for review only."""
+
+        def _call(connection: Connection[dict[str, object]]) -> UUID:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT revision.revision_no, version.document_id, document.deleted_at
+                      FROM core.editorial_revisions AS revision
+                      JOIN core.document_versions AS version
+                        ON version.id = revision.document_version_id
+                      JOIN core.documents AS document ON document.id = version.document_id
+                     WHERE revision.id = %s
+                       AND revision.document_version_id = %s
+                    """,
+                    (request.editorial_revision_id, request.document_version_id),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise AdminError("editorial_revision_not_found")
+            if UUID(str(row["document_id"])) != document_id:
+                raise AdminError("editorial_document_version_mismatch")
+            if row["deleted_at"] is not None:
+                raise AdminError("editorial_document_trashed")
+            actual_revision = int(cast(int, row["revision_no"]))
+            if (
+                actual_revision != request.editorial_revision_no
+                or actual_revision != request.expected_revision
+            ):
+                raise AdminError("editorial_revision_conflict")
+            return open_document_publication_review_case(
+                connection,
+                request.document_version_id,
+                request.editorial_revision_id,
+                request.priority,
+                request.reason,
+            )
+
+        return self._write(
+            principal_id,
+            request_id,
+            "publication.review.submit",
+            _call,
         )
 
     def list_trash_documents(
@@ -2280,6 +2357,8 @@ class AdminQueryService:
             opened_by=row["opened_by"],
             opened_at=row["opened_at"],
             closed_at=row["closed_at"],
+            editorial_revision_id=row.get("editorial_revision_id"),
+            editorial_revision_no=row.get("editorial_revision_no"),
         )
 
     @staticmethod
@@ -2406,10 +2485,222 @@ class AdminQueryService:
             row = cursor.fetchone()
         if row is None:
             return None
+        editorial_revision_id = None
+        editorial_revision_no = None
+        manifest_id = None
+        manifest_hash = None
+        outbox_status = None
+        public_visible = str(row["projection_state"]) == "visible"
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT grant_row.editorial_revision_id, grant_row.editorial_revision_no,
+                       manifest.id AS manifest_id, manifest.manifest_sha256 AS manifest_hash,
+                       CASE
+                           WHEN event.published_at IS NOT NULL THEN 'published'
+                           WHEN event.terminal_at IS NOT NULL THEN 'terminal'
+                           WHEN event.available_at > clock_timestamp() THEN 'retry_wait'
+                           WHEN event.id IS NOT NULL THEN 'queued'
+                           ELSE NULL
+                       END AS outbox_status,
+                       EXISTS (
+                           SELECT 1 FROM public.documents AS public_document
+                            WHERE public_document.document_grant_id = grant_row.id
+                       ) AS public_visible
+                  FROM audit.document_publication_grants AS grant_row
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.manifest_sha256
+                        FROM audit.document_publication_manifests AS item
+                       WHERE item.grant_id = grant_row.id
+                       ORDER BY item.created_at DESC, item.id DESC
+                       LIMIT 1
+                  ) AS manifest ON true
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.available_at, item.terminal_at,
+                             item.published_at
+                        FROM ops.outbox_events AS item
+                       WHERE item.event_type LIKE 'publication.%%'
+                         AND item.payload ->> 'grant_id' = lower(grant_row.id::text)
+                       ORDER BY item.occurred_at DESC, item.id DESC
+                       LIMIT 1
+                  ) AS event ON true
+                 WHERE grant_row.id = %s
+                """,
+                (row["grant_id"],),
+            )
+            grant_row = cursor.fetchone()
+        if grant_row is not None:
+            editorial_revision_id = grant_row["editorial_revision_id"]
+            editorial_revision_no = grant_row["editorial_revision_no"]
+            manifest_id = grant_row["manifest_id"]
+            manifest_hash = grant_row["manifest_hash"]
+            outbox_status = grant_row["outbox_status"]
+            public_visible = bool(grant_row["public_visible"])
         return PublicationState(
             grant_id=cast(UUID, row["grant_id"]),
             revision=cast(int, row["revision_no"]),
             grant_status=GrantStatus(str(row["grant_status"])),
             outbox_event_id=cast(UUID | None, row["outbox_event_id"]),
             projection_state=ProjectionState(str(row["projection_state"])),
+            editorial_revision_id=cast(UUID | None, editorial_revision_id),
+            editorial_revision_no=cast(int | None, editorial_revision_no),
+            manifest_id=cast(UUID | None, manifest_id),
+            manifest_hash=cast(str | None, manifest_hash),
+            outbox_status=cast(str | None, outbox_status),
+            public_visible=public_visible,
+        )
+
+    def _publication_status(
+        self, connection: Connection[dict[str, object]], document_id: UUID
+    ) -> PublicationStatus | None:
+        """Build one authoritative status row without exposing internal tables."""
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT document.id AS document_id,
+                       version.id AS document_version_id,
+                       document.deleted_at,
+                       current_revision.id AS current_editorial_revision_id,
+                       current_revision.revision_no AS current_editorial_revision_no,
+                       review_case.id AS review_case_id,
+                       review_case.status AS review_case_status,
+                       review_case.editorial_revision_id AS selected_editorial_revision_id,
+                       selected_revision.revision_no AS selected_editorial_revision_no,
+                       decision.decision AS decision_status,
+                       grant_row.id AS grant_id,
+                       grant_row.grant_status,
+                       grant_row.revision_no AS publication_sequence,
+                       manifest.id AS manifest_id,
+                       manifest.manifest_sha256 AS manifest_hash,
+                       event.id AS outbox_event_id,
+                       CASE
+                           WHEN event.published_at IS NOT NULL THEN 'published'
+                           WHEN event.terminal_at IS NOT NULL THEN 'terminal'
+                           WHEN event.available_at > clock_timestamp() THEN 'retry_wait'
+                           WHEN event.id IS NOT NULL THEN 'queued'
+                           ELSE NULL
+                       END AS outbox_status,
+                       EXISTS (
+                           SELECT 1 FROM public.documents AS public_document
+                            WHERE public_document.document_grant_id = grant_row.id
+                       ) AS public_visible
+                  FROM core.documents AS document
+                  JOIN LATERAL (
+                      SELECT item.id
+                        FROM core.document_versions AS item
+                       WHERE item.document_id = document.id
+                       ORDER BY item.version_no DESC, item.id DESC
+                       LIMIT 1
+                  ) AS version ON true
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.revision_no, item.content
+                        FROM core.editorial_revisions AS item
+                       WHERE item.document_version_id = version.id
+                         AND item.content IS NOT NULL
+                       ORDER BY item.revision_no DESC, item.id DESC
+                       LIMIT 1
+                  ) AS current_revision ON true
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.status, item.editorial_revision_id,
+                             item.opened_at
+                        FROM audit.review_cases AS item
+                       WHERE item.document_version_id = version.id
+                         AND item.case_type = 'document'::audit.review_case_type
+                       ORDER BY item.opened_at DESC, item.id DESC
+                       LIMIT 1
+                  ) AS review_case ON true
+                  LEFT JOIN core.editorial_revisions AS selected_revision
+                    ON selected_revision.id = review_case.editorial_revision_id
+                  LEFT JOIN LATERAL (
+                      SELECT item.decision
+                        FROM audit.review_decisions AS item
+                       WHERE item.review_case_id = review_case.id
+                       ORDER BY item.sequence_no DESC, item.id DESC
+                       LIMIT 1
+                  ) AS decision ON true
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.grant_status, item.revision_no
+                        FROM audit.document_publication_grants AS item
+                       WHERE item.review_case_id = review_case.id
+                       ORDER BY item.revision_no DESC, item.id DESC
+                       LIMIT 1
+                  ) AS grant_row ON true
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.manifest_sha256
+                        FROM audit.document_publication_manifests AS item
+                       WHERE item.grant_id = grant_row.id
+                       ORDER BY item.created_at DESC, item.id DESC
+                       LIMIT 1
+                  ) AS manifest ON true
+                  LEFT JOIN LATERAL (
+                      SELECT item.id, item.available_at, item.terminal_at,
+                             item.published_at
+                        FROM ops.outbox_events AS item
+                       WHERE item.event_type LIKE 'publication.%%'
+                         AND item.payload ->> 'grant_id' = lower(grant_row.id::text)
+                       ORDER BY item.occurred_at DESC, item.id DESC
+                       LIMIT 1
+                  ) AS event ON true
+                 WHERE document.id = %s
+                """,
+                (document_id,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return None
+
+        trashed = row["deleted_at"] is not None
+        current_id = cast(UUID | None, row["current_editorial_revision_id"])
+        current_no = cast(int | None, row["current_editorial_revision_no"])
+        review_status = (
+            ReviewStatus(str(row["review_case_status"]))
+            if row["review_case_status"] is not None
+            else None
+        )
+        grant_status = (
+            GrantStatus(str(row["grant_status"])) if row["grant_status"] is not None else None
+        )
+        outbox_status = cast(str | None, row["outbox_status"])
+        public_visible = bool(row["public_visible"])
+        if public_visible:
+            status = "PUBLIC"
+        elif grant_status == GrantStatus.ACTIVE and outbox_status is not None:
+            status = "QUEUED_FOR_PUBLICATION"
+        elif grant_status == GrantStatus.ACTIVE:
+            status = "AUTHORIZED"
+        elif review_status in {ReviewStatus.OPEN, ReviewStatus.ASSIGNED}:
+            status = "UNDER_REVIEW"
+        else:
+            status = "NOT_SUBMITTED"
+        eligible = (
+            not trashed
+            and current_id is not None
+            and grant_status != GrantStatus.ACTIVE
+            and review_status not in {ReviewStatus.OPEN, ReviewStatus.ASSIGNED}
+        )
+        return PublicationStatus(
+            document_id=cast(UUID, row["document_id"]),
+            document_version_id=cast(UUID, row["document_version_id"]),
+            current_editorial_revision_id=current_id,
+            current_editorial_revision_no=current_no,
+            selected_editorial_revision_id=cast(UUID | None, row["selected_editorial_revision_id"]),
+            selected_editorial_revision_no=cast(int | None, row["selected_editorial_revision_no"]),
+            eligibility="eligible" if eligible else "ineligible",
+            status=status,
+            review_case_id=cast(UUID | None, row["review_case_id"]),
+            review_case_status=review_status,
+            decision_status=(
+                ReviewDecision(str(row["decision_status"]))
+                if row["decision_status"] is not None
+                else None
+            ),
+            grant_id=cast(UUID | None, row["grant_id"]),
+            grant_status=grant_status,
+            publication_sequence=cast(int | None, row["publication_sequence"]),
+            manifest_id=cast(UUID | None, row["manifest_id"]),
+            manifest_hash=cast(str | None, row["manifest_hash"]),
+            outbox_event_id=cast(UUID | None, row["outbox_event_id"]),
+            outbox_status=outbox_status,
+            public_visible=public_visible,
         )

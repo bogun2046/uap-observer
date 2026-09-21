@@ -172,6 +172,43 @@ class PublicationState(StrictModel):
     grant_status: GrantStatus
     outbox_event_id: UUID | None
     projection_state: ProjectionState
+    editorial_revision_id: UUID | None = None
+    editorial_revision_no: int | None = Field(default=None, ge=1)
+    manifest_id: UUID | None = None
+    manifest_hash: str | None = None
+    outbox_status: str | None = None
+    public_visible: bool = False
+
+
+class PublicationStatus(StrictModel):
+    document_id: UUID
+    document_version_id: UUID
+    current_editorial_revision_id: UUID | None
+    current_editorial_revision_no: int | None = Field(default=None, ge=1)
+    selected_editorial_revision_id: UUID | None
+    selected_editorial_revision_no: int | None = Field(default=None, ge=1)
+    eligibility: str
+    status: str
+    review_case_id: UUID | None
+    review_case_status: ReviewStatus | None
+    decision_status: ReviewDecision | None
+    grant_id: UUID | None
+    grant_status: GrantStatus | None
+    publication_sequence: int | None = Field(default=None, ge=1)
+    manifest_id: UUID | None
+    manifest_hash: str | None
+    outbox_event_id: UUID | None
+    outbox_status: str | None
+    public_visible: bool
+
+
+class PublicationReviewRequest(StrictModel):
+    document_version_id: UUID
+    editorial_revision_id: UUID
+    editorial_revision_no: int = Field(ge=1)
+    expected_revision: int = Field(ge=1)
+    priority: int = Field(default=0, ge=-32768, le=32767)
+    reason: str = Field(min_length=10, max_length=5000)
 
 
 class WriteResult(StrictModel):
@@ -322,6 +359,7 @@ class DocumentDetail(StrictModel):
     ai_results: dict[str, Any]
     editorial: dict[str, Any] | None
     indicators: dict[str, bool]
+    publication: PublicationStatus | None = None
 
 
 class DocumentListSummary(StrictModel):
@@ -383,6 +421,8 @@ class ReviewCaseSummary(StrictModel):
     opened_by: UUID
     opened_at: datetime
     closed_at: datetime | None
+    editorial_revision_id: UUID | None = None
+    editorial_revision_no: int | None = Field(default=None, ge=1)
 
 
 class ReviewDecisionSummary(StrictModel):

@@ -152,6 +152,9 @@ textarea { min-height:84px; resize:vertical; width:100% }
       modalField(form, 'name', 'Entity name', modal.value.name || ''); modalField(form, 'aliases', 'Aliases（每行一个）', (modal.value.aliases || []).join('\n'), 'textarea'); optionSelect(form, 'entity_type', 'Entity type', modal.value.entity_type || 'concept', ['person', 'organization', 'location', 'topic', 'object', 'event', 'concept']);
     } else if (modal.type === 'reanalyze') {
       modalField(form, 'reason', 'Reason', modal.value.reason || 'manual editorial review', 'textarea');
+    } else if (modal.type === 'publication-review') {
+      modalField(form, 'reason', 'Publication review reason', modal.value.reason || '', 'textarea');
+      add(form, 'div', `将提交当前 Editorial revision ${modal.value.revision_no}；该 revision 创建后不会自动升级。`, 'hint');
     }
     const actions = add(form, 'div', '', 'actions'); button(actions, 'Cancel', closeModal); button(actions, modal.submitLabel || 'Save', modal.onSubmit, 'primary');
   }
@@ -189,7 +192,44 @@ textarea { min-height:84px; resize:vertical; width:100% }
     const actions = add(heading, 'div', '', 'actions');
     if (!isTrashed()) { button(actions, state.editing ? 'Cancel' : 'Edit', () => { state.editing = !state.editing; state.changed.clear(); renderDetail(); }, state.editing ? '' : 'primary'); if (state.editing) button(actions, 'Save', saveEditorial, 'primary'); button(actions, 'Move to Trash', trashDocument, 'danger'); }
     else button(actions, 'Restore', restoreDocument, 'primary');
-    renderSource(panel, raw, item); renderEditorial(panel, editorial, item); renderRevisionHistory(panel); renderHistorical(panel); renderAi(panel); renderAudit(panel);
+    renderPublication(panel, item); renderSource(panel, raw, item); renderEditorial(panel, editorial, item); renderRevisionHistory(panel); renderHistorical(panel); renderAi(panel); renderAudit(panel);
+  }
+  function renderPublication(panel, item) {
+    const publication = item.publication || {};
+    const section = add(panel, 'section', ''); add(section, 'h2', 'PUBLICATION STATUS');
+    const fields = [
+      ['Eligibility', publication.eligibility || '—'],
+      ['Status', publication.status || 'NOT_SUBMITTED'],
+      ['Current Editorial revision', publication.current_editorial_revision_no ? `${publication.current_editorial_revision_no} (${publication.current_editorial_revision_id || '—'})` : '—'],
+      ['Selected revision', publication.selected_editorial_revision_no ? `${publication.selected_editorial_revision_no} (${publication.selected_editorial_revision_id || '—'})` : '—'],
+      ['Review case', publication.review_case_id || '—'],
+      ['Review status', publication.review_case_status || '—'],
+      ['Decision', publication.decision_status || '—'],
+      ['Grant', publication.grant_id ? `${publication.grant_status || '—'} · sequence ${publication.publication_sequence || '—'}` : '—'],
+      ['Manifest', publication.manifest_id || '—'],
+      ['Manifest hash', publication.manifest_hash || '—'],
+      ['Outbox', publication.outbox_event_id ? `${publication.outbox_status || '—'} · ${publication.outbox_event_id}` : '—'],
+      ['Public visibility', publication.public_visible ? 'VISIBLE' : 'NOT VISIBLE (Publisher stopped)'],
+    ];
+    const grid = add(section, 'div', '', 'grid');
+    for (const [label, value] of fields) { const wrap = add(grid, 'div', '', 'field'); add(wrap, 'label', label); add(wrap, 'div', value, 'readonly'); }
+    if (!isTrashed() && publication.eligibility === 'eligible' && item.editorial && item.editorial.revision) {
+      const actions = add(section, 'div', '', 'actions');
+      button(actions, `Submit revision ${item.editorial.revision.revision_no} for Review`, () => submitPublicationReview(), 'primary');
+    }
+    add(section, 'div', 'Publication authorization is separate from Editorial editing. Authorization creates review/grant/manifest/outbox state only; it does not make the document public.', 'hint');
+  }
+  function submitPublicationReview() {
+    const current = state.document && state.document.editorial && state.document.editorial.revision;
+    if (!current) return;
+    state.modal = { title:'Submit for Publication Review', type:'publication-review', value:{ revision_no:current.revision_no, reason:'Editorial revision selected for publication review' }, submitLabel:'Submit', onSubmit:async () => {
+      const reason = $('modal-reason').value.trim();
+      if (!reason || reason.length < 10) { state.modal.error='Reason must be at least 10 characters'; renderModal(); return; }
+      try {
+        await api(`/admin/v1/documents/${state.document.document_id}/publication-review`, { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':uuid()}, body:JSON.stringify({ document_version_id:state.document.document_version_id, editorial_revision_id:current.id, editorial_revision_no:current.revision_no, expected_revision:current.revision_no, reason }) });
+        closeModal(); setNotice('Publication review submitted for the selected Editorial revision.', 'notice success'); await loadDetail(state.document.document_id);
+      } catch (error) { state.modal.error = error.message || 'Publication review submission failed'; renderModal(); }
+    } }; renderModal();
   }
   function renderSource(panel, raw, item) {
     const section = add(panel, 'section', ''); add(section, 'h2', 'SOURCE / RAW'); const grid = add(section, 'div', '', 'grid');

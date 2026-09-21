@@ -10,6 +10,7 @@ from .promotion import (
     bind_entity_candidate,
     select_analysis_result,
 )
+from .publication import open_document_publication_review_case
 from .session import bind_review_session, require_active_role
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "close_review_case",
     "create_manual_claim",
     "map_review_error",
+    "open_document_publication_review_case",
     "open_review_case",
     "record_review_decision",
     "require_active_role",
