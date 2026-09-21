@@ -140,7 +140,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
   }
   async function loadDetail(id) {
     if (!id) return; $('detail').replaceChildren(); add($('detail'), 'div', '加载详情中…', 'hint');
-    try { const [document, audit, revisions] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`), api(`/admin/v1/documents/${encodeURIComponent(id)}/editorial/revisions?limit=100`)]); const evidence = await api(`/admin/v1/evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=200`).catch(() => ({items:[]})); state.document = document; state.audit = audit.items || []; state.revisions = revisions.items || []; state.evidence = Object.fromEntries((evidence.items || []).map((span) => [span.id, span])); state.historical = null; state.editing = false; state.changed.clear(); renderDetail(); }
+    try { const [document, audit, revisions] = await Promise.all([api(`/admin/v1/documents/${encodeURIComponent(id)}`), api(`/admin/v1/documents/${encodeURIComponent(id)}/audit?limit=50`), api(`/admin/v1/documents/${encodeURIComponent(id)}/editorial/revisions?limit=100`)]); const evidence = await api(`/admin/v1/evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=100`).catch(() => ({items:[]})); state.document = document; state.audit = audit.items || []; state.revisions = revisions.items || []; state.evidence = Object.fromEntries((evidence.items || []).map((span) => [span.id, span])); state.historical = null; state.editing = false; state.changed.clear(); renderDetail(); }
     catch (error) { showApiError(error instanceof ApiError ? error : new Error('无法加载详情')); }
   }
   function renderDetail() {

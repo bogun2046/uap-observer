@@ -64,3 +64,15 @@ def test_ui_preserves_patch_and_lifecycle_contracts() -> None:
     assert "documents/trash" in html
     assert "documents/${state.document.document_id}/restore" in html
     assert "public_authorized=false" in html
+
+
+def test_ui_uses_admin_evidence_limit() -> None:
+    html = library_html()
+    assert (
+        "evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=100"
+        in html
+    )
+    assert (
+        "evidence-spans?document_version_id=${encodeURIComponent(document.document_version_id)}&limit=200"
+        not in html
+    )
