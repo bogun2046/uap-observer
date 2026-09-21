@@ -2509,10 +2509,10 @@ class AdminQueryService:
                        ) AS public_visible
                   FROM audit.document_publication_grants AS grant_row
                   LEFT JOIN LATERAL (
-                      SELECT item.id, item.manifest_sha256
+                      SELECT item.grant_id AS id, item.manifest_sha256
                         FROM audit.document_publication_manifests AS item
                        WHERE item.grant_id = grant_row.id
-                       ORDER BY item.created_at DESC, item.id DESC
+                       ORDER BY item.created_at DESC, item.grant_id DESC
                        LIMIT 1
                   ) AS manifest ON true
                   LEFT JOIN LATERAL (
@@ -2627,10 +2627,10 @@ class AdminQueryService:
                        LIMIT 1
                   ) AS grant_row ON true
                   LEFT JOIN LATERAL (
-                      SELECT item.id, item.manifest_sha256
+                      SELECT item.grant_id AS id, item.manifest_sha256
                         FROM audit.document_publication_manifests AS item
                        WHERE item.grant_id = grant_row.id
-                       ORDER BY item.created_at DESC, item.id DESC
+                       ORDER BY item.created_at DESC, item.grant_id DESC
                        LIMIT 1
                   ) AS manifest ON true
                   LEFT JOIN LATERAL (
