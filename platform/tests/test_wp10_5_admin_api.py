@@ -521,6 +521,81 @@ def _case_row(**overrides: object) -> dict[str, object]:
     return row
 
 
+def test_editorial_admin_can_read_analysis_and_evidence_without_reviewer_role() -> None:
+    from uap_platform.admin_api.errors import AdminError
+    from uap_platform.review.errors import ReviewSessionError
+
+    principal = UUID("00000000-0000-4000-8000-000000000001")
+    version_id = UUID("00000000-0000-4000-8000-000000000042")
+    analysis = {
+        "id": UUID("00000000-0000-4000-8000-000000000041"),
+        "document_version_id": version_id,
+        "result_type": "claim_extraction",
+        "schema_version": "1",
+        "validation_status": "valid",
+        "created_at": datetime(2026, 8, 31, tzinfo=UTC),
+    }
+    span = {
+        "id": UUID("00000000-0000-4000-8000-000000000061"),
+        "document_version_id": version_id,
+        "locator_type": "text",
+        "char_start": 0,
+        "char_end": 4,
+        "page_start": None,
+        "page_end": None,
+        "time_start_ms": None,
+        "time_end_ms": None,
+        "locator": {"char_start": 0},
+        "created_at": datetime(2026, 8, 31, tzinfo=UTC),
+    }
+
+    def editorial_only(_connection: object, role: str) -> UUID:
+        if role == "reviewer":
+            raise ReviewSessionError("review_role_denied", "42501")
+        return principal
+
+    with patch("uap_platform.admin_api.service.require_active_role", side_effect=editorial_only):
+        service = _admin_service([[analysis], [span]])
+        assert service.list_analysis_results(
+            principal_id=principal,
+            document_version_id=version_id,
+            result_type=None,
+            validation_status=None,
+            limit=20,
+            cursor=None,
+        ).items
+        assert service.list_evidence_spans(
+            principal_id=principal,
+            document_version_id=version_id,
+            limit=20,
+            cursor=None,
+        ).items
+
+    def ordinary_denied(_connection: object, _role: str) -> UUID:
+        raise ReviewSessionError("review_role_denied", "42501")
+
+    with patch("uap_platform.admin_api.service.require_active_role", side_effect=ordinary_denied):
+        service = _admin_service([[], []])
+        with pytest.raises(AdminError) as analysis_denied:
+            service.list_analysis_results(
+                principal_id=principal,
+                document_version_id=version_id,
+                result_type=None,
+                validation_status=None,
+                limit=20,
+                cursor=None,
+            )
+        assert analysis_denied.value.code == "review_role_denied"
+        with pytest.raises(AdminError) as evidence_denied:
+            service.list_evidence_spans(
+                principal_id=principal,
+                document_version_id=version_id,
+                limit=20,
+                cursor=None,
+            )
+        assert evidence_denied.value.code == "review_role_denied"
+
+
 def test_admin_query_service_reads_writes_cursors_and_errors() -> None:
     from datetime import UTC, datetime
     from unittest.mock import patch

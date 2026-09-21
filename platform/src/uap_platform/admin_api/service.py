@@ -1515,7 +1515,7 @@ class AdminQueryService:
         digest = filters_digest(filters)
         last_created, last_id = self._created_cursor(cursor, "analysis-results", digest)
         with self._pool.read_transaction(principal_id) as connection:
-            self._require_role(connection, REVIEWER_ROLE)
+            self._require_any_role(connection, (REVIEWER_ROLE, EDITORIAL_ROLE))
             with connection.cursor() as db_cursor:
                 db_cursor.execute(
                     """
@@ -1635,7 +1635,7 @@ class AdminQueryService:
         digest = filters_digest(filters)
         last_created, last_id = self._created_cursor(cursor, "evidence-spans", digest)
         with self._pool.read_transaction(principal_id) as connection:
-            self._require_role(connection, REVIEWER_ROLE)
+            self._require_any_role(connection, (REVIEWER_ROLE, EDITORIAL_ROLE))
             with connection.cursor() as db_cursor:
                 db_cursor.execute(
                     """
