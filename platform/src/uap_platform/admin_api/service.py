@@ -663,11 +663,15 @@ class AdminQueryService:
                 row = cursor.fetchone()
             if row is None:
                 raise AdminError("editorial_revision_not_found")
-            if UUID(str(row["document_id"])) != document_id:
+            # _write() deliberately switches this transaction to tuple rows.
+            # Keep this local query positional so the publication submit path
+            # does not depend on a mapping row factory.
+            revision_no, row_document_id, deleted_at = row
+            if UUID(str(row_document_id)) != document_id:
                 raise AdminError("editorial_document_version_mismatch")
-            if row["deleted_at"] is not None:
+            if deleted_at is not None:
                 raise AdminError("editorial_document_trashed")
-            actual_revision = int(cast(int, row["revision_no"]))
+            actual_revision = int(cast(int, revision_no))
             if (
                 actual_revision != request.editorial_revision_no
                 or actual_revision != request.expected_revision

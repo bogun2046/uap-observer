@@ -23,9 +23,14 @@ from pydantic import ValidationError
 
 from tools import validate_wp10_5
 from uap_platform.admin_api.config import load_admin_api_settings
-from uap_platform.admin_api.contracts import OpenCaseRequest, Problem, WriteResult
+from uap_platform.admin_api.contracts import (
+    OpenCaseRequest,
+    Problem,
+    PublicationReviewRequest,
+    WriteResult,
+)
 from uap_platform.admin_api.cursor import CursorCodec
-from uap_platform.admin_api.errors import map_database_error
+from uap_platform.admin_api.errors import AdminError, map_database_error
 from uap_platform.admin_api.handler import AdminApiApplication
 from uap_platform.admin_api.oidc import OidcValidator, TokenError
 from uap_platform.admin_api.pool import AdminApiPool
@@ -503,6 +508,66 @@ def _admin_codec() -> CursorCodec:
 def _admin_service(results: list[object]) -> AdminQueryService:
     connection = AdminScriptedConnection(results)
     return AdminQueryService(cast(AdminApiPool, AdminScriptedPool(connection)), _admin_codec())
+
+
+def test_submit_publication_review_handles_tuple_rows_and_rolls_back_on_error() -> None:
+    document_id = UUID("00000000-0000-7300-8000-000000000101")
+    version_id = UUID("00000000-0000-7300-8000-000000000102")
+    revision_id = UUID("00000000-0000-7300-8000-000000000103")
+    principal_id = UUID("00000000-0000-7300-8000-000000000104")
+    request_id = UUID("00000000-0000-7300-8000-000000000105")
+    case_id = UUID("00000000-0000-7300-8000-000000000106")
+    request = PublicationReviewRequest(
+        document_version_id=version_id,
+        editorial_revision_id=revision_id,
+        editorial_revision_no=4,
+        expected_revision=4,
+        reason="submit the selected revision",
+    )
+
+    success_connection = AdminScriptedConnection([(4, document_id, None)])
+    success_service = AdminQueryService(
+        cast(AdminApiPool, AdminScriptedPool(success_connection)), _admin_codec()
+    )
+    with patch(
+        "uap_platform.admin_api.service.open_document_publication_review_case",
+        return_value=case_id,
+    ) as open_case:
+        result = success_service.submit_publication_review(
+            principal_id=principal_id,
+            request_id=request_id,
+            document_id=document_id,
+            request=request,
+        )
+    assert result.resource_id == case_id
+    open_case.assert_called_once_with(
+        success_connection, version_id, revision_id, request.priority, request.reason
+    )
+
+    class RollbackPool(AdminScriptedPool):
+        @contextmanager
+        def write_transaction(
+            self, principal_id: UUID, request_id: UUID
+        ) -> Iterator[AdminScriptedConnection]:
+            del principal_id, request_id
+            try:
+                yield self._connection
+            except Exception:
+                self._connection.rollback()
+                raise
+
+    failed_connection = AdminScriptedConnection([(4, document_id, None)])
+    failed_service = AdminQueryService(
+        cast(AdminApiPool, RollbackPool(failed_connection)), _admin_codec()
+    )
+    with pytest.raises(AdminError, match="editorial_document_version_mismatch"):
+        failed_service.submit_publication_review(
+            principal_id=principal_id,
+            request_id=request_id,
+            document_id=UUID("00000000-0000-7300-8000-000000000199"),
+            request=request,
+        )
+    assert failed_connection.rollbacks == 1
 
 
 def _case_row(**overrides: object) -> dict[str, object]:
