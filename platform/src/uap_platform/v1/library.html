@@ -230,6 +230,9 @@ textarea { min-height:84px; resize:vertical; width:100% }
     if (publication.review_case_id) {
       const reviewActions = add(section, 'div', '', 'actions');
       button(reviewActions, 'View Review Case', () => loadReviewCase(publication.review_case_id));
+      if (!isTrashed() && publication.grant_status === 'active' && !publication.public_visible) {
+        button(reviewActions, 'Revoke authorization', () => openPublicationDecision('withdraw', item, publication), 'danger');
+      }
       if (state.reviewCase && state.reviewCase.id === publication.review_case_id) renderReviewCase(section, item, publication);
     }
     add(section, 'div', 'Publication authorization is separate from Editorial editing. Authorization creates review/grant/manifest/outbox state only; it does not make the document public.', 'hint');
@@ -257,7 +260,7 @@ textarea { min-height:84px; resize:vertical; width:100% }
     const editorial = currentEditorial();
     const summaryResult = aiResult('summary');
     const summaryAnalysisResultId = summaryResult && summaryResult.result && summaryResult.result.summary === editorial.summary ? summaryResult.analysis_result_id : null;
-    state.modal = { title:`${decision === 'approve' ? 'Approve' : decision === 'reject' ? 'Reject' : 'Dispute'} Publication`, type:'publication-decision', value:{ decision, revision_no:publication.selected_editorial_revision_no || revision(), title:editorial.title || '', summary:editorial.summary || '', category:editorial.category || 'other', fact_status:'source_reported', summary_analysis_result_id:summaryAnalysisResultId, reason:'' }, submitLabel:'Record decision', onSubmit:async () => {
+    state.modal = { title:`${decision === 'approve' ? 'Approve' : decision === 'reject' ? 'Reject' : decision === 'dispute' ? 'Dispute' : 'Withdraw'} Publication`, type:'publication-decision', value:{ decision, revision_no:publication.selected_editorial_revision_no || revision(), title:editorial.title || '', summary:editorial.summary || '', category:editorial.category || 'other', fact_status:'source_reported', summary_analysis_result_id:summaryAnalysisResultId, reason:'' }, submitLabel:'Record decision', onSubmit:async () => {
       const reason = $('modal-reason').value.trim();
       if (!reason || reason.length < 10) { state.modal.error='Reason must be at least 10 characters'; renderModal(); return; }
       const structured_changes = decision === 'approve' ? { publication:{ title:$('modal-title').value.trim(), summary:$('modal-summary').value.trim() || null, category:$('modal-category').value, fact_status:$('modal-fact_status').value, summary_analysis_result_id:summaryAnalysisResultId } } : {};
