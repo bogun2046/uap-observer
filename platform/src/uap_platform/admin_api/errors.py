@@ -84,6 +84,7 @@ STATUS_BY_CODE: Final[dict[str, int]] = {
     "knowledge_merge_already_reversed": 409,
     "publication_document_grant_required": 409,
     "publication_event_not_terminal": 409,
+    "publication_already_projected": 409,
     "review_reason_too_short": 422,
     "review_structured_changes_unsupported": 422,
     "review_assignee_invalid": 422,
@@ -140,6 +141,9 @@ SAFE_DETAIL: Final[dict[str, str | None]] = {
     "editorial_reanalysis_invalid": "Reanalysis request is invalid.",
     "article_model_call_budget_exhausted": "Per-document model call budget is exhausted.",
     "monthly_model_budget_exhausted": "Monthly model budget is exhausted.",
+    "publication_already_projected": (
+        "Publication authorization can no longer be revoked before projection."
+    ),
 }
 
 PUBLIC_CODE_REWRITE: Final[dict[str, str]] = {
