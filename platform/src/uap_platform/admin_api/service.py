@@ -2520,8 +2520,8 @@ class AdminQueryService:
                        LIMIT 1
                   ) AS manifest ON true
                   LEFT JOIN LATERAL (
-                      SELECT item.id, item.available_at, item.terminal_at,
-                             item.published_at
+                      SELECT item.id, item.event_type, item.available_at,
+                             item.terminal_at, item.published_at
                         FROM ops.outbox_events AS item
                        WHERE item.event_type LIKE 'publication.%%'
                          AND item.payload ->> 'grant_id' = lower(grant_row.id::text)
@@ -2638,8 +2638,8 @@ class AdminQueryService:
                        LIMIT 1
                   ) AS manifest ON true
                   LEFT JOIN LATERAL (
-                      SELECT item.id, item.available_at, item.terminal_at,
-                             item.published_at
+                      SELECT item.id, item.event_type, item.available_at,
+                             item.terminal_at, item.published_at
                         FROM ops.outbox_events AS item
                        WHERE item.event_type LIKE 'publication.%%'
                          AND item.payload ->> 'grant_id' = lower(grant_row.id::text)
@@ -2666,8 +2666,19 @@ class AdminQueryService:
             GrantStatus(str(row["grant_status"])) if row["grant_status"] is not None else None
         )
         outbox_status = cast(str | None, row["outbox_status"])
+        outbox_event_type = cast(str | None, row["outbox_event_type"])
         public_visible = bool(row["public_visible"])
-        if public_visible:
+        if grant_status == GrantStatus.WITHDRAWN:
+            if outbox_event_type == "publication.withdrawn" and outbox_status in {
+                "queued",
+                "retry_wait",
+            }:
+                status = "WITHDRAW_PENDING"
+            elif public_visible or outbox_status == "terminal":
+                status = "PROJECTION_ERROR"
+            else:
+                status = "WITHDRAWN"
+        elif public_visible:
             status = "PUBLIC"
         elif grant_status == GrantStatus.ACTIVE and outbox_status is not None:
             status = "QUEUED_FOR_PUBLICATION"

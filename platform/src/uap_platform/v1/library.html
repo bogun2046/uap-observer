@@ -230,8 +230,8 @@ textarea { min-height:84px; resize:vertical; width:100% }
     if (publication.review_case_id) {
       const reviewActions = add(section, 'div', '', 'actions');
       button(reviewActions, 'View Review Case', () => loadReviewCase(publication.review_case_id));
-      if (!isTrashed() && publication.grant_status === 'active' && !publication.public_visible) {
-        button(reviewActions, 'Revoke authorization', () => openPublicationDecision('withdraw', item, publication), 'danger');
+      if (!isTrashed() && publication.grant_status === 'active') {
+        button(reviewActions, publication.public_visible ? 'Withdraw publication' : 'Revoke authorization', () => openPublicationDecision('withdraw', item, publication), 'danger');
       }
       if (state.reviewCase && state.reviewCase.id === publication.review_case_id) renderReviewCase(section, item, publication);
     }
