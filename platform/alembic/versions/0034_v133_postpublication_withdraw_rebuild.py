@@ -387,6 +387,40 @@ def upgrade() -> None:
                     NULL, v_document_grant.revision_no
                 );
 
+                -- A document-scoped replay must not silently omit a
+                -- published subject entity whose immutable manifest is
+                -- corrupt or whose publication evidence is incomplete.
+                IF EXISTS (
+                    SELECT 1
+                      FROM audit.claim_publication_manifests AS claim_manifest
+                      LEFT JOIN audit.entity_publication_grants AS entity_grant
+                        ON entity_grant.entity_id = claim_manifest.subject_entity_id
+                       AND entity_grant.grant_status = 'active'::audit.grant_status
+                      LEFT JOIN audit.entity_publication_manifests AS entity_manifest
+                        ON entity_manifest.grant_id = entity_grant.id
+                      LEFT JOIN ops.outbox_events AS entity_event
+                        ON entity_event.aggregate_type = 'entity_publication_grants'
+                       AND entity_event.aggregate_id = entity_grant.id
+                       AND entity_event.event_type = 'publication.granted'
+                       AND entity_event.published_at IS NOT NULL
+                       AND entity_event.terminal_at IS NULL
+                     WHERE claim_manifest.document_id = p_document_id
+                       AND claim_manifest.subject_entity_id IS NOT NULL
+                       AND (
+                           entity_grant.id IS NULL
+                           OR entity_manifest.grant_id IS NULL
+                           OR entity_event.id IS NULL
+                           OR btrim(entity_grant.publication_payload_sha256::text)
+                                IS DISTINCT FROM btrim(entity_manifest.manifest_sha256::text)
+                           OR btrim(entity_manifest.manifest_sha256::text)
+                                IS DISTINCT FROM audit._publication_manifest_sha(
+                                    ops._wp10_3_entity_manifest_payload(entity_grant.id)
+                                )
+                       )
+                ) THEN
+                    RAISE EXCEPTION 'publication_rebuild_mismatch' USING ERRCODE = '22023';
+                END IF;
+
                 -- Restore only already-published canonical entities referenced
                 -- by this document's already-published claim manifests.
                 FOR v_entity IN
