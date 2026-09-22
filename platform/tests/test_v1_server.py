@@ -136,7 +136,7 @@ def test_library_handler_accepts_patch_and_preserves_request_contract() -> None:
     assert b'{"status":"ok"}' in handler.wfile.getvalue()
 
 
-@pytest.mark.parametrize("status", [200, 401, 403, 409])
+@pytest.mark.parametrize("status", [200, 400, 401, 403, 409])
 def test_patch_proxy_preserves_admin_error_status(
     monkeypatch: pytest.MonkeyPatch, status: int
 ) -> None:
