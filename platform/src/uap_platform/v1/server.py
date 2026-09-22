@@ -169,6 +169,9 @@ def make_handler(application: Application) -> type[BaseHTTPRequestHandler]:
         def do_POST(self) -> None:
             self._respond("POST")
 
+        def do_PATCH(self) -> None:
+            self._respond("PATCH")
+
         def log_message(self, _format: str, *_args: object) -> None:
             LOGGER.info("V1 internal request completed")
 
