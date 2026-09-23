@@ -2638,7 +2638,7 @@ class AdminQueryService:
                        LIMIT 1
                   ) AS manifest ON true
                   LEFT JOIN LATERAL (
-                      SELECT item.id, item.event_type, item.available_at,
+                      SELECT item.id, item.event_type AS outbox_event_type, item.available_at,
                              item.terminal_at, item.published_at
                         FROM ops.outbox_events AS item
                        WHERE item.event_type LIKE 'publication.%%'
