@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 PLATFORM = Path(__file__).resolve().parents[1]
 
 
