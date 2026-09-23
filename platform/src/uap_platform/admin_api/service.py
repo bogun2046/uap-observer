@@ -2578,6 +2578,7 @@ class AdminQueryService:
                        manifest.id AS manifest_id,
                        manifest.manifest_sha256 AS manifest_hash,
                        event.id AS outbox_event_id,
+                       event.outbox_event_type,
                        CASE
                            WHEN event.published_at IS NOT NULL THEN 'published'
                            WHEN event.terminal_at IS NOT NULL THEN 'terminal'
