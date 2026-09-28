@@ -800,8 +800,8 @@ def _drain_publication_queue_for_prepare(
                     "prepare_capacity_publication_drain",
                 )
 
-            pending = int(last_snapshot["pending"])
-            terminal = int(last_snapshot["terminal"])
+            pending = cast(int, last_snapshot["pending"])
+            terminal = cast(int, last_snapshot["terminal"])
 
             if terminal != 0:
                 raise RuntimeError(
