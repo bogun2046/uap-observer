@@ -2011,6 +2011,42 @@ def test_workflow_persists_evidence() -> None:
         evidence_dir_permissions,
     )
     assert evidence_dir_setup < evidence_dir_permissions < evidence_mount
+    source_head = integration.index("host_head=$(git rev-parse HEAD)")
+    source_sha_validation = integration.index(
+        '[[ ! "$host_head" =~ ^[0-9a-f]{40}$ ]]', source_head
+    )
+    source_commit_validation = integration.index(
+        'git cat-file -e "${host_head}^{commit}"', source_sha_validation
+    )
+    source_git_dir = integration.index(
+        'source_git=$(mktemp -d "$RUNNER_TEMP/wp10-runtime-source-git.XXXXXX")',
+        source_commit_validation,
+    )
+    source_head_write = integration.index(
+        'printf \'%s\\n\' "$host_head" > "$source_git/HEAD"', source_git_dir
+    )
+    source_head_readonly = integration.index('chmod 444 "$source_git/HEAD"', source_head_write)
+    source_git_readonly = integration.index('chmod 555 "$source_git"', source_head_readonly)
+    source_git_mount = integration.index(
+        '--volume "$source_git:/.git:ro"', source_git_readonly
+    )
+    source_boundary_mount = integration.index(
+        '--volume "$source_git:/app/.git:ro"', source_git_mount
+    )
+    assert (
+        source_head
+        < source_sha_validation
+        < source_commit_validation
+        < source_git_dir
+        < source_head_write
+        < source_head_readonly
+        < source_git_readonly
+        < source_git_mount
+        < source_boundary_mount
+    )
+    assert '"$GITHUB_WORKSPACE/.git:/.git' not in integration
+    assert "apk add git" not in integration
+    assert "apt-get install git" not in integration
     assert "UAP_WP10_GIT_PATHS_FILE" in quality
     assert "git cat-file -e" in quality
     assert "UAP_WP10_BASE_SHA" in quality

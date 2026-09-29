@@ -513,6 +513,16 @@ jobs:
           export UAP_S3_DISPOSABLE=1
           mkdir -p "$WP10_EVIDENCE_HOST"
           chmod 1777 "$WP10_EVIDENCE_HOST"
+          host_head=$(git rev-parse HEAD)
+          if [[ ! "$host_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "runtime source HEAD must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          git cat-file -e "${host_head}^{commit}"
+          source_git=$(mktemp -d "$RUNNER_TEMP/wp10-runtime-source-git.XXXXXX")
+          printf '%s\n' "$host_head" > "$source_git/HEAD"
+          chmod 444 "$source_git/HEAD"
+          chmod 555 "$source_git"
           runtime_env=$(mktemp "$RUNNER_TEMP/wp10-runtime-env.XXXXXX")
           runtime_container="uap-g10-25-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           chmod 600 "$runtime_env"
@@ -535,6 +545,8 @@ jobs:
             --network "$UAP_WP10_BACKEND_NETWORK" \
             --env-file .env --env-file "$runtime_env" \
             --volume "$WP10_EVIDENCE_HOST:/tmp/wp10-runtime-evidence" \
+            --volume "$source_git:/.git:ro" \
+            --volume "$source_git:/app/.git:ro" \
             --workdir /app \
             "${UAP_APP_IMAGE:-uap-platform:development}" \
             python -m tools.wp10_runtime_probe --evidence-dir /tmp/wp10-runtime-evidence
