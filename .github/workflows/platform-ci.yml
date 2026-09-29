@@ -512,6 +512,7 @@ jobs:
           export UAP_S3_SECURE=false
           export UAP_S3_DISPOSABLE=1
           mkdir -p "$WP10_EVIDENCE_HOST"
+          chmod 1777 "$WP10_EVIDENCE_HOST"
           runtime_env=$(mktemp "$RUNNER_TEMP/wp10-runtime-env.XXXXXX")
           runtime_container="uap-g10-25-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           chmod 600 "$runtime_env"

@@ -2002,6 +2002,15 @@ def test_workflow_persists_evidence() -> None:
     assert "wp10-runtime-evidence" in integration
     assert "--volume" in integration
     assert "ea165f8d65b6e75b540449e92b4886f43607fa02" in integration
+    evidence_dir_setup = integration.index('mkdir -p "$WP10_EVIDENCE_HOST"')
+    evidence_dir_permissions = integration.index(
+        'chmod 1777 "$WP10_EVIDENCE_HOST"', evidence_dir_setup
+    )
+    evidence_mount = integration.index(
+        '--volume "$WP10_EVIDENCE_HOST:/tmp/wp10-runtime-evidence"',
+        evidence_dir_permissions,
+    )
+    assert evidence_dir_setup < evidence_dir_permissions < evidence_mount
     assert "UAP_WP10_GIT_PATHS_FILE" in quality
     assert "git cat-file -e" in quality
     assert "UAP_WP10_BASE_SHA" in quality
