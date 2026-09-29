@@ -523,6 +523,7 @@ def test_ci_isolates_legacy_probe_and_closes_migrators() -> None:
     assert "close_migrator()" in integration
     assert 'run_tool "$1" python tools/configure_roles.py disable-migrator' in integration
     assert "printf 'UAP_S3_ENDPOINT=127.0.0.1:8333\\n' >> \"$db_env\"" in integration
+    assert "printf 'UAP_S3_ENDPOINT=127.0.0.1:8333\\n' >> \"$matrix_env\"" in integration
     assert 'export UAP_S3_DISPOSABLE_ID="$disposable_id"' in integration
     assert integration.count('close_migrator "$') == 8
 
