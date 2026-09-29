@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import json
 import uuid
 from http import HTTPStatus
 from typing import Any, cast
-from urllib.error import URLError
 
 import pytest
 
@@ -162,11 +162,19 @@ def test_admin_proxy_is_configured_before_local_auth_and_maps_unavailable(
     assert unconfigured[0] == HTTPStatus.SERVICE_UNAVAILABLE
     assert _body(unconfigured) == {"error": "admin_api_unconfigured"}
 
-    def fail_urlopen(_request: object, *, timeout: int) -> None:
-        assert timeout == 15
-        raise URLError("offline")
+    class FailConnection:
+        def __init__(
+            self, _host: str, _port: int | None = None, *, timeout: float | None = None
+        ) -> None:
+            assert timeout == 15
 
-    monkeypatch.setattr(server, "urlopen", fail_urlopen)
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            raise ConnectionRefusedError("offline")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(http.client, "HTTPConnection", cast(Any, FailConnection))
     unavailable = _app(FakeLibrary(), "http://admin.test/").handle(
         "GET", "/admin/v1/cases", None
     )
