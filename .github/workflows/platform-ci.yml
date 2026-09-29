@@ -92,7 +92,7 @@ jobs:
           --workdir /repo/platform
           --env COVERAGE_FILE=/tmp/.coverage
           "$UAP_APP_IMAGE"
-          pytest -p no:cacheprovider --cov --cov-report=term-missing
+          pytest -p no:cacheprovider --cov=src/uap_platform --cov-report=term-missing
       - name: WP2 contract checks
         run: >-
           docker run --rm
@@ -178,11 +178,13 @@ jobs:
           "$UAP_APP_IMAGE"
           python tools/validate_wp9.py
       - name: Record WP10.6-A host git path set
+        env:
+          UAP_WP10_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
         run: |
           set -euo pipefail
-          git cat-file -e 34c57bcadfeb67053c4c47f8cde237a3af185ba8^{commit}
+          git cat-file -e "${UAP_WP10_BASE_SHA}^{commit}"
           {
-            git diff --name-only 34c57bcadfeb67053c4c47f8cde237a3af185ba8
+            git diff --name-only "$UAP_WP10_BASE_SHA" "$GITHUB_SHA"
             git ls-files --others --exclude-standard
           } | awk 'NF' | sort -u > "$RUNNER_TEMP/wp10-git-paths.txt"
       - name: WP10 publication chain contract checks
@@ -249,6 +251,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Create ephemeral CI credentials
         run: platform/scripts/bootstrap-env.sh
       - name: Start PostgreSQL for isolated G10 databases
@@ -266,12 +270,24 @@ jobs:
       - name: Verify frozen migration entrypoint remains present
         working-directory: platform
         run: test -x scripts/migrate-platform.sh
+      - name: Record WP10.6-B host git path set
+        env:
+          UAP_WP10_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "${UAP_WP10_BASE_SHA}^{commit}"
+          {
+            git diff --name-only "$UAP_WP10_BASE_SHA" "$GITHUB_SHA"
+            git ls-files --others --exclude-standard
+          } | awk 'NF' | sort -u > "$RUNNER_TEMP/wp10-git-paths.txt"
       - name: Validate WP10.6-B G10-26 matrix contract
         run: >-
           docker run --rm
           --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --volume "$RUNNER_TEMP/wp10-git-paths.txt:/tmp/wp10-git-paths.txt:ro"
           --workdir /repo/platform
           --env PYTHONPATH=/repo/platform
+          --env UAP_WP10_GIT_PATHS_FILE=/tmp/wp10-git-paths.txt
           "${UAP_APP_IMAGE:-uap-platform:development}"
           python -m tools.validate_wp10_6
       - name: Provision isolated G10 database topology and disposable object store

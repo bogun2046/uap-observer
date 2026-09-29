@@ -36,7 +36,7 @@ from tools.wp10_stage_revisions import DATABASE_TOPOLOGY_ENVS  # noqa: E402
 
 HEAD = "0024_wp10_admin_replay"
 PARENT = "0023_wp10_api_read_indexes"
-EXPECTED_REVISIONS = 24
+EXPECTED_REVISIONS = 36
 SIGNED_SHA = "4e15bdd8cdb92d4406cc46b38f8cef92320a1881"
 START_SHA = "34c57bcadfeb67053c4c47f8cde237a3af185ba8"
 SHA256_LINE = re.compile(r"^[0-9a-f]{64}  \S.+$")
@@ -168,6 +168,25 @@ ALLOWED_WP106F4_PATHS = frozenset(
         "platform/tools/wp9_6_runtime_probe.py",
     }
 )
+ALLOWED_V13_CI_BASELINE_PATHS = frozenset(
+    {
+        "platform/tests/test_admin_api_cursor_baseline.py",
+        "platform/tests/test_knowledge_handler_boundaries.py",
+        "platform/tests/test_review_client_failures.py",
+        "platform/tests/test_v1_server_baseline.py",
+        "platform/tests/test_v1_worker_contract.py",
+        "platform/tools/validate_wp9.py",
+        "platform/tools/validate_wp10_2.py",
+        "platform/tools/validate_wp10_3.py",
+        "platform/tools/validate_wp10_4.py",
+        "platform/tools/validate_wp10_5.py",
+        "platform/tests/test_admin_api_evidence.py",
+        "platform/tests/test_review_publication.py",
+        "platform/tests/test_v1_bootstrap.py",
+        "platform/tests/test_v1_library.py",
+        "platform/tests/test_v1_scheduler.py",
+    }
+)
 HEAD_UPGRADE_MARKERS = (
     'upgrade", "head"',
     "upgrade', 'head'",
@@ -198,6 +217,18 @@ EXPECTED_CHAIN = (
     "0022_wp10_claim_search_projection",
     "0023_wp10_api_read_indexes",
     "0024_wp10_admin_replay",
+    "0025_v12_editorial_foundation",
+    "0026_v12_editorial_reanalysis",
+    "0027_v12_editorial_lifecycle_concurrency",
+    "0028_v12_editorial_revision_restore",
+    "0029_v123_editorial_claim_entity_provenance",
+    "0030_v131_publication_editorial_revision_binding",
+    "0031_v131_prepublication_revoke_guard",
+    "0032_v131_publication_review_submission_audit_auth",
+    "0033_v132_publication_payload_revision_compat",
+    "0034_v133_postpublication_withdraw_rebuild",
+    "0035_v133_rebuild_identifier_fix",
+    "0036_v133_full_rebuild_publication_evidence_guard",
 )
 EXPECTED_STEP_IDS = (
     "WP3",
@@ -271,30 +302,32 @@ def migration_filenames(versions: Path) -> list[str]:
 
 
 def forbidden_versions(names: list[str]) -> list[str]:
-    return [name for name in names if name.startswith("0025") or "wp11" in name.lower()]
+    return [name for name in names if "wp11" in name.lower()]
+
+
+def single_linear_revision_chain(script: ScriptDirectory) -> list[str] | None:
+    """Return the sole base-to-head revision chain, rejecting branches and merges."""
+    heads = script.get_heads()
+    if len(heads) != 1:
+        return None
+    reverse_chain: list[str] = []
+    current = script.get_revision(heads[0])
+    while current is not None:
+        reverse_chain.append(current.revision)
+        down_revision = current.down_revision
+        if down_revision is None:
+            break
+        if not isinstance(down_revision, str):
+            return None
+        current = script.get_revision(down_revision)
+    if not reverse_chain:
+        return None
+    return list(reversed(reverse_chain))
 
 
 def linear_revision_ids(script: ScriptDirectory) -> list[str]:
-    heads = script.get_heads()
-    if len(heads) != 1:
-        return list(heads)
-    ordered: list[str] = []
-    current = script.get_revision(heads[0])
-    while current is not None:
-        ordered.append(current.revision)
-        down = current.down_revision
-        parent: str | None
-        if down is None:
-            parent = None
-        elif isinstance(down, str):
-            parent = down
-        else:
-            return list(heads)
-        if parent is None:
-            break
-        current = script.get_revision(parent)
-    ordered.reverse()
-    return ordered
+    chain = single_linear_revision_chain(script)
+    return chain if chain is not None else list(script.get_heads())
 
 
 def workflow_job(source: str, name: str) -> str:
@@ -417,6 +450,7 @@ def classify_git_paths(paths: list[str]) -> tuple[str, list[str]]:
         | ALLOWED_WP106_FINAL_GATE_PATHS
         | ALLOWED_WP106F3_PATHS
         | ALLOWED_WP106F4_PATHS
+        | ALLOWED_V13_CI_BASELINE_PATHS
     )
     extra = sorted({path for path in paths if path and path not in allowed})
     if extra:
@@ -654,15 +688,20 @@ def evaluate(
         or "tools/validate_wp10.py" in quality_block
     )
     return [
-        check("single WP10.6 head", heads == [HEAD], heads, [HEAD]),
         check(
-            "0001-0024 strictly linear",
+            "single linear product head contains WP10.5",
+            len(heads) == 1 and HEAD in chain,
+            {"heads": heads, "chain_tail": chain[-4:]},
+            {"one_head_contains": HEAD},
+        ),
+        check(
+            "0001-0036 v1.3.3 migration chain",
             len(names) == EXPECTED_REVISIONS and tuple(chain) == EXPECTED_CHAIN,
             {"files": names, "chain": chain},
             list(EXPECTED_CHAIN),
         ),
         check("0024 down_revision", down_revision == PARENT, down_revision, PARENT),
-        check("no 0025 or WP11 migration", extra_versions == [], extra_versions, []),
+        check("no WP11 migration", extra_versions == [], extra_versions, []),
         check("wp10_runtime_probe.py exists", probe_path.is_file(), str(probe_path)),
         check(
             "frozen WP3→WP10.5 step order",
@@ -722,9 +761,28 @@ def evaluate(
             quality_wired
             and "UAP_WP10_GIT_PATHS_FILE" in quality_block
             and "git cat-file -e" in quality_block
-            and START_SHA in quality_block
+            and "UAP_WP10_BASE_SHA" in quality_block
+            and 'git diff --name-only "$UAP_WP10_BASE_SHA" "$GITHUB_SHA"' in quality_block
             and "fetch-depth: 0" in quality_block,
             quality_wired,
+        ),
+        check(
+            "quality coverage targets the checked-out source",
+            "--cov=src/uap_platform" in quality_block,
+            "--cov=src/uap_platform" in quality_block,
+            True,
+        ),
+        check(
+            "integration supplies host git paths to validate_wp10_6",
+            "fetch-depth: 0" in integration_block
+            and "Record WP10.6-B host git path set" in integration_block
+            and "git cat-file -e" in integration_block
+            and "UAP_WP10_BASE_SHA" in integration_block
+            and 'git diff --name-only "$UAP_WP10_BASE_SHA" "$GITHUB_SHA"' in integration_block
+            and "UAP_WP10_GIT_PATHS_FILE=/tmp/wp10-git-paths.txt" in integration_block
+            and '--volume "$RUNNER_TEMP/wp10-git-paths.txt:/tmp/wp10-git-paths.txt:ro"'
+            in integration_block,
+            True,
         ),
         check(
             "integration job runs wp10_runtime_probe.py",

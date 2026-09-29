@@ -542,7 +542,7 @@ def _container_platform_layout(tmp_path: Path) -> Path:
 
 
 def _container_module_run(platform: Path, evidence: Path) -> subprocess.CompletedProcess[str]:
-    env = {key: value for key, value in os.environ.items() if not key.startswith("UAP_")}
+    env = _isolated_child_environment()
     env["PYTHONPATH"] = str(platform / "src")
     return subprocess.run(  # noqa: S603
         [
@@ -558,6 +558,29 @@ def _container_module_run(platform: Path, evidence: Path) -> subprocess.Complete
         env=env,
         check=False,
     )
+
+
+def _isolated_child_environment() -> dict[str, str]:
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("UAP_", "COV_CORE_"))
+    }
+
+
+def test_isolated_child_environment_excludes_pytest_cov_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "COV_CORE_SOURCE",
+        "COV_CORE_CONFIG",
+        "COV_CORE_DATAFILE",
+        "COV_CORE_BRANCH",
+        "COV_CORE_CONTEXT",
+    ):
+        monkeypatch.setenv(name, "injected-by-pytest-cov")
+
+    assert not any(key.startswith("COV_CORE_") for key in _isolated_child_environment())
 
 
 def test_container_source_boundary_subprocess_is_fail_closed(tmp_path: Path) -> None:
@@ -671,7 +694,7 @@ def test_exec_child_subprocess_preserves_legacy_sibling_import(tmp_path: Path) -
     (platform / "src").symlink_to(PLATFORM / "src", target_is_directory=True)
 
     evidence = tmp_path / "evidence"
-    env = {key: value for key, value in os.environ.items() if not key.startswith("UAP_")}
+    env = _isolated_child_environment()
     env["PYTHONPATH"] = str(platform / "src")
     env.update(
         {
@@ -1357,6 +1380,22 @@ def test_git_paths_file_allows_unavailable_git(
     assert extra == []
 
 
+def test_wp10_6_validator_uses_host_git_path_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listing = tmp_path / "wp10-git-paths.txt"
+    listing.write_text("platform/tools/validate_wp10_6.py\n", encoding="utf-8")
+    monkeypatch.setenv("UAP_WP10_GIT_PATHS_FILE", str(listing))
+
+    item = next(
+        check
+        for check in validate_wp10_6.evaluate(PLATFORM)
+        if check.name == "WP10.6 changes stay in the authorized surface"
+    )
+    assert item.passed is True
+    assert item.actual == {"status": "allowed", "extra": []}
+
+
 def test_git_paths_file_missing_is_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("UAP_WP10_GIT_PATHS_FILE", str(tmp_path / "missing.txt"))
     status, _extra = validate_wp10.git_changed_paths(tmp_path)
@@ -1409,17 +1448,32 @@ def test_validator_frozen_tree_passes() -> None:
     assert failed == []
 
 
+def test_validator_accepts_the_v133_migration_descendants() -> None:
+    versions = PLATFORM / "alembic/versions"
+    names = validate_wp10.migration_filenames(versions)
+    assert "0025_v12_editorial_foundation.py" in names
+    assert "0036_v133_full_rebuild_publication_evidence_guard.py" in names
+    assert validate_wp10.forbidden_versions(names) == []
+    checks = validate_wp10.evaluate(PLATFORM, git_paths=[])
+    chain = next(item for item in checks if item.name == "0001-0036 v1.3.3 migration chain")
+    assert chain.passed, chain.actual
+
+
 def test_validator_detects_second_head() -> None:
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[], version_names=["0024_x.py", "0024b.py"])
-    linear = next(item for item in checks if item.name == "0001-0024 strictly linear")
+    linear = next(item for item in checks if item.name == "0001-0036 v1.3.3 migration chain")
     assert linear.passed is False
 
 
-def test_validator_detects_0025_and_wp11() -> None:
-    names = ["0024_wp10_admin_replay.py", "0025_wp11_branch.py"]
-    assert validate_wp10.forbidden_versions(names) == ["0025_wp11_branch.py"]
+def test_validator_allows_product_0025_and_rejects_wp11() -> None:
+    names = [
+        "0025_v12_editorial_foundation.py",
+        "0036_v133_full_rebuild_publication_evidence_guard.py",
+        "0037_wp11_branch.py",
+    ]
+    assert validate_wp10.forbidden_versions(names) == ["0037_wp11_branch.py"]
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[], version_names=names)
-    extra = next(item for item in checks if item.name == "no 0025 or WP11 migration")
+    extra = next(item for item in checks if item.name == "no WP11 migration")
     assert extra.passed is False
 
 
@@ -1564,6 +1618,24 @@ def test_evaluate_detects_missing_host_git_paths() -> None:
     assert item.passed is False
 
 
+def test_evaluate_detects_integration_without_host_git_path_mount() -> None:
+    workflow = (REPO / ".github/workflows/platform-ci.yml").read_text(encoding="utf-8")
+    integration = validate_wp10.workflow_job(workflow, "integration")
+    broken_integration = integration.replace(
+        '          --volume "$RUNNER_TEMP/wp10-git-paths.txt:/tmp/wp10-git-paths.txt:ro"\n',
+        "",
+        1,
+    )
+    broken = workflow.replace(integration, broken_integration, 1)
+    checks = validate_wp10.evaluate(PLATFORM, git_paths=[], workflow=broken)
+    item = next(
+        c
+        for c in checks
+        if c.name == "integration supplies host git paths to validate_wp10_6"
+    )
+    assert item.passed is False
+
+
 def test_evaluate_detects_weakened_gate() -> None:
     workflow = (REPO / ".github/workflows/platform-ci.yml").read_text(encoding="utf-8")
     weakened = workflow.replace(
@@ -1599,6 +1671,14 @@ def test_wp10_6_d_paths_and_prior_stage_paths_are_allowed() -> None:
     paths = [*d_paths, *prior_paths]
     assert validate_wp10.classify_git_paths(paths) == ("allowed", [])
     checks = validate_wp10_6.evaluate(PLATFORM, paths=paths)
+    item = next(c for c in checks if c.name == "WP10.6 changes stay in the authorized surface")
+    assert item.passed is True
+
+
+@pytest.mark.parametrize("path", sorted(validate_wp10.ALLOWED_V13_CI_BASELINE_PATHS))
+def test_v13_ci_baseline_paths_are_individually_allowed(path: str) -> None:
+    assert validate_wp10.classify_git_paths([path]) == ("allowed", [])
+    checks = validate_wp10_6.evaluate(PLATFORM, paths=[path])
     item = next(c for c in checks if c.name == "WP10.6 changes stay in the authorized surface")
     assert item.passed is True
 
@@ -1663,8 +1743,6 @@ def test_current_closeout_candidate_paths_are_allowed() -> None:
     "path",
     [
         "platform/scripts/verify-migrator-failure-close.sh",
-        "platform/tools/validate_wp10_2.py",
-        "platform/tools/validate_wp10_3.py",
     ],
 )
 def test_final_gate_scope_rejects_adjacent_paths(path: str) -> None:
@@ -1922,6 +2000,9 @@ def test_workflow_persists_evidence() -> None:
     assert "ea165f8d65b6e75b540449e92b4886f43607fa02" in integration
     assert "UAP_WP10_GIT_PATHS_FILE" in quality
     assert "git cat-file -e" in quality
+    assert "UAP_WP10_BASE_SHA" in quality
+    assert 'git diff --name-only "$UAP_WP10_BASE_SHA" "$GITHUB_SHA"' in quality
+    assert "--cov=src/uap_platform" in quality
     assert "fetch-depth: 0" in quality
 
 

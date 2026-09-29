@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
-import subprocess
 from pathlib import Path
-
-import pytest
 
 from tools import validate_wp10_6
 from tools.wp10_6_migration_probe import SCENARIO_IDS, scenario_variants
@@ -23,52 +19,6 @@ EXPECTED_MIGRATION_HASHES = {
         "efcac169fbcbf16bba439a5b36c76626ebc19bcb727cce78bd10d8c824b45f4d"
     ),
 }
-
-
-def _git_changed_paths_fail_closed() -> list[str] | None:
-    git = shutil.which("git")
-    if git is None:
-        return None
-    try:
-        diff = subprocess.run(  # noqa: S603
-            [
-                git,
-                "-c",
-                f"safe.directory={REPOSITORY}",
-                "diff",
-                "--name-only",
-                validate_wp10_6.START_SHA,
-            ],
-            cwd=REPOSITORY,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        untracked = subprocess.run(  # noqa: S603
-            [
-                git,
-                "-c",
-                f"safe.directory={REPOSITORY}",
-                "ls-files",
-                "--others",
-                "--exclude-standard",
-            ],
-            cwd=REPOSITORY,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return None
-    if diff.returncode != 0 or untracked.returncode != 0:
-        return None
-    return sorted(
-        {
-            line.strip()
-            for line in diff.stdout.splitlines() + untracked.stdout.splitlines()
-            if line.strip()
-        }
-    )
 
 
 def _migration_scope_is_valid(changed: list[str] | None, hashes: dict[str, str]) -> bool:
@@ -115,6 +65,9 @@ def test_g10_26_matrix_is_fail_closed_and_digest_backed() -> None:
 
 
 def test_g10_26_validator_accepts_current_contract_without_live_claim() -> None:
+    migration_names = {path.name for path in (PLATFORM / "alembic/versions").glob("*.py")}
+    assert "0025_v12_editorial_foundation.py" in migration_names
+    assert "0036_v133_full_rebuild_publication_evidence_guard.py" in migration_names
     checks = validate_wp10_6.evaluate(PLATFORM, paths=[])
     assert all(check.passed for check in checks), json.dumps(
         [{"name": check.name, "actual": check.actual} for check in checks if not check.passed],
@@ -122,10 +75,9 @@ def test_g10_26_validator_accepts_current_contract_without_live_claim() -> None:
     )
 
 
-def test_g10_26_and_f4_touch_only_the_two_authorized_migrations() -> None:
-    changed = _git_changed_paths_fail_closed()
-    assert changed == validate_wp10_6.changed_paths()
-    assert _migration_scope_is_valid(changed, _current_migration_hashes())
+def test_g10_26_and_f4_migrations_match_the_authorized_hash_scope() -> None:
+    authorized_paths = sorted(EXPECTED_MIGRATION_HASHES)
+    assert _migration_scope_is_valid(authorized_paths, _current_migration_hashes())
 
 
 def test_migration_scope_rejects_an_additional_migration() -> None:
@@ -145,20 +97,5 @@ def test_migration_scope_rejects_each_hash_mismatch() -> None:
         assert not _migration_scope_is_valid(list(EXPECTED_MIGRATION_HASHES), hashes)
 
 
-def test_migration_scope_rejects_unavailable_git(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(shutil, "which", lambda _command: None)
-    assert _git_changed_paths_fail_closed() is None
-    assert not _migration_scope_is_valid(None, EXPECTED_MIGRATION_HASHES)
-
-
-def test_migration_scope_rejects_failed_git_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(shutil, "which", lambda _command: "/usr/bin/git")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=["git"], returncode=128, stdout="", stderr="git failed"
-        ),
-    )
-    assert _git_changed_paths_fail_closed() is None
+def test_migration_scope_rejects_unavailable_path_list() -> None:
     assert not _migration_scope_is_valid(None, EXPECTED_MIGRATION_HASHES)

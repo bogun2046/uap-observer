@@ -9,17 +9,22 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.validate_wp10 import classify_git_paths, git_changed_paths
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+from tools.validate_wp10 import (
+    classify_git_paths,
+    git_changed_paths,
+    single_linear_revision_chain,
+    workflow_job,
+)
 
 PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PLATFORM_ROOT.parent
-START_SHA = "34c57bcadfeb67053c4c47f8cde237a3af185ba8"
 PROBE = PLATFORM_ROOT / "tools/wp10_6_migration_probe.py"
 PERFORMANCE_PROBE = PLATFORM_ROOT / "tools/wp10_6_performance_probe.py"
 MIGRATION_0020 = PLATFORM_ROOT / "alembic/versions/0020_wp10_publication_contract.py"
@@ -62,50 +67,6 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else ""
 
 
-def changed_paths() -> list[str]:
-    git = shutil.which("git")
-    if git is None:
-        return []
-    try:
-        diff = subprocess.run(  # noqa: S603
-            [
-                git,
-                "-c",
-                f"safe.directory={REPOSITORY_ROOT}",
-                "diff",
-                "--name-only",
-                START_SHA,
-            ],
-            cwd=REPOSITORY_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        untracked = subprocess.run(  # noqa: S603
-            [
-                git,
-                "-c",
-                f"safe.directory={REPOSITORY_ROOT}",
-                "ls-files",
-                "--others",
-                "--exclude-standard",
-            ],
-            cwd=REPOSITORY_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return []
-    return sorted(
-        {
-            line.strip()
-            for line in diff.stdout.splitlines() + untracked.stdout.splitlines()
-            if line.strip()
-        }
-    )
-
-
 def evaluate(platform: Path = PLATFORM_ROOT, *, paths: list[str] | None = None) -> list[Check]:
     platform = platform.resolve()
     probe = _read(platform / "tools/wp10_6_migration_probe.py")
@@ -113,8 +74,11 @@ def evaluate(platform: Path = PLATFORM_ROOT, *, paths: list[str] | None = None) 
     migration_0020 = _read(platform / "alembic/versions/0020_wp10_publication_contract.py")
     workflow = _read(platform.parent / ".github/workflows/platform-ci.yml")
     makefile = _read(platform / "Makefile")
+    integration = workflow_job(workflow, "integration")
     scenarios = re.findall(r'^    "([a-z0-9_]+)",$', probe, flags=re.M)
-    migration_files = [path.name for path in (platform / "alembic/versions").glob("*.py")]
+    config = Config(str(platform / "alembic.ini"))
+    config.set_main_option("script_location", str(platform / "alembic"))
+    migration_chain = single_linear_revision_chain(ScriptDirectory.from_config(config))
     path_status, path_extra = (
         git_changed_paths(platform.parent) if paths is None else classify_git_paths(paths)
     )
@@ -143,9 +107,14 @@ def evaluate(platform: Path = PLATFORM_ROOT, *, paths: list[str] | None = None) 
             True,
         ),
         _check(
-            "no 0025 migration",
-            not any(name.startswith("0025") for name in migration_files),
-            migration_files,
+            "WP10.6 matrix revisions remain in the linear product chain",
+            migration_chain is not None
+            and "0020_wp10_publication_contract" in migration_chain
+            and "0024_wp10_admin_replay" in migration_chain
+            and migration_chain.index("0020_wp10_publication_contract")
+            < migration_chain.index("0024_wp10_admin_replay"),
+            {"chain_tail": migration_chain[-5:] if migration_chain else None},
+            ["0020_wp10_publication_contract", "0024_wp10_admin_replay"],
         ),
         _check(
             "0020 downgrade restores only exact 0019 direct DML",
@@ -179,6 +148,19 @@ def evaluate(platform: Path = PLATFORM_ROOT, *, paths: list[str] | None = None) 
             "wp10_6_migration_probe" in workflow
             and "UAP_WP10_6_ADMIN_URL" in workflow
             and "wp10-6-migration-evidence" in workflow,
+            True,
+        ),
+        _check(
+            "integration supplies host git paths",
+            "fetch-depth: 0" in integration
+            and "Record WP10.6-B host git path set" in integration
+            and "git cat-file -e" in integration
+            and "UAP_WP10_BASE_SHA" in integration
+            and 'git diff --name-only "$UAP_WP10_BASE_SHA" "$GITHUB_SHA"' in integration
+            and "python -m tools.validate_wp10_6" in integration
+            and "UAP_WP10_GIT_PATHS_FILE=/tmp/wp10-git-paths.txt" in integration
+            and '--volume "$RUNNER_TEMP/wp10-git-paths.txt:/tmp/wp10-git-paths.txt:ro"'
+            in integration,
             True,
         ),
         _check(
