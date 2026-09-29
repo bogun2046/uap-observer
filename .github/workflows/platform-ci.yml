@@ -399,6 +399,7 @@ jobs:
           . ./.env
           set +a
           mkdir -p "$WP10_MIGRATION_EVIDENCE_HOST"
+          chmod 1777 "$WP10_MIGRATION_EVIDENCE_HOST"
           matrix_env=$(mktemp "$RUNNER_TEMP/wp10-6-matrix-env.XXXXXX")
           matrix_container="uap-g10-26-matrix-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           chmod 600 "$matrix_env"

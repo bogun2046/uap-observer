@@ -512,6 +512,7 @@ def test_ci_isolates_legacy_probe_and_closes_migrators() -> None:
 
     assert integration.count("g10-25-disposable-object-store.sh start") == 2
     assert "g10-25-disposable-object-store.sh stop" in integration
+    assert 'chmod 1777 "$WP10_MIGRATION_EVIDENCE_HOST"' in integration
     assert 'legacy_probe_db="uap_wp10_legacy_probe_' in integration
     assert '"$UAP_WP10_LEGACY_PROBE_DB"' in integration
     store_start = "g10-25-disposable-object-store.sh start"
