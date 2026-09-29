@@ -387,6 +387,7 @@ jobs:
 
           export UAP_DATABASE_URL="postgresql+psycopg://${postgres_user}:${postgres_password}@postgres:5432/${legacy_db}"
           export UAP_S3_DISPOSABLE=1
+          export UAP_S3_DISPOSABLE_ID="$disposable_id"
           ./scripts/g10-25-disposable-object-store.sh start
       - name: Run WP10.6-B G10-26 migration matrix
         working-directory: platform
