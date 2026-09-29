@@ -338,6 +338,8 @@ jobs:
             db_env=$(mktemp "$RUNNER_TEMP/wp10-db-env.XXXXXX")
             chmod 600 "$db_env"
             printf 'UAP_DATABASE_URL=%s\n' "$database_url" > "$db_env"
+            # These migration and role commands use Postgres only; Settings still requires an S3 endpoint.
+            printf 'UAP_S3_ENDPOINT=127.0.0.1:8333\n' >> "$db_env"
             if docker run --rm --network "$backend_network" --env-file .env --env-file "$db_env" \
               "$app_image" "${@:2}"; then
               status=0

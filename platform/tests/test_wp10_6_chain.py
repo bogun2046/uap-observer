@@ -521,6 +521,7 @@ def test_ci_isolates_legacy_probe_and_closes_migrators() -> None:
     assert rotate_index < second_start < runtime_index
     assert "close_migrator()" in integration
     assert 'run_tool "$1" python tools/configure_roles.py disable-migrator' in integration
+    assert "printf 'UAP_S3_ENDPOINT=127.0.0.1:8333\\n' >> \"$db_env\"" in integration
     assert integration.count('close_migrator "$') == 8
 
 
