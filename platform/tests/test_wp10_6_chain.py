@@ -1687,6 +1687,38 @@ def test_v13_ci_baseline_paths_are_individually_allowed(path: str) -> None:
     assert item.passed is True
 
 
+def test_v13_security_baseline_paths_are_authorized() -> None:
+    paths = [
+        "platform/src/uap_platform/v1/server.py",
+        "platform/tests/test_v1_server.py",
+        "platform/tests/test_v1_server_baseline.py",
+    ]
+    assert validate_wp10.classify_git_paths(paths) == ("allowed", [])
+    checks = validate_wp10_6.evaluate(PLATFORM, paths=paths)
+    item = next(c for c in checks if c.name == "WP10.6 changes stay in the authorized surface")
+    assert item.passed is True
+
+
+def test_v13_security_baseline_allowlist_rejects_unapproved_runtime_path() -> None:
+    path = "platform/src/uap_platform/v1/worker.py"
+    assert validate_wp10.classify_git_paths([path]) == ("forbidden", [path])
+    checks = validate_wp10_6.evaluate(PLATFORM, paths=[path])
+    item = next(c for c in checks if c.name == "WP10.6 changes stay in the authorized surface")
+    assert item.passed is False
+    assert item.actual == {"status": "forbidden", "extra": [path]}
+
+
+def test_v13_security_baseline_allowlist_fails_closed_for_mixed_paths() -> None:
+    allowed = "platform/src/uap_platform/v1/server.py"
+    forbidden = "platform/src/uap_platform/v1/worker.py"
+    paths = [allowed, forbidden]
+    assert validate_wp10.classify_git_paths(paths) == ("forbidden", [forbidden])
+    checks = validate_wp10_6.evaluate(PLATFORM, paths=paths)
+    item = next(c for c in checks if c.name == "WP10.6 changes stay in the authorized surface")
+    assert item.passed is False
+    assert item.actual == {"status": "forbidden", "extra": [forbidden]}
+
+
 @pytest.mark.parametrize(
     "path",
     [
