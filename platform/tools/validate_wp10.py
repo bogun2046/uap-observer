@@ -193,6 +193,11 @@ ALLOWED_V13_SECURITY_BASELINE_PATHS = frozenset(
         "platform/tests/test_v1_server.py",
     }
 )
+ALLOWED_V13_SECURITY_DEPENDENCY_PATHS = frozenset(
+    {
+        "platform/uv.lock",
+    }
+)
 HEAD_UPGRADE_MARKERS = (
     'upgrade", "head"',
     "upgrade', 'head'",
@@ -458,6 +463,7 @@ def classify_git_paths(paths: list[str]) -> tuple[str, list[str]]:
         | ALLOWED_WP106F4_PATHS
         | ALLOWED_V13_CI_BASELINE_PATHS
         | ALLOWED_V13_SECURITY_BASELINE_PATHS
+        | ALLOWED_V13_SECURITY_DEPENDENCY_PATHS
     )
     extra = sorted({path for path in paths if path and path not in allowed})
     if extra:

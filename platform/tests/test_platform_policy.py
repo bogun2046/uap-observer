@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from tools.validate_platform import (
+    EXPECTED_GRPC_PATCH_SOURCE,
     EXPECTED_GRPC_VERSION,
     EXPECTED_RUNTIME_VERSIONS,
     evaluate,
@@ -104,8 +105,8 @@ def test_f3_runtime_versions_reject_weakened_or_mismatched_dockerfiles(
             "ARG UAP_GO_IMAGE=golang:1.25.13-alpine3.23",
         ),
         (
-            'RUN go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \\\n    && go mod tidy',
-            '# go get "google.golang.org/grpc@${UAP_GRPC_VERSION}"\nRUN go mod tidy',
+            EXPECTED_GRPC_PATCH_SOURCE,
+            "# bounded retry intentionally omitted\nRUN go mod tidy",
         ),
         (
             f"ARG UAP_GRPC_VERSION={EXPECTED_GRPC_VERSION}",
@@ -140,7 +141,7 @@ def test_f3_runtime_policy_rejects_independent_review_reproductions(
             f"ARG UAP_GO_IMAGE={EXPECTED_RUNTIME_VERSIONS['UAP_GO_IMAGE']}-suffix",
         ),
         (
-            'RUN go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \\\n    && go mod tidy',
+            EXPECTED_GRPC_PATCH_SOURCE,
             "RUN echo 'go get \"google.golang.org/grpc@${UAP_GRPC_VERSION}\"' \\\n"
             "    && go mod tidy",
         ),
@@ -171,6 +172,25 @@ def test_f3_runtime_policy_rejects_non_effective_or_ambiguous_instructions(
     else:
         assert approved in dockerfile
         dockerfile = dockerfile.replace(approved, replacement, 1)
+    assert patched_runtime_versions_are_valid(versions, dockerfile, postgres, object_store) is False
+
+
+@pytest.mark.parametrize(
+    ("approved", "replacement"),
+    [
+        ('if [ "$attempt" -ge 3 ]; then', 'if [ "$attempt" -ge 4 ]; then'),
+        ('sleep_seconds=$((attempt * 5));', 'sleep_seconds=0;'),
+        ('exit 1;', 'echo "failure ignored";'),
+        ('attempt=$((attempt + 1));', 'attempt=1;'),
+    ],
+    ids=["retry-limit", "backoff", "fail-closed", "bounded-loop"],
+)
+def test_f3_runtime_policy_rejects_weakened_grpc_retries(
+    approved: str, replacement: str
+) -> None:
+    versions, dockerfile, postgres, object_store = runtime_inputs()
+    assert approved in object_store
+    object_store = object_store.replace(approved, replacement, 1)
     assert patched_runtime_versions_are_valid(versions, dockerfile, postgres, object_store) is False
 
 
@@ -257,7 +277,7 @@ def test_f3_runtime_policy_rejects_shell_review_reproductions(target: str) -> No
         instruction = "RUN apk add --no-cache --upgrade 'libcrypto3>=3.5.8-r0' 'libssl3>=3.5.8-r0'"
     else:
         instruction = (
-            'RUN go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \\\n    && go mod tidy'
+            EXPECTED_GRPC_PATCH_SOURCE
         )
     assert instruction in object_store
     object_store = object_store.replace(
