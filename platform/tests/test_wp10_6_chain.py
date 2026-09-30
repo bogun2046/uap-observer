@@ -1719,6 +1719,21 @@ def test_v13_security_baseline_allowlist_fails_closed_for_mixed_paths() -> None:
     assert item.actual == {"status": "forbidden", "extra": [forbidden]}
 
 
+def test_v13_security_dependency_lock_is_allowed() -> None:
+    assert validate_wp10.classify_git_paths(["platform/uv.lock"]) == ("allowed", [])
+
+
+def test_v13_project_dependency_manifest_remains_forbidden() -> None:
+    path = "platform/pyproject.toml"
+    assert validate_wp10.classify_git_paths([path]) == ("forbidden", [path])
+
+
+def test_v13_security_dependency_allowlist_fails_closed_for_mixed_paths() -> None:
+    allowed = "platform/uv.lock"
+    forbidden = "platform/pyproject.toml"
+    assert validate_wp10.classify_git_paths([allowed, forbidden]) == ("forbidden", [forbidden])
+
+
 @pytest.mark.parametrize(
     "path",
     [

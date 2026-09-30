@@ -12,8 +12,22 @@ RUN git init . \
     && git remote add origin https://github.com/seaweedfs/seaweedfs.git \
     && git fetch --depth=1 origin "${UAP_SEAWEEDFS_COMMIT}" \
     && git checkout --detach FETCH_HEAD
-RUN go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \
-    && go mod tidy
+RUN set -eu; \
+    attempt=1; \
+    while true; do \
+        if go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \
+            && go mod tidy; then \
+            break; \
+        fi; \
+        if [ "$attempt" -ge 3 ]; then \
+            echo "Go module resolution failed after ${attempt} attempts" >&2; \
+            exit 1; \
+        fi; \
+        sleep_seconds=$((attempt * 5)); \
+        echo "Go module resolution attempt ${attempt} failed; retrying in ${sleep_seconds}s" >&2; \
+        sleep "$sleep_seconds"; \
+        attempt=$((attempt + 1)); \
+    done
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/weed ./weed
 
 FROM ${UAP_SEAWEEDFS_BASE_IMAGE}
