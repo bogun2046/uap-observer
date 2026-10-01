@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+_PLATFORM_ROOT = Path(__file__).resolve().parents[1]
+if str(_PLATFORM_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PLATFORM_ROOT))
+
+from tools.validate_wp10 import single_linear_revision_chain  # noqa: E402
 
 HEAD = "0024_wp10_admin_replay"
 PARENT = "0023_wp10_api_read_indexes"
@@ -91,6 +98,8 @@ def evaluate(platform: Path) -> list[Check]:
     config.set_main_option("script_location", str(platform / "alembic"))
     script = ScriptDirectory.from_config(config)
     revision = script.get_revision(HEAD)
+    heads = script.get_heads()
+    revision_chain = single_linear_revision_chain(script)
     service = (
         (package / "service.py").read_text(encoding="utf-8")
         if (package / "service.py").is_file()
@@ -208,7 +217,12 @@ def evaluate(platform: Path) -> list[Check]:
     missing_coverage = [token for token in coverage_tokens if token not in runtime_probe]
 
     return [
-        check("single WP10.5 head", script.get_heads() == [HEAD], script.get_heads(), [HEAD]),
+        check(
+            "single WP10.5 ancestor in linear product chain",
+            revision_chain is not None and HEAD in revision_chain,
+            {"heads": heads, "chain_tail": revision_chain[-5:] if revision_chain else None},
+            {"single_linear_head_contains": HEAD},
+        ),
         check(
             "WP10.5 parent",
             revision is not None and revision.down_revision == PARENT,

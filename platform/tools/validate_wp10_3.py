@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+_PLATFORM_ROOT = Path(__file__).resolve().parents[1]
+if str(_PLATFORM_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PLATFORM_ROOT))
+
+from tools.validate_wp10 import single_linear_revision_chain  # noqa: E402
 
 CURRENT_HEAD = "0022_wp10_claim_search_projection"
 WP10_4_HEAD = "0023_wp10_api_read_indexes"
@@ -38,6 +45,22 @@ def evaluate(platform: Path) -> list[Check]:
     script = ScriptDirectory.from_config(config)
     revision = script.get_revision(CURRENT_HEAD)
     heads = script.get_heads()
+    revision_chain = single_linear_revision_chain(script)
+    successor_revisions = (WP10_4_HEAD, WP10_5_HEAD)
+    present_successors = [
+        revision_id
+        for revision_id in successor_revisions
+        if revision_chain is not None and revision_id in revision_chain
+    ]
+    successor_paths = {
+        revision_id: platform / f"alembic/versions/{revision_id}.py"
+        for revision_id in successor_revisions
+    }
+    successor_chain_is_coherent = (
+        revision_chain is not None
+        and present_successors == list(successor_revisions[: len(present_successors)])
+        and all(successor_paths[revision_id].is_file() for revision_id in present_successors)
+    )
 
     required = (
         "CREATE TABLE audit.publication_rebuild_runs",
@@ -124,10 +147,10 @@ def evaluate(platform: Path) -> list[Check]:
 
     return [
         check(
-            "single WP10.3-or-linear-successor head",
-            heads in ([CURRENT_HEAD], [WP10_4_HEAD], [WP10_5_HEAD]),
-            heads,
-            [[CURRENT_HEAD], [WP10_4_HEAD], [WP10_5_HEAD]],
+            "single WP10.3 ancestor in linear product chain",
+            revision_chain is not None and CURRENT_HEAD in revision_chain,
+            {"heads": heads, "chain_tail": revision_chain[-5:] if revision_chain else None},
+            {"single_linear_head_contains": CURRENT_HEAD},
         ),
         check(
             "WP10.3 parent",
@@ -197,20 +220,9 @@ def evaluate(platform: Path) -> list[Check]:
         ),
         check(
             "WP10.4 successor is stage-coherent",
-            (
-                heads == [CURRENT_HEAD]
-                and not (platform / "alembic/versions/0023_wp10_api_read_indexes.py").exists()
-            )
-            or (
-                heads == [WP10_4_HEAD]
-                and (platform / "alembic/versions/0023_wp10_api_read_indexes.py").is_file()
-            )
-            or (
-                heads == [WP10_5_HEAD]
-                and (platform / "alembic/versions/0023_wp10_api_read_indexes.py").is_file()
-                and (platform / "alembic/versions/0024_wp10_admin_replay.py").is_file()
-            ),
-            heads,
+            successor_chain_is_coherent,
+            {"successors": present_successors, "heads": heads},
+            list(successor_revisions[: len(present_successors)]),
         ),
     ]
 
