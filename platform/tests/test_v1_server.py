@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import json
 import uuid
 from io import BytesIO
 from typing import Any, cast
-from urllib.error import HTTPError
-from urllib.request import Request
 
 import pytest
 
@@ -136,53 +135,185 @@ def test_library_handler_accepts_patch_and_preserves_request_contract() -> None:
     assert b'{"status":"ok"}' in handler.wfile.getvalue()
 
 
-@pytest.mark.parametrize("status", [200, 400, 401, 403, 409])
-def test_patch_proxy_preserves_admin_error_status(
-    monkeypatch: pytest.MonkeyPatch, status: int
-) -> None:
+@pytest.mark.parametrize("url", ["http://admin.test", "https://admin.test"])
+def test_admin_api_base_url_accepts_http_and_https(url: str) -> None:
+    app = Application(cast(Any, Library()), TOKEN, url)
+    assert app.admin_api_base_url == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///tmp/admin",
+        "ftp://admin.test",
+        "custom://admin.test",
+        "http:///missing-host",
+        "http://user:password@admin.test",
+        "https://admin.test/#fragment",
+        "https://admin.test/?tenant=one",
+    ],
+)
+def test_admin_api_base_url_rejects_unsupported_or_ambiguous_urls(url: str) -> None:
+    with pytest.raises(ValueError, match="UAP_ADMIN_API_BASE_URL"):
+        Application(cast(Any, Library()), TOKEN, url)
+
+
+def _install_fake_http_connections(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    status: int = 202,
+    content_type: str = "application/problem+json; charset=utf-8",
+    payload: bytes = b'{"error":"editorial_revision_conflict"}',
+    request_error: Exception | None = None,
+) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+
     class FakeResponse:
-        def __init__(self, response_status: int) -> None:
-            self.status = response_status
-            self.headers = {"Content-Type": "application/problem+json"}
-
         def read(self) -> bytes:
-            return b'{"error":"editorial_revision_conflict"}'
+            return payload
 
-        def __enter__(self) -> FakeResponse:
-            return self
+        @property
+        def status(self) -> int:
+            return status
 
-        def __exit__(self, *_args: object) -> None:
-            return None
+        def getheader(self, name: str, default: str | None = None) -> str | None:
+            return content_type if name == "Content-Type" else default
 
-    def fake_urlopen(request: Request, timeout: int) -> FakeResponse:
-        assert request.get_method() == "PATCH"
-        assert request.full_url == "http://admin.test/admin/v1/documents/doc/editorial"
-        assert request.data == b'{"expected_revision":1}'
-        assert request.get_header("Authorization") == "Bearer oidc-token"
-        assert request.get_header("Idempotency-key") == "request-1"
-        assert timeout == 15
-        if status == 200:
-            return FakeResponse(status)
-        raise HTTPError(
-            request.full_url,
-            status,
-            "admin error",
-            cast(Any, {"Content-Type": "application/problem+json"}),
-            BytesIO(b'{"error":"editorial_revision_conflict"}'),
-        )
+    class FakeConnection:
+        def __init__(self, transport: str, host: str, port: int | None, timeout: float) -> None:
+            self.transport = transport
+            self.host = host
+            self.port = port
+            self.timeout = timeout
+            self.request_record: dict[str, object] = {
+                "transport": transport,
+                "host": host,
+                "port": port,
+                "timeout": timeout,
+            }
+            records.append(self.request_record)
 
-    monkeypatch.setattr(server, "urlopen", fake_urlopen)
-    app = Application(cast(Any, Library()), TOKEN, "http://admin.test")
+        def request(
+            self,
+            method: str,
+            url: str,
+            body: bytes | None = None,
+            headers: dict[str, str] | None = None,
+        ) -> None:
+            self.request_record.update(
+                {"method": method, "url": url, "body": body, "headers": headers or {}}
+            )
+            if request_error is not None:
+                raise request_error
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse()
+
+        def close(self) -> None:
+            self.request_record["closed"] = True
+
+    def fake_http_connection(
+        host: str, port: int | None = None, timeout: float = 15
+    ) -> FakeConnection:
+        return FakeConnection("http", host, port, timeout)
+
+    def fake_https_connection(
+        host: str, port: int | None = None, timeout: float = 15
+    ) -> FakeConnection:
+        return FakeConnection("https", host, port, timeout)
+
+    monkeypatch.setattr(http.client, "HTTPConnection", cast(Any, fake_http_connection))
+    monkeypatch.setattr(http.client, "HTTPSConnection", cast(Any, fake_https_connection))
+    return records
+
+
+@pytest.mark.parametrize(
+    ("scheme", "transport", "port"),
+    [("http", "http", 8080), ("https", "https", 8443)],
+)
+@pytest.mark.parametrize("method", ["GET", "POST", "PUT", "PATCH"])
+def test_admin_proxy_preserves_request_contract(
+    monkeypatch: pytest.MonkeyPatch, scheme: str, transport: str, port: int, method: str
+) -> None:
+    records = _install_fake_http_connections(monkeypatch)
+    app = Application(cast(Any, Library()), TOKEN, f"{scheme}://admin.test:{port}/gateway/")
+    body = b'{"expected_revision":1}'
     result = app.handle(
-        "PATCH",
-        "/admin/v1/documents/doc/editorial",
+        method,
+        "/admin/v1/documents/doc/editorial?view=full&cursor=a%2Fb",
         "Bearer oidc-token",
-        b'{"expected_revision":1}',
+        body,
         {
             "Content-Type": "application/json",
+            "Accept": "application/problem+json",
             "Idempotency-Key": "request-1",
+            "X-Request-ID": "correlation-1",
         },
     )
-    assert result[0] == status
-    assert result[1] == "application/problem+json"
-    assert json.loads(result[2]) == {"error": "editorial_revision_conflict"}
+
+    assert result == (
+        202,
+        "application/problem+json; charset=utf-8",
+        b'{"error":"editorial_revision_conflict"}',
+    )
+    assert records == [
+        {
+            "transport": transport,
+            "host": "admin.test",
+            "port": port,
+            "timeout": 15,
+            "method": method,
+            "url": "/gateway/admin/v1/documents/doc/editorial?view=full&cursor=a%2Fb",
+            "body": body if method in {"POST", "PUT", "PATCH"} else None,
+            "headers": {
+                "Authorization": "Bearer oidc-token",
+                "Content-Type": "application/json",
+                "Accept": "application/problem+json",
+                "Idempotency-Key": "request-1",
+                "X-Request-ID": "correlation-1",
+            },
+            "closed": True,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "http://attacker.test/admin/v1/documents/doc",
+        "//attacker.test/admin/v1/documents/doc",
+    ],
+)
+def test_admin_proxy_rejects_absolute_or_authority_form_target(
+    monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    records = _install_fake_http_connections(monkeypatch)
+    app = Application(cast(Any, Library()), TOKEN, "https://admin.test")
+
+    status, _, body = app.handle("GET", target, None)
+
+    assert status == 400
+    assert json.loads(body) == {"error": "invalid_request"}
+    assert records == []
+
+
+def test_admin_proxy_maps_connection_errors_to_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_http_connections(monkeypatch, request_error=ConnectionRefusedError())
+    app = Application(cast(Any, Library()), TOKEN, "http://admin.test")
+
+    status, _, body = app.handle("GET", "/admin/v1/documents", None)
+
+    assert status == 503
+    assert json.loads(body) == {"error": "admin_api_unavailable"}
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "localhost", "0.0.0.0"])
+def test_v1_bind_host_allows_loopback_and_ipv4_unspecified(host: str) -> None:
+    assert server._is_allowed_bind_host(host)
+
+
+@pytest.mark.parametrize("host", ["8.8.8.8", "192.168.1.20", "::"])
+def test_v1_bind_host_rejects_other_addresses(host: str) -> None:
+    assert not server._is_allowed_bind_host(host)

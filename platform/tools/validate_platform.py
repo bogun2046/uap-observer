@@ -77,7 +77,22 @@ EXPECTED_POSTGRES_PATCH_RUN = (
 EXPECTED_OBJECT_STORE_PATCH_RUN = (
     "apk add --no-cache --upgrade 'libcrypto3>=3.5.8-r0' 'libssl3>=3.5.8-r0'"
 )
-EXPECTED_GRPC_PATCH_RUN = 'go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" && go mod tidy'
+EXPECTED_GRPC_PATCH_SOURCE = r"""RUN set -eu; \
+    attempt=1; \
+    while true; do \
+        if go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \
+            && go mod tidy; then \
+            break; \
+        fi; \
+        if [ "$attempt" -ge 3 ]; then \
+            echo "Go module resolution failed after ${attempt} attempts" >&2; \
+            exit 1; \
+        fi; \
+        sleep_seconds=$((attempt * 5)); \
+        echo "Go module resolution attempt ${attempt} failed; retrying in ${sleep_seconds}s" >&2; \
+        sleep "$sleep_seconds"; \
+        attempt=$((attempt + 1)); \
+    done"""
 
 PROTECTED_DOCKER_VARIABLES = frozenset(
     {
@@ -199,6 +214,15 @@ def patched_runtime_versions_are_valid(
     ):
         return False
 
+    expected_grpc_instructions = _dockerfile_instructions(EXPECTED_GRPC_PATCH_SOURCE)
+    if (
+        expected_grpc_instructions is None
+        or len(expected_grpc_instructions) != 1
+        or expected_grpc_instructions[0][0] != "RUN"
+    ):
+        return False
+    expected_grpc_run = expected_grpc_instructions[0][1]
+
     python_tag = EXPECTED_RUNTIME_VERSIONS["UAP_PYTHON_IMAGE"].split("@", 1)[0]
     postgres_tag = EXPECTED_RUNTIME_VERSIONS["UAP_POSTGRES_IMAGE"].split("@", 1)[0]
     return all(
@@ -238,7 +262,7 @@ def patched_runtime_versions_are_valid(
                 EXPECTED_GRPC_VERSION,
                 0,
             ),
-            _has_only_exact_run(object_store_instructions, EXPECTED_GRPC_PATCH_RUN, 0),
+            _has_only_exact_run(object_store_instructions, expected_grpc_run, 0),
             _has_exact_from(object_store_instructions, "${UAP_SEAWEEDFS_BASE_IMAGE}", 1),
             _has_only_exact_run(object_store_instructions, EXPECTED_OBJECT_STORE_PATCH_RUN, 1),
             _has_no_protected_env_overrides(object_store_instructions),

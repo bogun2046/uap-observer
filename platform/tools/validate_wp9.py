@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+_PLATFORM_ROOT = Path(__file__).resolve().parents[1]
+if str(_PLATFORM_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PLATFORM_ROOT))
+
+from tools.validate_wp10 import single_linear_revision_chain  # noqa: E402
 
 WP91_HEAD = "0014_review_session_authority"
 WP91_PARENT = "0013_entity_merge_state_machine"
@@ -200,9 +207,7 @@ def evaluate(platform: Path) -> list[Check]:
     config.set_main_option("script_location", str(platform / "alembic"))
     script = ScriptDirectory.from_config(config)
     heads = script.get_heads()
-    revision_ids = [
-        revision.revision for revision in script.walk_revisions(base="base", head="heads")
-    ]
+    revision_chain = single_linear_revision_chain(script)
     migration_14 = (platform / "alembic/versions/0014_review_session_authority.py").read_text(
         encoding="utf-8"
     )
@@ -268,54 +273,12 @@ def evaluate(platform: Path) -> list[Check]:
         check("required_files", not missing, missing, []),
         check(
             "unique_wp9_6_head",
-            (heads == [WP96_HEAD] and revision_ids[:2] == [WP96_HEAD, WP95_HEAD])
-            or (heads == [WP10_1_HEAD] and revision_ids[:3] == [WP10_1_HEAD, WP96_HEAD, WP95_HEAD])
-            or (
-                heads == [WP10_2_HEAD]
-                and revision_ids[:4] == [WP10_2_HEAD, WP10_1_HEAD, WP96_HEAD, WP95_HEAD]
-            )
-            or (
-                heads == [WP10_3_HEAD]
-                and revision_ids[:5]
-                == [WP10_3_HEAD, WP10_2_HEAD, WP10_1_HEAD, WP96_HEAD, WP95_HEAD]
-            )
-            or (
-                heads == [WP10_4_HEAD]
-                and revision_ids[:6]
-                == [
-                    WP10_4_HEAD,
-                    WP10_3_HEAD,
-                    WP10_2_HEAD,
-                    WP10_1_HEAD,
-                    WP96_HEAD,
-                    WP95_HEAD,
-                ]
-            )
-            or (
-                heads == [WP10_5_HEAD]
-                and revision_ids[:7]
-                == [
-                    WP10_5_HEAD,
-                    WP10_4_HEAD,
-                    WP10_3_HEAD,
-                    WP10_2_HEAD,
-                    WP10_1_HEAD,
-                    WP96_HEAD,
-                    WP95_HEAD,
-                ]
-            ),
-            {"heads": heads, "prefix": revision_ids[:3]},
-            {
-                "heads": [
-                    [WP96_HEAD],
-                    [WP10_1_HEAD],
-                    [WP10_2_HEAD],
-                    [WP10_3_HEAD],
-                    [WP10_4_HEAD],
-                    [WP10_5_HEAD],
-                ],
-                "prefix": [WP96_HEAD, WP95_HEAD],
-            },
+            revision_chain is not None
+            and WP96_HEAD in revision_chain
+            and revision_chain.index(WP96_HEAD) > 0
+            and revision_chain[revision_chain.index(WP96_HEAD) - 1] == WP95_HEAD,
+            {"heads": heads, "chain_tail": revision_chain[-8:] if revision_chain else None},
+            {"single_linear_head_contains": [WP95_HEAD, WP96_HEAD]},
         ),
         check(
             "migration_links",

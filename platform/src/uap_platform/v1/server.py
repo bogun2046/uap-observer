@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hmac
+import http.client
+import ipaddress
 import json
 import logging
 import os
@@ -12,9 +14,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from typing import Any, cast
-from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlsplit
-from urllib.request import Request, urlopen
+from urllib.parse import SplitResult, parse_qs, urlsplit
 
 from uap_platform.model_governance import ModelTaskType
 from uap_platform.object_registry import ObjectClient
@@ -36,6 +36,11 @@ class Application:
         self.library = library
         self.token = token
         self.admin_api_base_url = admin_api_base_url.rstrip("/") if admin_api_base_url else None
+        self._admin_api_url = (
+            _validated_admin_api_url(self.admin_api_base_url)
+            if self.admin_api_base_url is not None
+            else None
+        )
 
     def handle(
         self,
@@ -104,11 +109,29 @@ class Application:
 
         if self.admin_api_base_url is None:
             return self._problem(HTTPStatus.SERVICE_UNAVAILABLE, "admin_api_unconfigured")
-        request = Request(  # noqa: S310
-            f"{self.admin_api_base_url}{target}",
-            data=body if method in {"POST", "PUT", "PATCH"} else None,
-            method=method,
+        parsed_target = urlsplit(target)
+        if (
+            not target.startswith("/")
+            or parsed_target.scheme
+            or parsed_target.netloc
+            or parsed_target.fragment
+            or "#" in target
+        ):
+            return self._problem(HTTPStatus.BAD_REQUEST, "invalid_request")
+
+        base_url = self._admin_api_url
+        if base_url is None:
+            return self._problem(HTTPStatus.SERVICE_UNAVAILABLE, "admin_api_unconfigured")
+        path = f"{base_url.path.rstrip('/')}{parsed_target.path}"
+        if "?" in target:
+            path = f"{path}?{parsed_target.query}"
+        connection_type = (
+            http.client.HTTPSConnection
+            if base_url.scheme == "https"
+            else http.client.HTTPConnection
         )
+        connection: http.client.HTTPConnection | http.client.HTTPSConnection | None = None
+        headers: dict[str, str] = {}
         for header in (
             "Authorization",
             "Content-Type",
@@ -118,17 +141,27 @@ class Application:
         ):
             value = authorization if header == "Authorization" else request_headers.get(header)
             if value:
-                request.add_header(header, value)
+                headers[header] = value
         try:
-            with urlopen(request, timeout=15) as response:  # noqa: S310
-                payload = response.read()
-                content_type = response.headers.get("Content-Type", "application/json")
-                return response.status, content_type, payload
-        except HTTPError as error:
-            payload = error.read()
-            return error.code, error.headers.get("Content-Type", "application/json"), payload
-        except (URLError, TimeoutError, OSError):
+            connection = connection_type(cast(str, base_url.hostname), base_url.port, timeout=15)
+            connection.request(
+                method,
+                path,
+                body=body if method in {"POST", "PUT", "PATCH"} else None,
+                headers=headers,
+            )
+            response = connection.getresponse()
+            payload = response.read()
+            content_type = response.getheader("Content-Type", "application/json")
+            return response.status, content_type, payload
+        except (http.client.HTTPException, OSError, TimeoutError):
             return self._problem(HTTPStatus.SERVICE_UNAVAILABLE, "admin_api_unavailable")
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except OSError:
+                    LOGGER.debug("Admin API proxy connection close failed")
 
     def _authorized(self, value: str | None) -> bool:
         if value is None or not value.startswith("Bearer "):
@@ -178,6 +211,38 @@ def make_handler(application: Application) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
+def _validated_admin_api_url(value: str) -> SplitResult:
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError("UAP_ADMIN_API_BASE_URL is invalid") from error
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("UAP_ADMIN_API_BASE_URL must use HTTP or HTTPS")
+    if not hostname:
+        raise ValueError("UAP_ADMIN_API_BASE_URL must include a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("UAP_ADMIN_API_BASE_URL must not include credentials")
+    if parsed.fragment or "#" in value:
+        raise ValueError("UAP_ADMIN_API_BASE_URL must not include a fragment")
+    if parsed.query or "?" in value:
+        raise ValueError("UAP_ADMIN_API_BASE_URL must not include a query")
+    if port == 0:
+        raise ValueError("UAP_ADMIN_API_BASE_URL must use a valid port")
+    return parsed
+
+
+def _is_allowed_bind_host(host: str) -> bool:
+    if host.lower() == "localhost" or host in {"127.0.0.1", "::1"}:
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.version == 4 and address.is_unspecified
+
+
 def main() -> None:
     logging.basicConfig(level=os.environ.get("UAP_LOG_LEVEL", "INFO"))
     read_url = os.environ.get("UAP_V1_READ_DATABASE_URL")
@@ -190,9 +255,9 @@ def main() -> None:
             "UAP_V1_MODEL_DATABASE_URL and UAP_V1_LOCAL_ADMIN_TOKEN are required"
         )
     host = os.environ.get("UAP_V1_LIBRARY_HOST", "127.0.0.1")
-    # 0.0.0.0 is required inside the container; Compose publishes it only on
-    # 127.0.0.1. Direct local runs remain loopback-only by default.
-    if host not in {"127.0.0.1", "::1", "localhost", "0.0.0.0"}:  # noqa: S104
+    # Unspecified IPv4 is required inside the container; Compose publishes it
+    # only on loopback. Direct local runs remain loopback-only by default.
+    if not _is_allowed_bind_host(host):
         raise SystemExit("unsupported V1 internal library bind address")
     port = int(os.environ.get("UAP_V1_LIBRARY_PORT", "8091"))
     client = cast_object_client(build_client_from_environment(worker_url))

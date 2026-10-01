@@ -173,8 +173,21 @@ def _free_loopback_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def test_logged_process_does_not_block_after_more_than_pipe_capacity(tmp_path: Path) -> None:
+def _isolated_process_environment() -> dict[str, str]:
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("UAP_", "COV_CORE_"))
+    }
+
+
+def test_logged_process_does_not_block_after_more_than_pipe_capacity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     port = _free_loopback_port()
+    monkeypatch.setenv("COV_CORE_SOURCE", "pytest-cov-injected")
+    process_env = _isolated_process_environment()
+    assert "COV_CORE_SOURCE" not in process_env
     child = """
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -195,14 +208,25 @@ ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1])), Handler).serve_forever()
             "noisy-api",
             [sys.executable, "-c", child, str(port)],
             cwd=PLATFORM,
-            env=os.environ.copy(),
+            env=process_env,
         )
-        for _ in range(100):
+        ready_deadline = time.monotonic() + 5.0
+        while time.monotonic() < ready_deadline:
             sample = _request(f"http://127.0.0.1:{port}", "/healthz", "test", 0)
             if sample.status == 200:
                 break
+            if managed.process.poll() is not None:
+                managed.log_file.flush()
+                pytest.fail(
+                    f"noisy-api exited with status {managed.process.returncode} "
+                    "before health endpoint became ready; "
+                    f"log={managed.log_path.read_text(encoding='utf-8')!r}"
+                )
             time.sleep(0.01)
-        assert sample.status == 200
+        assert sample.status == 200, (
+            f"noisy-api did not become ready; pid={managed.process.pid}; "
+            f"log={managed.log_path.read_text(encoding='utf-8')!r}"
+        )
         statuses = [
             _request(f"http://127.0.0.1:{port}", "/v1/search?q=x", "test", index).status
             for index in range(200)
