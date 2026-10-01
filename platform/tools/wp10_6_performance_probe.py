@@ -770,6 +770,56 @@ def _rebuild(admin: psycopg.Connection[Any], spec: DatasetSpec) -> dict[str, obj
     }
 
 
+
+def _drain_publication_queue_for_prepare(
+    admin_url: str,
+    evidence: Path,
+    timeout_seconds: float = 1800.0,
+) -> dict[str, object]:
+    """Publish committed outbox events before rebuilding the public projection."""
+    publisher_environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONPATH": os.pathsep.join((str(PLATFORM_ROOT / "src"), str(PLATFORM_ROOT))),
+        "UAP_DATABASE_URL": role_url(admin_url, "uap_publisher"),
+    }
+    deadline = time.monotonic() + timeout_seconds
+    last_snapshot: dict[str, object] | None = None
+
+    with LoggedProcessGroup(evidence) as processes:
+        processes.start(
+            "prepare-capacity-publisher",
+            [sys.executable, "-c", "from uap_platform.publishing.loop import main; main()"],
+            cwd=PLATFORM_ROOT,
+            env=publisher_environment,
+        )
+
+        while time.monotonic() < deadline:
+            with psycopg.connect(admin_url) as admin:
+                last_snapshot = _queue_snapshot(
+                    admin,
+                    "prepare_capacity_publication_drain",
+                )
+
+            pending = cast(int, last_snapshot["pending"])
+            terminal = cast(int, last_snapshot["terminal"])
+
+            if terminal != 0:
+                raise RuntimeError(
+                    "prepare-capacity publisher produced terminal outbox events: "
+                    f"{last_snapshot}"
+                )
+
+            if pending == 0:
+                return last_snapshot
+
+            time.sleep(0.25)
+
+    raise RuntimeError(
+        "prepare-capacity publisher did not settle the outbox before timeout: "
+        f"{last_snapshot}"
+    )
+
+
 def prepare_capacity(admin_url: str, spec: DatasetSpec, evidence: Path) -> dict[str, object]:
     spec.validate()
     started = utc_now()
@@ -793,6 +843,7 @@ def prepare_capacity(admin_url: str, spec: DatasetSpec, evidence: Path) -> dict[
             "public.search_documents": "SELECT count(*) FROM public.search_documents",
         }
         counts = {name: int(scalar(admin, query)) for name, query in count_queries.items()}
+    _drain_publication_queue_for_prepare(admin_url, evidence)
     result = {
         "schema": "g10-27-capacity-dataset.v1",
         "started_at": started,
