@@ -36,7 +36,7 @@ from tools.wp10_stage_revisions import DATABASE_TOPOLOGY_ENVS  # noqa: E402
 
 HEAD = "0024_wp10_admin_replay"
 PARENT = "0023_wp10_api_read_indexes"
-EXPECTED_REVISIONS = 36
+EXPECTED_REVISIONS = 37
 SIGNED_SHA = "4e15bdd8cdb92d4406cc46b38f8cef92320a1881"
 START_SHA = "34c57bcadfeb67053c4c47f8cde237a3af185ba8"
 SHA256_LINE = re.compile(r"^[0-9a-f]{64}  \S.+$")
@@ -198,6 +198,12 @@ ALLOWED_V13_SECURITY_DEPENDENCY_PATHS = frozenset(
         "platform/uv.lock",
     }
 )
+ALLOWED_V133_TRIGGER_SECURITY_PATHS = frozenset(
+    {
+        "platform/alembic/versions/0037_v133_deferred_integrity_trigger_security.py",
+        "platform/tests/test_v133_deferred_trigger_security.py",
+    }
+)
 HEAD_UPGRADE_MARKERS = (
     'upgrade", "head"',
     "upgrade', 'head'",
@@ -240,6 +246,7 @@ EXPECTED_CHAIN = (
     "0034_v133_postpublication_withdraw_rebuild",
     "0035_v133_rebuild_identifier_fix",
     "0036_v133_full_rebuild_publication_evidence_guard",
+    "0037_v133_deferred_integrity_trigger_security",
 )
 EXPECTED_STEP_IDS = (
     "WP3",
@@ -464,6 +471,7 @@ def classify_git_paths(paths: list[str]) -> tuple[str, list[str]]:
         | ALLOWED_V13_CI_BASELINE_PATHS
         | ALLOWED_V13_SECURITY_BASELINE_PATHS
         | ALLOWED_V13_SECURITY_DEPENDENCY_PATHS
+        | ALLOWED_V133_TRIGGER_SECURITY_PATHS
     )
     extra = sorted({path for path in paths if path and path not in allowed})
     if extra:
@@ -708,7 +716,7 @@ def evaluate(
             {"one_head_contains": HEAD},
         ),
         check(
-            "0001-0036 v1.3.3 migration chain",
+            "0001-0037 v1.3.3 migration chain",
             len(names) == EXPECTED_REVISIONS and tuple(chain) == EXPECTED_CHAIN,
             {"files": names, "chain": chain},
             list(EXPECTED_CHAIN),
