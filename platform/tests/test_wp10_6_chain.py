@@ -2728,6 +2728,7 @@ def test_public_and_admin_servers_dispatch_and_shutdown() -> None:
 @pytest.mark.parametrize("extra", [[], ["platform/tools/arbitrary_role_tool.py"]])
 def test_membership_bootstrap_paths_are_precisely_authorized(extra: list[str]) -> None:
     authorized = [
+        "platform/alembic.ini",
         "platform/tools/configure_roles.py",
         "platform/alembic/env.py",
         "platform/tests/test_configure_roles.py",

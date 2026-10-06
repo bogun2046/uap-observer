@@ -207,6 +207,7 @@ ALLOWED_V133_TRIGGER_SECURITY_PATHS = frozenset(
 )
 ALLOWED_HARDENED_HEAD_RUNTIME_PATHS = frozenset(
     {
+        "platform/alembic.ini",
         "platform/tools/hardened_head_runtime_probe.py",
         "platform/tests/test_hardened_head_runtime.py",
         "platform/tools/frozen_historical_role_fixture.py",

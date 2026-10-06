@@ -14,6 +14,40 @@ from tools import configure_roles
 from tools.configure_roles import ROLE_PASSWORDS, required_passwords
 
 
+def test_alembic_console_loads_membership_helpers_without_pythonpath(tmp_path: Path) -> None:
+    platform = Path(__file__).resolve().parents[1]
+    environ = dict(os.environ)
+    environ.pop("PYTHONPATH", None)
+    environ.update({
+        "UAP_DATABASE_URL": "postgresql+psycopg://invalid:invalid@localhost/invalid",
+        "UAP_S3_ENDPOINT": "127.0.0.1:8333",
+        "UAP_S3_ACCESS_KEY": "offline-test",
+        "UAP_S3_SECRET_KEY": "offline-test",
+    })
+    # Only the current interpreter's console script and this repository's config are executed.
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, str(Path(sys.executable).with_name("alembic")),
+         "-c", str(platform / "alembic.ini"),
+         "upgrade", "0001_roles_and_schemas", "--sql"],
+        cwd=tmp_path, env=environ, text=True, capture_output=True, check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "ALTER ROLE uap_migrator NOINHERIT" in completed.stdout
+
+
+def test_alembic_import_paths_preserve_spaces(tmp_path: Path) -> None:
+    from alembic.config import Config
+
+    platform = Path(__file__).resolve().parents[1]
+    copied = tmp_path / "platform with spaces"
+    copied.mkdir()
+    ini = copied / "alembic.ini"
+    ini.write_text((platform / "alembic.ini").read_text())
+    assert Config(str(ini)).get_prepend_sys_paths_list() == [
+        str(copied / "src"), str(copied),
+    ]
+
+
 def test_required_passwords_maps_every_role() -> None:
     environ = {variable: f"secret-for-{role}" for role, variable in ROLE_PASSWORDS.items()}
 
