@@ -28,6 +28,7 @@ from tools import (
 from tools.wp10_2_runtime_probe import connect_role
 from tools.wp10_6_migration_probe import (
     PLATFORM_ROOT,
+    _role_database_url,
     create_database,
     database_url,
     libpq_url,
@@ -45,6 +46,22 @@ TRIGGER_FUNCTIONS = (
     "require_linked_document_entity_revision_match",
 )
 PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE")
+
+
+def connect_migrator(url: str) -> psycopg.Connection[Any]:
+    """Use the migrator's explicit credential, never a publisher fallback."""
+
+    return psycopg.connect(libpq_url(_role_database_url(url, "uap_migrator")))
+
+
+def run_public_api(url: str) -> None:
+    """Pass credential-bearing role DSNs; ConnectionInfo.dsn omits passwords."""
+
+    wp10_4_runtime_probe.run(
+        url,
+        libpq_url(_role_database_url(url, "uap_publisher")),
+        libpq_url(_role_database_url(url, "uap_public_reader")),
+    )
 
 
 def require(condition: bool, marker: str) -> None:
@@ -149,7 +166,7 @@ def publication_and_rebuild(url: str) -> dict[str, object]:
                     )
                 )
             reader.commit()
-    with connect_role(url, "uap_migrator") as migrator:
+    with connect_migrator(url) as migrator:
         require(
             migrator.execute("SELECT session_user,current_user").fetchone()
             == ("uap_migrator", "uap_migrator"),
@@ -230,11 +247,7 @@ def run(admin_url: str, evidence_path: Path) -> dict[str, Any]:
                 wp10_2_runtime_probe.run(url)
                 evidence["checks"][kind] = "PASS"
             else:
-                with (
-                    connect_role(url, "uap_publisher") as publisher,
-                    connect_role(url, "uap_public_reader") as reader,
-                ):
-                    wp10_4_runtime_probe.run(url, publisher.info.dsn, reader.info.dsn)
+                run_public_api(url)
                 evidence["checks"][kind] = "PASS"
             after = verify_database(url)["privileges"]
             require(before == after, "migrator public privilege drift")

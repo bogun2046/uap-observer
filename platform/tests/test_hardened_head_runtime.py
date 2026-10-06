@@ -7,10 +7,64 @@ from unittest.mock import MagicMock
 import psycopg
 import pytest
 from alembic.script import ScriptDirectory
+from psycopg.conninfo import conninfo_to_dict
 
 from tools import configure_roles, wp10_2_runtime_probe, wp10_4_runtime_probe, wp10_5_runtime_probe
 from tools import frozen_historical_role_fixture as historical
 from tools import hardened_head_runtime_probe as probe
+
+
+def test_migrator_connection_uses_distinct_role_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UAP_MIGRATOR_PASSWORD", "migrator-only-password")
+    monkeypatch.setenv("UAP_PUBLISHER_PASSWORD", "different-publisher-password")
+    observed: list[dict[str, str | int | None]] = []
+    connection = MagicMock()
+
+    def connect(dsn: str) -> MagicMock:
+        observed.append(conninfo_to_dict(dsn))
+        return connection
+
+    monkeypatch.setattr(psycopg, "connect", connect)
+    assert probe.connect_migrator("postgresql+psycopg://admin:admin-password@db/test") is connection
+    assert observed == [{
+        "user": "uap_migrator", "password": "migrator-only-password",
+        "dbname": "test", "host": "db",
+    }]
+
+
+def test_migrator_connection_fails_closed_without_own_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("UAP_MIGRATOR_PASSWORD", raising=False)
+    monkeypatch.setenv("UAP_PUBLISHER_PASSWORD", "publisher-must-not-be-used")
+
+    def forbidden_connect(*args: object, **kwargs: object) -> None:
+        pytest.fail("missing migrator credential attempted database connection")
+
+    monkeypatch.setattr(psycopg, "connect", forbidden_connect)
+    with pytest.raises(RuntimeError, match="UAP_MIGRATOR_PASSWORD"):
+        probe.connect_migrator("postgresql+psycopg://admin:admin-password@db/test")
+
+
+def test_public_api_receives_explicit_distinct_role_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("UAP_PUBLISHER_PASSWORD", "publisher-only-password")
+    monkeypatch.setenv("UAP_PUBLIC_READER_PASSWORD", "different-reader-password")
+    observed: list[object] = []
+
+    def run(admin: str, publisher: str, reader: str) -> None:
+        observed.extend([admin, conninfo_to_dict(publisher), conninfo_to_dict(reader)])
+
+    monkeypatch.setattr(wp10_4_runtime_probe, "run", run)
+    url = "postgresql+psycopg://admin:admin-password@db/test"
+    probe.run_public_api(url)
+    assert observed == [url,
+        {"user": "uap_publisher", "password": "publisher-only-password",
+         "dbname": "test", "host": "db"},
+        {"user": "uap_public_reader", "password": "different-reader-password",
+         "dbname": "test", "host": "db"},
+    ]
 
 
 def test_current_head_requires_exact_formal_successor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,7 +165,7 @@ def test_head_runtime_emits_separate_evidence_and_closes_login_on_failure(
 
     monkeypatch.setattr(probe, "publication_and_rebuild", lambda _: operation("publication"))
     monkeypatch.setattr(wp10_2_runtime_probe, "run", lambda _: operation("publisher"))
-    monkeypatch.setattr(wp10_4_runtime_probe, "run", lambda *_: operation("public_api"))
+    monkeypatch.setattr(probe, "run_public_api", lambda _: operation("public_api"))
     monkeypatch.setattr(wp10_5_runtime_probe, "run", lambda _: operation("admin_api"))
     path = tmp_path / "hardened-head-runtime-evidence.json"
     if failure:
