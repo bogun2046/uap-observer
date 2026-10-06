@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import quote, urlsplit, urlunsplit
 
+from tools.frozen_historical_role_fixture import historical_step_fixture
 from tools.wp10_object_store_guard import DisposableObjectStoreGuard
 from tools.wp10_stage_revisions import (
     DATABASE_TOPOLOGY_ENVS,
@@ -1699,7 +1700,10 @@ def execute_steps(
                             "refusing to spawn a child whose OS argv contains secrets"
                         )
                     record["command"] = redact_argv(argv, secrets)
-                    completed = runner(argv, cwd=PLATFORM_DIR, env=child_env(step))
+                    with historical_step_fixture(step.step_id) as role_fixture:
+                        if role_fixture is not None:
+                            record["role_fixture"] = role_fixture
+                        completed = runner(argv, cwd=PLATFORM_DIR, env=child_env(step))
                     exit_code = int(completed.returncode)
                     output = completed.stdout or ""
                     record["exit_code"] = exit_code
@@ -1787,6 +1791,7 @@ def _summary(
     payload: dict[str, Any] = {
         "schema": SCHEMA,
         "status": status,
+        "runtime_contract": "frozen-historical-0019-0024",
         "signed_sha": SIGNED_SHA,
         "start_sha": START_SHA,
         "migration_head": HEAD,
