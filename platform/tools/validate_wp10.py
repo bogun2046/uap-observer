@@ -124,6 +124,7 @@ ALLOWED_WP106F3_PATHS = frozenset(
 )
 ALLOWED_WP106F4_PATHS = frozenset(
     {
+        "platform/tools/configure_roles.py",
         "platform/alembic/env.py",
         "platform/alembic/versions/0008_ai_model_governance.py",
         "platform/src/uap_platform/collectors/contracts.py",
@@ -202,6 +203,15 @@ ALLOWED_V133_TRIGGER_SECURITY_PATHS = frozenset(
     {
         "platform/alembic/versions/0037_v133_deferred_integrity_trigger_security.py",
         "platform/tests/test_v133_deferred_trigger_security.py",
+    }
+)
+ALLOWED_HARDENED_HEAD_RUNTIME_PATHS = frozenset(
+    {
+        "platform/alembic.ini",
+        "platform/tools/hardened_head_runtime_probe.py",
+        "platform/tests/test_hardened_head_runtime.py",
+        "platform/tools/frozen_historical_role_fixture.py",
+        "platform/tests/test_frozen_historical_role_fixture.py",
     }
 )
 HEAD_UPGRADE_MARKERS = (
@@ -472,6 +482,7 @@ def classify_git_paths(paths: list[str]) -> tuple[str, list[str]]:
         | ALLOWED_V13_SECURITY_BASELINE_PATHS
         | ALLOWED_V13_SECURITY_DEPENDENCY_PATHS
         | ALLOWED_V133_TRIGGER_SECURITY_PATHS
+        | ALLOWED_HARDENED_HEAD_RUNTIME_PATHS
     )
     extra = sorted({path for path in paths if path and path not in allowed})
     if extra:

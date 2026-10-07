@@ -537,6 +537,8 @@ def _container_platform_layout(tmp_path: Path) -> Path:
         "wp10_runtime_probe.py",
         "wp10_object_store_guard.py",
         "wp10_stage_revisions.py",
+        "frozen_historical_role_fixture.py",
+        "configure_roles.py",
     ):
         shutil.copy2(PLATFORM / "tools" / name, tools / name)
     for script in {step.script for step in FROZEN_STEPS}:
@@ -691,6 +693,8 @@ def test_exec_child_subprocess_preserves_legacy_sibling_import(tmp_path: Path) -
         "wp10_runtime_probe.py",
         "wp10_object_store_guard.py",
         "wp10_stage_revisions.py",
+        "frozen_historical_role_fixture.py",
+        "configure_roles.py",
         "wp6_runtime_probe.py",
         "wp7_runtime_probe.py",
     ):
@@ -1876,9 +1880,10 @@ def test_f4_scope_rejects_adjacent_approximate_and_invalid_paths(path: str) -> N
 
 
 def test_f4_scope_matches_reviewed_format_target_manifest() -> None:
-    assert len(validate_wp10.ALLOWED_WP106F4_PATHS) == 42
+    assert len(validate_wp10.ALLOWED_WP106F4_PATHS) == 43
     assert validate_wp10.ALLOWED_WP106F4_PATHS == frozenset(
         {
+            "platform/tools/configure_roles.py",
             "platform/alembic/env.py",
             "platform/alembic/versions/0008_ai_model_governance.py",
             "platform/src/uap_platform/collectors/contracts.py",
@@ -2718,3 +2723,35 @@ def test_public_and_admin_servers_dispatch_and_shutdown() -> None:
         pytest.raises(SystemExit, match="OIDC"),
     ):
         admin_main()
+
+
+@pytest.mark.parametrize("extra", [[], ["platform/tools/arbitrary_role_tool.py"]])
+def test_membership_bootstrap_paths_are_precisely_authorized(extra: list[str]) -> None:
+    authorized = [
+        "platform/alembic.ini",
+        "platform/tools/configure_roles.py",
+        "platform/alembic/env.py",
+        "platform/tests/test_configure_roles.py",
+        "platform/tools/hardened_head_runtime_probe.py",
+        "platform/tests/test_hardened_head_runtime.py",
+        "platform/tools/frozen_historical_role_fixture.py",
+        "platform/tests/test_frozen_historical_role_fixture.py",
+        ".github/workflows/platform-ci.yml",
+        "platform/tools/wp10_runtime_probe.py",
+    ]
+    paths = authorized + extra
+    expected = ("forbidden", extra) if extra else ("allowed", [])
+    assert validate_wp10.classify_git_paths(paths) == expected
+    for validator in (validate_wp10, validate_wp10_6):
+        checks = (
+            validate_wp10.evaluate(PLATFORM, git_paths=paths)
+            if validator is validate_wp10
+            else validate_wp10_6.evaluate(PLATFORM, paths=paths)
+        )
+        failures = [check for check in checks if not check.passed]
+        if extra:
+            assert [check.name for check in failures] == [
+                "WP10.6 changes stay in the authorized surface"
+            ]
+        else:
+            assert failures == []

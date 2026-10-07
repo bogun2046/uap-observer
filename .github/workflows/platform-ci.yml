@@ -295,6 +295,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a
+          . ./.env.versions
           . ./.env
           set +a
           legacy_db="uap_wp10_legacy_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
@@ -312,6 +313,10 @@ jobs:
           disposable_network="$disposable_project"
           api_port=$((18000 + (GITHUB_RUN_ID % 1000)))
           app_image="${UAP_APP_IMAGE:-uap-platform:development}"
+          frozen_pg="uap-frozen-wp10-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fixture_id="${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          printf 'UAP_WP10_FROZEN_PG=%s\n' "$frozen_pg" >> "$GITHUB_ENV"
+          printf 'UAP_WP10_FROZEN_FIXTURE_ID=%s\n' "$fixture_id" >> "$GITHUB_ENV"
 
           printf 'UAP_WP10_LEGACY_DB=%s\n' "$legacy_db" >> "$GITHUB_ENV"
           printf 'UAP_WP10_LEGACY_PROBE_DB=%s\n' "$legacy_probe_db" >> "$GITHUB_ENV"
@@ -329,12 +334,35 @@ jobs:
 
           postgres_user=$(sed -n 's/^UAP_POSTGRES_USER=//p' .env)
           postgres_password=$(sed -n 's/^UAP_POSTGRES_PASSWORD=//p' .env)
+          frozen_pg_env=$(mktemp "$RUNNER_TEMP/wp10-frozen-pg-env.XXXXXX")
+          chmod 600 "$frozen_pg_env"
+          {
+            printf 'POSTGRES_DB=postgres\n'
+            printf 'POSTGRES_USER=%s\n' "$postgres_user"
+            printf 'POSTGRES_PASSWORD=%s\n' "$postgres_password"
+          } > "$frozen_pg_env"
+          trap 'rm -f "$frozen_pg_env"' EXIT
+          # Roles are cluster-wide: historical fixtures never share the product-head instance.
+          frozen_pg_uid=$(docker run --rm --entrypoint id "$UAP_POSTGRES_RUNTIME_IMAGE" -u)
+          frozen_pg_gid=$(docker run --rm --entrypoint id "$UAP_POSTGRES_RUNTIME_IMAGE" -g)
+          docker run --detach --name "$frozen_pg" --network "$backend_network" \
+            --network-alias frozen-postgres --env-file "$frozen_pg_env" \
+            --tmpfs "/var/lib/postgresql/data:uid=$frozen_pg_uid,gid=$frozen_pg_gid,mode=0700" \
+            "$UAP_POSTGRES_RUNTIME_IMAGE"
+          ready=0
+          for attempt in $(seq 1 60); do
+            if docker exec "$frozen_pg" pg_isready --username "$postgres_user" --dbname postgres; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
           create_database() {
-            docker compose --env-file .env.versions --env-file .env -f compose.yaml \
-              exec -T postgres createdb --username "$postgres_user" "$1"
+            docker exec "$frozen_pg" createdb --username "$postgres_user" "$1"
           }
           run_tool() {
-            database_url="postgresql+psycopg://${postgres_user}:${postgres_password}@postgres:5432/$1"
+            database_url="postgresql+psycopg://${postgres_user}:${postgres_password}@frozen-postgres:5432/$1"
             db_env=$(mktemp "$RUNNER_TEMP/wp10-db-env.XXXXXX")
             chmod 600 "$db_env"
             printf 'UAP_DATABASE_URL=%s\n' "$database_url" > "$db_env"
@@ -360,6 +388,11 @@ jobs:
           create_database "$wp10_4_db"
           create_database "$wp10_5_db"
           create_database "$regression_db"
+          for stage in legacy legacy_probe 1 2 3 4 5 regression; do
+            run_tool "uap_wp10_${stage}_${fixture_id}" \
+              python -m tools.frozen_historical_role_fixture \
+              --register-stage "$stage" --fixture-id "$fixture_id"
+          done
           run_tool "$legacy_db" alembic upgrade 0019_manual_claims_binding
           run_tool "$legacy_db" python tools/configure_roles.py configure
           close_migrator "$legacy_db"
@@ -385,7 +418,7 @@ jobs:
           run_tool "$regression_db" python tools/configure_roles.py configure
           close_migrator "$regression_db"
 
-          export UAP_DATABASE_URL="postgresql+psycopg://${postgres_user}:${postgres_password}@postgres:5432/${legacy_db}"
+          export UAP_DATABASE_URL="postgresql+psycopg://${postgres_user}:${postgres_password}@frozen-postgres:5432/${legacy_db}"
           export UAP_S3_DISPOSABLE=1
           export UAP_S3_DISPOSABLE_ID="$disposable_id"
           ./scripts/g10-25-disposable-object-store.sh start
@@ -437,7 +470,7 @@ jobs:
           legacy_env=$(mktemp "$RUNNER_TEMP/wp10-legacy-probe-env.XXXXXX")
           legacy_container="uap-g10-25-legacy-probes-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           chmod 600 "$legacy_env"
-          printf 'UAP_DATABASE_URL=postgresql+psycopg://%s:%s@postgres:5432/%s\n' \
+          printf 'UAP_DATABASE_URL=postgresql+psycopg://%s:%s@frozen-postgres:5432/%s\n' \
             "$UAP_POSTGRES_USER" "$UAP_POSTGRES_PASSWORD" "$UAP_WP10_LEGACY_PROBE_DB" > "$legacy_env"
           printf 'UAP_S3_ENDPOINT=g10-25-object-store:8333\n' >> "$legacy_env"
           printf 'UAP_S3_SECURE=false\n' >> "$legacy_env"
@@ -489,7 +522,7 @@ jobs:
           export UAP_S3_DISPOSABLE_ID="$next_disposable_id"
           export UAP_G10_25_COMPOSE_PROJECT="$next_disposable_project"
           export UAP_G10_25_NETWORK="$next_disposable_network"
-          export UAP_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_LEGACY_DB}"
+          export UAP_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_LEGACY_DB}"
           ./scripts/g10-25-disposable-object-store.sh start
       - name: Run WP10 WP3-through-WP10.5 runtime probe
         working-directory: platform
@@ -500,14 +533,14 @@ jobs:
           set -a
           . ./.env
           set +a
-          export UAP_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_LEGACY_DB}"
+          export UAP_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_LEGACY_DB}"
           export UAP_WP10_LEGACY_DATABASE_URL="$UAP_DATABASE_URL"
-          export UAP_WP10_1_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_1_DB}"
-          export UAP_WP10_2_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_2_DB}"
-          export UAP_WP10_3_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_3_DB}"
-          export UAP_WP10_4_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_4_DB}"
-          export UAP_WP10_5_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_5_DB}"
-          export UAP_WP10_2_REGRESSION_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@postgres:5432/${UAP_WP10_REGRESSION_DB}"
+          export UAP_WP10_1_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_1_DB}"
+          export UAP_WP10_2_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_2_DB}"
+          export UAP_WP10_3_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_3_DB}"
+          export UAP_WP10_4_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_4_DB}"
+          export UAP_WP10_5_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_5_DB}"
+          export UAP_WP10_2_REGRESSION_DATABASE_URL="postgresql+psycopg://${UAP_POSTGRES_USER}:${UAP_POSTGRES_PASSWORD}@frozen-postgres:5432/${UAP_WP10_REGRESSION_DB}"
           export UAP_S3_ENDPOINT=g10-25-object-store:8333
           export UAP_S3_SECURE=false
           export UAP_S3_DISPOSABLE=1
@@ -535,6 +568,7 @@ jobs:
             printf 'UAP_WP10_4_DATABASE_URL=%s\n' "$UAP_WP10_4_DATABASE_URL"
             printf 'UAP_WP10_5_DATABASE_URL=%s\n' "$UAP_WP10_5_DATABASE_URL"
             printf 'UAP_WP10_2_REGRESSION_DATABASE_URL=%s\n' "$UAP_WP10_2_REGRESSION_DATABASE_URL"
+            printf 'UAP_WP10_FROZEN_FIXTURE_ID=%s\n' "$UAP_WP10_FROZEN_FIXTURE_ID"
             printf 'UAP_S3_ENDPOINT=%s\n' "$UAP_S3_ENDPOINT"
             printf 'UAP_S3_SECURE=false\n'
             printf 'UAP_S3_DISPOSABLE=1\n'
@@ -563,6 +597,44 @@ jobs:
           name: wp10-runtime-evidence
           path: ${{ runner.temp }}/wp10-runtime-evidence
           if-no-files-found: error
+      - name: Run current-head hardened membership runtime
+        working-directory: platform
+        env:
+          HEAD_EVIDENCE_HOST: ${{ runner.temp }}/hardened-head-runtime-evidence
+        run: |
+          set -euo pipefail
+          set -a
+          . ./.env
+          set +a
+          mkdir -p "$HEAD_EVIDENCE_HOST"
+          chmod 1777 "$HEAD_EVIDENCE_HOST"
+          head_env=$(mktemp "$RUNNER_TEMP/hardened-head-env.XXXXXX")
+          chmod 600 "$head_env"
+          trap 'rm -f "$head_env"' EXIT
+          {
+            printf 'UAP_DATABASE_URL=postgresql+psycopg://%s:%s@postgres:5432/%s\n' \
+              "$UAP_POSTGRES_USER" "$UAP_POSTGRES_PASSWORD" "$UAP_POSTGRES_DB"
+            printf 'UAP_S3_ENDPOINT=127.0.0.1:8333\n'
+          } > "$head_env"
+          docker run --rm --network "$UAP_WP10_BACKEND_NETWORK" \
+            --env-file .env --env-file "$head_env" \
+            --volume "$HEAD_EVIDENCE_HOST:/tmp/hardened-head-runtime-evidence" \
+            "${UAP_APP_IMAGE:-uap-platform:development}" \
+            python -m tools.hardened_head_runtime_probe \
+            --evidence-out /tmp/hardened-head-runtime-evidence/hardened-head-runtime-evidence.json
+      - name: Upload current-head hardened runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hardened-head-runtime-evidence
+          path: ${{ runner.temp }}/hardened-head-runtime-evidence
+          if-no-files-found: error
+      - name: Stop isolated frozen historical PostgreSQL
+        if: always()
+        run: |
+          if [ -n "${UAP_WP10_FROZEN_PG:-}" ]; then
+            docker rm --force "$UAP_WP10_FROZEN_PG"
+          fi
       - name: Stop disposable object store
         if: always()
         working-directory: platform
