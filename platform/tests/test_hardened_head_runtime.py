@@ -71,7 +71,7 @@ def test_current_head_requires_exact_formal_successor(monkeypatch: pytest.Monkey
     scripts = MagicMock()
     monkeypatch.setattr(ScriptDirectory, "from_config", lambda _: scripts)
     scripts.get_current_head.return_value = probe.REQUIRED_HEAD
-    assert probe.current_head() == "0037_v133_deferred_integrity_trigger_security"
+    assert probe.current_head() == "0038_v133_full_rebuild_compaction"
     scripts.get_current_head.return_value = "0024_wp10_admin_replay"
     with pytest.raises(RuntimeError, match="unexpected current Alembic head"):
         probe.current_head()
@@ -121,7 +121,7 @@ def test_projection_privilege_inventory_is_read_only_and_complete() -> None:
     connection = MagicMock()
     connection.execute.return_value.fetchone.return_value = (False,)
     observed = probe.privilege_snapshot(connection)
-    assert len(observed) == 20
+    assert len(observed) == 45
     assert not any(observed.values())
     assert all(
         call.args[0].startswith("SELECT has_table_privilege")

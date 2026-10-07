@@ -1462,15 +1462,16 @@ def test_validator_accepts_the_v133_migration_descendants() -> None:
     assert "0025_v12_editorial_foundation.py" in names
     assert "0036_v133_full_rebuild_publication_evidence_guard.py" in names
     assert "0037_v133_deferred_integrity_trigger_security.py" in names
+    assert "0038_v133_full_rebuild_compaction.py" in names
     assert validate_wp10.forbidden_versions(names) == []
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[])
-    chain = next(item for item in checks if item.name == "0001-0037 v1.3.3 migration chain")
+    chain = next(item for item in checks if item.name == "0001-0038 v1.3.3 migration chain")
     assert chain.passed, chain.actual
 
 
 def test_validator_detects_second_head() -> None:
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[], version_names=["0024_x.py", "0024b.py"])
-    linear = next(item for item in checks if item.name == "0001-0037 v1.3.3 migration chain")
+    linear = next(item for item in checks if item.name == "0001-0038 v1.3.3 migration chain")
     assert linear.passed is False
 
 
