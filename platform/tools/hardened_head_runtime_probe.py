@@ -17,6 +17,7 @@ from typing import Any
 import psycopg
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from psycopg import sql
 
 from tools import (
     configure_roles,
@@ -37,8 +38,34 @@ from tools.wp10_6_migration_probe import (
 )
 from uap_platform.publishing.service import PublicationService
 
-REQUIRED_HEAD = "0037_v133_deferred_integrity_trigger_security"
-PUBLIC_TABLES = ("claims", "claim_evidence", "document_entities", "relations")
+REQUIRED_HEAD = "0038_v133_full_rebuild_compaction"
+READER_TABLES = ("claims", "claim_evidence", "document_entities", "relations")
+PUBLIC_PROJECTION_TABLES = (
+    "document_entities",
+    "claim_evidence",
+    "relation_evidence",
+    "relations",
+    "claims",
+    "evidence",
+    "search_documents",
+    "documents",
+    "entities",
+)
+DENIED_REBUILD_ROLES = (
+    "uap_api",
+    "uap_worker",
+    "uap_scheduler",
+    "uap_publisher",
+    "uap_public_reader",
+    "uap_model_governance",
+    "uap_audit_reader",
+    "uap_backup",
+)
+REBUILD_COMMENT = (
+    "Administrative full projection recovery only. Requires an approved "
+    "maintenance window with public read traffic quiesced before the transaction "
+    "starts and until commit. Uses TRUNCATE and is not safe for concurrent public reads."
+)
 TRIGGER_FUNCTIONS = (
     "require_claim_has_evidence",
     "prevent_last_claim_evidence_removal",
@@ -100,7 +127,7 @@ def fresh_database(admin_url: str, name: str) -> str:
 
 def privilege_snapshot(connection: psycopg.Connection[Any]) -> dict[str, bool]:
     result: dict[str, bool] = {}
-    for table in PUBLIC_TABLES:
+    for table in PUBLIC_PROJECTION_TABLES:
         for privilege in PRIVILEGES:
             row = connection.execute(
                 "SELECT has_table_privilege('uap_migrator',%s,%s)",
@@ -125,6 +152,31 @@ def verify_database(url: str) -> dict[str, object]:
         configure_roles.verify_alembic_version_access(
             admin.execute(configure_roles.ALEMBIC_VERSION_ACCESS_QUERY).fetchone()
         )
+        rebuild_function = admin.execute(
+            "SELECT pg_get_userbyid(p.proowner),p.prosecdef,p.proconfig,"
+            "obj_description(p.oid,'pg_proc'),"
+            "has_function_privilege('uap_migrator',p.oid,'EXECUTE') "
+            "FROM pg_proc AS p "
+            "WHERE p.oid='ops.rebuild_public_projection(uuid)'::regprocedure"
+        ).fetchone()
+        require(
+            rebuild_function
+            == (
+                "uap_owner",
+                True,
+                ["search_path=ops, audit, core, public, pg_catalog", "TimeZone=UTC"],
+                REBUILD_COMMENT,
+                True,
+            ),
+            "formal 0038 rebuild security contract mismatch",
+        )
+        denied_rebuild = admin.execute(
+            "SELECT bool_and(NOT has_function_privilege(rolname,"
+            "'ops.rebuild_public_projection(uuid)','EXECUTE')) "
+            "FROM pg_roles WHERE rolname=ANY(%s)",
+            (list(DENIED_REBUILD_ROLES),),
+        ).fetchone()
+        require(denied_rebuild == (True,), "rebuild execute ACL expanded")
         rows = admin.execute(
             "SELECT p.proname,pg_get_userbyid(p.proowner),p.prosecdef,p.proconfig "
             "FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace "
@@ -138,7 +190,13 @@ def verify_database(url: str) -> dict[str, object]:
         )
         privileges = privilege_snapshot(admin)
         require(not any(privileges.values()), "migrator has public projection privileges")
-        return {"head": REQUIRED_HEAD, "membership": membership, "privileges": privileges}
+        return {
+            "head": REQUIRED_HEAD,
+            "membership": membership,
+            "privileges": privileges,
+            "rebuild_function": rebuild_function,
+            "denied_rebuild_roles": DENIED_REBUILD_ROLES,
+        }
 
 
 def publication_and_rebuild(url: str) -> dict[str, object]:
@@ -159,7 +217,7 @@ def publication_and_rebuild(url: str) -> dict[str, object]:
             publisher.commit()
             require(not report.replayed, "fresh publisher event unexpectedly replayed")
         with connect_role(url, "uap_public_reader") as reader:
-            for table in PUBLIC_TABLES:
+            for table in READER_TABLES:
                 reader.execute(
                     psycopg.sql.SQL("SELECT count(*) FROM public.{}").format(
                         psycopg.sql.Identifier(table)
@@ -186,13 +244,17 @@ def publication_and_rebuild(url: str) -> dict[str, object]:
             migrator.execute("SELECT current_user").fetchone() == ("uap_migrator",),
             "owner identity escaped rebuild",
         )
-        try:
-            with migrator.transaction():
-                migrator.execute("TRUNCATE public.search_documents")
-        except psycopg.errors.InsufficientPrivilege:
-            pass
-        else:
-            raise RuntimeError("direct migrator truncate accepted")
+        for table in ("documents", "search_documents"):
+            try:
+                with migrator.transaction():
+                    migrator.execute(
+                        sql.SQL("TRUNCATE TABLE ONLY public.{} CONTINUE IDENTITY RESTRICT").format(
+                            sql.Identifier(table)
+                        )
+                    )
+            except psycopg.errors.InsufficientPrivilege:
+                continue
+            raise RuntimeError(f"direct migrator truncate accepted for {table}")
         migrator.execute("SET ROLE uap_owner")
         require(
             migrator.execute("SELECT current_user").fetchone() == ("uap_owner",),
@@ -226,6 +288,7 @@ def run(admin_url: str, evidence_path: Path) -> dict[str, Any]:
             "membership_admin": False,
         },
         "historical_stage_contract_modified": False,
+        "rebuild_traffic_contract": "quiesced disposable fixture; no reader overlaps rebuild",
         "databases": [],
         "checks": {},
     }
