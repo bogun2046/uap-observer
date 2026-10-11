@@ -320,3 +320,23 @@ def test_f3_runtime_policy_rejects_any_explicit_shell_in_approved_templates(
     assert isinstance(object_store, str)
 
     assert patched_runtime_versions_are_valid(versions, dockerfile, postgres, object_store) is False
+
+
+@pytest.mark.parametrize(
+    ("approved", "replacement"),
+    [
+        ("ARG UAP_X_NET_VERSION=v0.60.0", "ARG UAP_X_NET_VERSION=v0.58.0"),
+        ("ARG UAP_X_NET_VERSION=v0.60.0", "# ARG UAP_X_NET_VERSION=v0.60.0"),
+        (
+            "ARG UAP_X_NET_VERSION=v0.60.0",
+            "ARG UAP_X_NET_VERSION=v0.60.0\nENV UAP_X_NET_VERSION=v0.58.0",
+        ),
+        ('"golang.org/x/net@${UAP_X_NET_VERSION}"', '"golang.org/x/net@latest"'),
+        ('"golang.org/x/net@${UAP_X_NET_VERSION}"', ''),
+    ],
+)
+def test_object_store_rejects_weakened_x_net_pin(approved: str, replacement: str) -> None:
+    versions, dockerfile, postgres, object_store = runtime_inputs()
+    assert approved in object_store
+    object_store = object_store.replace(approved, replacement, 1)
+    assert patched_runtime_versions_are_valid(versions, dockerfile, postgres, object_store) is False

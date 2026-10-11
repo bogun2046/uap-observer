@@ -1,10 +1,11 @@
-ARG UAP_GO_IMAGE=golang:1.26-alpine3.23@sha256:33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc
+ARG UAP_GO_IMAGE=golang:1.26.9-alpine3.23@sha256:6750308561953d451210ed1a8086d36c8c8bdcbf672d38d9d0d424b8a7a0216c
 ARG UAP_SEAWEEDFS_BASE_IMAGE=chrislusf/seaweedfs:4.41@sha256:43b768cd62b00d132439cda881b93fd1adebf1b315e996e794087743821d771d
 
 FROM ${UAP_GO_IMAGE} AS builder
 
 ARG UAP_SEAWEEDFS_COMMIT=e919bec9d194b61aa07cef75f46b207dd687a019
 ARG UAP_GRPC_VERSION=v1.85.0-dev.0.20260825072537-93e31b48545e
+ARG UAP_X_NET_VERSION=v0.60.0
 
 RUN apk add --no-cache git
 WORKDIR /src
@@ -16,6 +17,7 @@ RUN set -eu; \
     attempt=1; \
     while true; do \
         if go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \
+            "golang.org/x/net@${UAP_X_NET_VERSION}" \
             && go mod tidy; then \
             break; \
         fi; \
