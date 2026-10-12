@@ -830,6 +830,8 @@ def prepare_capacity(admin_url: str, spec: DatasetSpec, evidence: Path) -> dict[
         with psycopg.connect(role_url(admin_url, "uap_api")) as api:
             _grant_capacity(api, spec, ids["reviewer"])
         _seed_identities(admin, spec)
+        admin.commit()
+        _drain_publication_queue_for_prepare(admin_url, evidence)
         rebuild = _rebuild(admin, spec)
         with admin.cursor() as cursor:
             cursor.execute("ANALYZE")
@@ -843,7 +845,6 @@ def prepare_capacity(admin_url: str, spec: DatasetSpec, evidence: Path) -> dict[
             "public.search_documents": "SELECT count(*) FROM public.search_documents",
         }
         counts = {name: int(scalar(admin, query)) for name, query in count_queries.items()}
-    _drain_publication_queue_for_prepare(admin_url, evidence)
     result = {
         "schema": "g10-27-capacity-dataset.v1",
         "started_at": started,

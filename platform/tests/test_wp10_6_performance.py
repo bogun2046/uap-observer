@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import socket
@@ -27,6 +28,7 @@ from tools.wp10_6_performance_probe import (
     _request,
     freshness_url,
     percentile,
+    prepare_capacity,
     stable_uuid,
     summarize,
     workload_paths,
@@ -146,6 +148,17 @@ def test_probe_does_not_disable_integrity_or_seed_public_tables_directly() -> No
     assert "ops.rebuild_public_projection" in source
     assert "from uap_platform.publishing.loop import main; main()" in source
     assert "uap_platform.public_api.server" in source
+
+
+def test_prepare_capacity_commits_and_drains_before_rebuild() -> None:
+    source = inspect.getsource(prepare_capacity)
+    seed_index = source.index("_seed_identities(")
+    commit_index = source.index("admin.commit()", seed_index)
+    drain_index = source.index("_drain_publication_queue_for_prepare(")
+    rebuild_index = source.index("rebuild = _rebuild(")
+
+    assert seed_index < commit_index < drain_index < rebuild_index
+    assert source.count("_drain_publication_queue_for_prepare(") == 1
 
 
 def test_freshness_timer_starts_after_grant_commit_returns() -> None:
