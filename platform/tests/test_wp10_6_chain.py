@@ -1937,14 +1937,16 @@ def test_f3_image_security_versions_are_immutably_pinned() -> None:
     postgres = (PLATFORM / "postgres/Dockerfile").read_text(encoding="utf-8")
     object_store = (PLATFORM / "object-store/Dockerfile").read_text(encoding="utf-8")
 
-    assert "golang:1.26-alpine3.23@sha256:" in versions
+    assert "golang:1.26.9-alpine3.23@sha256:" in versions
     assert "UAP_SEAWEEDFS_COMMIT=e919bec9d194b61aa07cef75f46b207dd687a019" in versions
     assert "'libuuid>=2.41.6-r1'" in app
     assert "'libuuid>=2.42.3-r1'" in postgres
-    assert "ARG UAP_GO_IMAGE=golang:1.26-alpine3.23@sha256:" in object_store
+    assert "ARG UAP_GO_IMAGE=golang:1.26.9-alpine3.23@sha256:" in object_store
     assert "ARG UAP_SEAWEEDFS_COMMIT=e919bec9d194b61aa07cef75f46b207dd687a019" in object_store
     assert "ARG UAP_GRPC_VERSION=v1.85.0-dev.0.20260825072537-93e31b48545e" in object_store
     assert 'go get "google.golang.org/grpc@${UAP_GRPC_VERSION}"' in object_store
+    assert "ARG UAP_X_NET_VERSION=v0.60.0" in object_store
+    assert '"golang.org/x/net@${UAP_X_NET_VERSION}"' in object_store
 
 
 @pytest.mark.parametrize(
