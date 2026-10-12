@@ -43,8 +43,8 @@ EXPECTED_RUNTIME_VERSIONS = {
     ),
     "UAP_POSTGRES_RUNTIME_IMAGE": "uap-postgres:16.14-hardened",
     "UAP_GO_IMAGE": (
-        "golang:1.26-alpine3.23@sha256:"
-        "33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc"
+        "golang:1.26.9-alpine3.23@sha256:"
+        "6750308561953d451210ed1a8086d36c8c8bdcbf672d38d9d0d424b8a7a0216c"
     ),
     "UAP_SEAWEEDFS_COMMIT": "e919bec9d194b61aa07cef75f46b207dd687a019",
     "UAP_SEAWEEDFS_BASE_IMAGE": (
@@ -57,6 +57,7 @@ EXPECTED_RUNTIME_VERSIONS = {
         "7cced7cae583819fc7806d4cbc0dbbc7cad18b99f7d3e235192e6da8c091045c"
     ),
 }
+EXPECTED_X_NET_VERSION = "v0.60.0"
 EXPECTED_GRPC_VERSION = "v1.85.0-dev.0.20260825072537-93e31b48545e"
 
 EXPECTED_APP_PATCH_RUN = (
@@ -81,6 +82,7 @@ EXPECTED_GRPC_PATCH_SOURCE = r"""RUN set -eu; \
     attempt=1; \
     while true; do \
         if go get "google.golang.org/grpc@${UAP_GRPC_VERSION}" \
+            "golang.org/x/net@${UAP_X_NET_VERSION}" \
             && go mod tidy; then \
             break; \
         fi; \
@@ -102,6 +104,7 @@ PROTECTED_DOCKER_VARIABLES = frozenset(
         "UAP_SEAWEEDFS_BASE_IMAGE",
         "UAP_SEAWEEDFS_COMMIT",
         "UAP_GRPC_VERSION",
+        "UAP_X_NET_VERSION",
     }
 )
 
@@ -261,6 +264,9 @@ def patched_runtime_versions_are_valid(
                 "UAP_GRPC_VERSION",
                 EXPECTED_GRPC_VERSION,
                 0,
+            ),
+            _has_only_exact_arg(
+                object_store_instructions, "UAP_X_NET_VERSION", EXPECTED_X_NET_VERSION, 0
             ),
             _has_only_exact_run(object_store_instructions, expected_grpc_run, 0),
             _has_exact_from(object_store_instructions, "${UAP_SEAWEEDFS_BASE_IMAGE}", 1),

@@ -36,7 +36,7 @@ from tools.wp10_stage_revisions import DATABASE_TOPOLOGY_ENVS  # noqa: E402
 
 HEAD = "0024_wp10_admin_replay"
 PARENT = "0023_wp10_api_read_indexes"
-EXPECTED_REVISIONS = 38
+EXPECTED_REVISIONS = 39
 SIGNED_SHA = "4e15bdd8cdb92d4406cc46b38f8cef92320a1881"
 START_SHA = "34c57bcadfeb67053c4c47f8cde237a3af185ba8"
 SHA256_LINE = re.compile(r"^[0-9a-f]{64}  \S.+$")
@@ -265,6 +265,7 @@ EXPECTED_CHAIN = (
     "0036_v133_full_rebuild_publication_evidence_guard",
     "0037_v133_deferred_integrity_trigger_security",
     "0038_v133_full_rebuild_compaction",
+    "0039_v133_full_rebuild_bounded_digest",
 )
 EXPECTED_STEP_IDS = (
     "WP3",
@@ -310,6 +311,19 @@ WP9_PROBES = (
     "wp9_4_runtime_probe.py",
     "wp9_5_runtime_probe.py",
     "wp9_6_runtime_probe.py",
+)
+
+ALLOWED_V133_BOUNDED_DIGEST_PATHS = frozenset(
+    {
+        "platform/alembic/versions/0039_v133_full_rebuild_bounded_digest.py",
+        "platform/tests/test_v133_full_rebuild_bounded_digest.py",
+        "platform/tools/hardened_head_runtime_probe.py",
+        "platform/tests/test_hardened_head_runtime.py",
+        "platform/tools/validate_wp10.py",
+        "platform/tests/test_wp10_6_chain.py",
+        "platform/tests/test_v133_full_rebuild_compaction.py",
+        "docs/wp10/full-rebuild-maintenance.md",
+    }
 )
 
 
@@ -492,6 +506,7 @@ def classify_git_paths(paths: list[str]) -> tuple[str, list[str]]:
         | ALLOWED_V133_TRIGGER_SECURITY_PATHS
         | ALLOWED_HARDENED_HEAD_RUNTIME_PATHS
         | ALLOWED_V133_FULL_REBUILD_COMPACTION_PATHS
+        | ALLOWED_V133_BOUNDED_DIGEST_PATHS
     )
     extra = sorted({path for path in paths if path and path not in allowed})
     if extra:
@@ -736,7 +751,7 @@ def evaluate(
             {"one_head_contains": HEAD},
         ),
         check(
-            "0001-0038 v1.3.3 migration chain",
+            "0001-0039 v1.3.3 migration chain",
             len(names) == EXPECTED_REVISIONS and tuple(chain) == EXPECTED_CHAIN,
             {"files": names, "chain": chain},
             list(EXPECTED_CHAIN),

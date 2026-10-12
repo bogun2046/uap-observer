@@ -1463,15 +1463,16 @@ def test_validator_accepts_the_v133_migration_descendants() -> None:
     assert "0036_v133_full_rebuild_publication_evidence_guard.py" in names
     assert "0037_v133_deferred_integrity_trigger_security.py" in names
     assert "0038_v133_full_rebuild_compaction.py" in names
+    assert "0039_v133_full_rebuild_bounded_digest.py" in names
     assert validate_wp10.forbidden_versions(names) == []
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[])
-    chain = next(item for item in checks if item.name == "0001-0038 v1.3.3 migration chain")
+    chain = next(item for item in checks if item.name == "0001-0039 v1.3.3 migration chain")
     assert chain.passed, chain.actual
 
 
 def test_validator_detects_second_head() -> None:
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[], version_names=["0024_x.py", "0024b.py"])
-    linear = next(item for item in checks if item.name == "0001-0038 v1.3.3 migration chain")
+    linear = next(item for item in checks if item.name == "0001-0039 v1.3.3 migration chain")
     assert linear.passed is False
 
 
@@ -1937,14 +1938,16 @@ def test_f3_image_security_versions_are_immutably_pinned() -> None:
     postgres = (PLATFORM / "postgres/Dockerfile").read_text(encoding="utf-8")
     object_store = (PLATFORM / "object-store/Dockerfile").read_text(encoding="utf-8")
 
-    assert "golang:1.26-alpine3.23@sha256:" in versions
+    assert "golang:1.26.9-alpine3.23@sha256:" in versions
     assert "UAP_SEAWEEDFS_COMMIT=e919bec9d194b61aa07cef75f46b207dd687a019" in versions
     assert "'libuuid>=2.41.6-r1'" in app
     assert "'libuuid>=2.42.3-r1'" in postgres
-    assert "ARG UAP_GO_IMAGE=golang:1.26-alpine3.23@sha256:" in object_store
+    assert "ARG UAP_GO_IMAGE=golang:1.26.9-alpine3.23@sha256:" in object_store
     assert "ARG UAP_SEAWEEDFS_COMMIT=e919bec9d194b61aa07cef75f46b207dd687a019" in object_store
     assert "ARG UAP_GRPC_VERSION=v1.85.0-dev.0.20260825072537-93e31b48545e" in object_store
     assert 'go get "google.golang.org/grpc@${UAP_GRPC_VERSION}"' in object_store
+    assert "ARG UAP_X_NET_VERSION=v0.60.0" in object_store
+    assert '"golang.org/x/net@${UAP_X_NET_VERSION}"' in object_store
 
 
 @pytest.mark.parametrize(
