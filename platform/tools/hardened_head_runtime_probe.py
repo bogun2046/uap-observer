@@ -38,7 +38,15 @@ from tools.wp10_6_migration_probe import (
 )
 from uap_platform.publishing.service import PublicationService
 
-REQUIRED_HEAD = "0038_v133_full_rebuild_compaction"
+REQUIRED_HEAD = "0039_v133_full_rebuild_bounded_digest"
+DIGEST_V2_HELPERS = (
+    "ops._v133_rebuild_digest_fold_v2(text,text,text)",
+    "ops._v133_rebuild_digest_v2(text,text)",
+    "ops._v133_full_input_digest_v2()",
+    "ops._v133_full_input_digest_legacy_v1()",
+    "ops._v133_scoped_input_digest_v2(uuid,jsonb)",
+    "ops._v133_scoped_input_digest_legacy_v1(uuid,jsonb)",
+)
 READER_TABLES = ("claims", "claim_evidence", "document_entities", "relations")
 PUBLIC_PROJECTION_TABLES = (
     "document_entities",
@@ -168,7 +176,7 @@ def verify_database(url: str) -> dict[str, object]:
                 REBUILD_COMMENT,
                 True,
             ),
-            "formal 0038 rebuild security contract mismatch",
+            "formal current-head rebuild security contract mismatch",
         )
         denied_rebuild = admin.execute(
             "SELECT bool_and(NOT has_function_privilege(rolname,"
@@ -188,6 +196,28 @@ def verify_database(url: str) -> dict[str, object]:
             all(row[1:] == ("uap_owner", True, ["search_path=public, pg_catalog"]) for row in rows),
             "formal 0037 deferred security contract mismatch",
         )
+        digest_column = admin.execute(
+            "SELECT attnotnull,format_type(atttypid,atttypmod) FROM pg_attribute "
+            "WHERE attrelid='audit.publication_rebuild_runs'::regclass "
+            "AND attname='digest_version' AND NOT attisdropped"
+        ).fetchone()
+        require(digest_column == (True, "smallint"), "digest version column contract mismatch")
+        for signature in DIGEST_V2_HELPERS:
+            helper = admin.execute(
+                "SELECT pg_get_userbyid(p.proowner),EXISTS (SELECT 1 FROM "
+                "aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a "
+                "WHERE a.grantee=0 AND a.privilege_type='EXECUTE'),"
+                "EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname=ANY(%s) "
+                "AND has_function_privilege(r.rolname,p.oid,'EXECUTE')) "
+                "FROM pg_proc p WHERE p.oid=%s::regprocedure",
+                (["uap_migrator", *DENIED_REBUILD_ROLES], signature),
+            ).fetchone()
+            require(helper == ("uap_owner", False, False), "digest helper ACL contract mismatch")
+        versions = admin.execute(
+            "SELECT digest_version,count(*) FROM audit.publication_rebuild_runs "
+            "GROUP BY digest_version ORDER BY digest_version"
+        ).fetchall()
+        require(all(row[0] in (1, 2) for row in versions), "unknown rebuild digest version")
         privileges = privilege_snapshot(admin)
         require(not any(privileges.values()), "migrator has public projection privileges")
         return {
@@ -196,6 +226,9 @@ def verify_database(url: str) -> dict[str, object]:
             "privileges": privileges,
             "rebuild_function": rebuild_function,
             "denied_rebuild_roles": DENIED_REBUILD_ROLES,
+            "digest_version_column": digest_column,
+            "digest_version_counts": versions,
+            "private_digest_helpers": DIGEST_V2_HELPERS,
         }
 
 

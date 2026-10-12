@@ -26,10 +26,14 @@ def test_migrator_connection_uses_distinct_role_password(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(psycopg, "connect", connect)
     assert probe.connect_migrator("postgresql+psycopg://admin:admin-password@db/test") is connection
-    assert observed == [{
-        "user": "uap_migrator", "password": "migrator-only-password",
-        "dbname": "test", "host": "db",
-    }]
+    assert observed == [
+        {
+            "user": "uap_migrator",
+            "password": "migrator-only-password",
+            "dbname": "test",
+            "host": "db",
+        }
+    ]
 
 
 def test_migrator_connection_fails_closed_without_own_password(
@@ -59,11 +63,20 @@ def test_public_api_receives_explicit_distinct_role_credentials(
     monkeypatch.setattr(wp10_4_runtime_probe, "run", run)
     url = "postgresql+psycopg://admin:admin-password@db/test"
     probe.run_public_api(url)
-    assert observed == [url,
-        {"user": "uap_publisher", "password": "publisher-only-password",
-         "dbname": "test", "host": "db"},
-        {"user": "uap_public_reader", "password": "different-reader-password",
-         "dbname": "test", "host": "db"},
+    assert observed == [
+        url,
+        {
+            "user": "uap_publisher",
+            "password": "publisher-only-password",
+            "dbname": "test",
+            "host": "db",
+        },
+        {
+            "user": "uap_public_reader",
+            "password": "different-reader-password",
+            "dbname": "test",
+            "host": "db",
+        },
     ]
 
 
@@ -71,7 +84,7 @@ def test_current_head_requires_exact_formal_successor(monkeypatch: pytest.Monkey
     scripts = MagicMock()
     monkeypatch.setattr(ScriptDirectory, "from_config", lambda _: scripts)
     scripts.get_current_head.return_value = probe.REQUIRED_HEAD
-    assert probe.current_head() == "0038_v133_full_rebuild_compaction"
+    assert probe.current_head() == "0039_v133_full_rebuild_bounded_digest"
     scripts.get_current_head.return_value = "0024_wp10_admin_replay"
     with pytest.raises(RuntimeError, match="unexpected current Alembic head"):
         probe.current_head()
@@ -231,3 +244,10 @@ def test_cli_reports_independent_head_result(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(probe, "run", run)
     probe.main()
     assert calls == [("admin-url", Path("head.json"))]
+
+
+def test_current_head_digest_contract_is_versioned_and_helpers_are_private() -> None:
+    assert probe.REQUIRED_HEAD == "0039_v133_full_rebuild_bounded_digest"
+    assert len(probe.DIGEST_V2_HELPERS) == 6
+    assert sum("legacy_v1" in item for item in probe.DIGEST_V2_HELPERS) == 2
+    assert "ops._v133_rebuild_digest_v2(text,text)" in probe.DIGEST_V2_HELPERS

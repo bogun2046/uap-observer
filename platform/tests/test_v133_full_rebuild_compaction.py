@@ -180,7 +180,7 @@ def test_0038_is_not_added_to_the_frozen_23_step_or_0019_0024_topology() -> None
 
 def test_hardened_head_runtime_requires_0038_and_tracks_full_projection_surface() -> None:
     probe = (PLATFORM / "tools/hardened_head_runtime_probe.py").read_text()
-    assert 'REQUIRED_HEAD = "0038_v133_full_rebuild_compaction"' in probe
+    assert 'REQUIRED_HEAD = "0039_v133_full_rebuild_bounded_digest"' in probe
     assert "hardened-head-runtime-evidence.v1" in probe
     assert 'for table in ("documents", "search_documents")' in probe
     assert "PUBLIC_PROJECTION_TABLES" in probe
@@ -190,7 +190,7 @@ def test_validator_declares_0038_as_the_current_linear_head() -> None:
     checks = validate_wp10.evaluate(PLATFORM, git_paths=[])
     failures = [item for item in checks if not item.passed]
     assert failures == []
-    chain = next(item for item in checks if item.name == "0001-0038 v1.3.3 migration chain")
+    chain = next(item for item in checks if item.name == "0001-0039 v1.3.3 migration chain")
     assert chain.passed
     assert "0038_v133_full_rebuild_compaction" in str(chain.actual)
 
